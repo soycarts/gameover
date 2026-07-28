@@ -1,0 +1,10 @@
+.env
+.env.*
+.venv/
+frames/
+backend/
+CLAUDE.md
+.claude/
+.DS_Store
+__pycache__/
+*.pyc

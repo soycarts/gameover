@@ -1,0 +1,559 @@
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>GAMEOVER</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
+
+<style>
+/* ===================================================================
+   THEME — everything a restyler needs is in this block.
+   Change colours / fonts / sizes here, not in the rules below.
+   =================================================================== */
+:root {
+  /* palette */
+  --bg:            #05060a;
+  --ink:           #f2f5ff;
+  --ink-dim:       #8a93b2;
+  --accent:        #ffd23f;   /* arcade gold: titles, VS, stamps */
+  --accent-2:      #ff2e63;   /* danger / KO red */
+  --left-color:    #29d3ff;   /* player 1 bar */
+  --right-color:   #ff7b29;   /* player 2 bar */
+  --hp-warn:       #ffd23f;   /* bar colour under --warn-at */
+  --hp-crit:       #ff2e63;   /* bar colour under --crit-at */
+  --ghost:         #ffffff55; /* trailing damage bar */
+  --panel:         #0b0e18e6;
+  --panel-edge:    #ffffff22;
+  --comment-bg:    #10152acc;
+
+  /* type */
+  --font-pixel:    'Press Start 2P', 'Courier New', monospace;
+  --font-ui:       'Press Start 2P', 'Courier New', monospace;
+  --fs-title:      clamp(28px, 7vw, 76px);
+  --fs-name:       clamp(9px, 1.5vw, 16px);
+  --fs-caption:    clamp(10px, 1.8vw, 20px);
+  --fs-comment:    clamp(8px, 1.1vw, 12px);
+  --fs-stamp:      clamp(48px, 16vw, 190px);
+
+  /* layout */
+  --bar-w:         clamp(180px, 34vw, 520px);
+  --bar-h:         clamp(14px, 2.4vw, 30px);
+  --hud-pad:       clamp(12px, 2.4vw, 34px);
+  --radius:        3px;
+
+  /* motion */
+  --tween:         400ms;      /* health bar tween (spec) */
+  --ghost-tween:   900ms;
+  --shake-time:    420ms;
+}
+
+* { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; background: var(--bg); color: var(--ink);
+  font-family: var(--font-ui); overflow: hidden; }
+
+/* ---------- stage ---------- */
+#stage { position: fixed; inset: 0; }
+#video, #placeholder { position: absolute; inset: 0; width: 100%; height: 100%; }
+#video { object-fit: cover; background: #000; }
+#placeholder { display: none; background:
+  radial-gradient(ellipse at 50% 40%, #1b2340 0%, #05060a 70%),
+  repeating-linear-gradient(90deg, #ffffff08 0 2px, transparent 2px 46px); }
+#placeholder.on { display: block; }
+#placeholder::after { content: 'DEMO ARENA — no clip loaded'; position: absolute;
+  left: 0; right: 0; top: 52%; text-align: center; color: var(--ink-dim);
+  font-size: var(--fs-comment); letter-spacing: 2px; }
+
+/* shake on big damage */
+@keyframes shake {
+  0%,100% { transform: translate(0,0) }
+  20% { transform: translate(-12px, 7px) rotate(-.5deg) }
+  40% { transform: translate(11px, -8px) rotate(.5deg) }
+  60% { transform: translate(-8px, -5px) }
+  80% { transform: translate(7px, 6px) }
+}
+#stage.shake { animation: shake var(--shake-time) linear; }
+
+/* ---------- HUD ---------- */
+#hud { position: absolute; inset: 0; pointer-events: none; opacity: 0;
+  transition: opacity 500ms; }
+#hud.on { opacity: 1; }
+
+.bars { position: absolute; top: var(--hud-pad); left: var(--hud-pad);
+  right: var(--hud-pad); display: flex; justify-content: space-between;
+  align-items: flex-start; gap: 16px; }
+.side { display: flex; flex-direction: column; gap: 8px; width: var(--bar-w); }
+.side.right { align-items: flex-end; }
+
+.name { font-family: var(--font-pixel); font-size: var(--fs-name);
+  letter-spacing: 1px; text-shadow: 2px 2px 0 #000; }
+.side.left  .name { color: var(--left-color); }
+.side.right .name { color: var(--right-color); }
+
+.track { position: relative; width: 100%; height: var(--bar-h);
+  background: #000a; border: 2px solid var(--panel-edge); border-radius: var(--radius);
+  overflow: hidden; }
+.ghost, .fill { position: absolute; top: 0; bottom: 0; width: 100%; }
+.ghost { background: var(--ghost); transition: width var(--ghost-tween) ease-out 220ms; }
+.fill  { transition: width var(--tween) cubic-bezier(.2,.8,.2,1), background 300ms; }
+.side.left  .track .ghost, .side.left  .track .fill { left: 0; transform-origin: left; }
+.side.right .track .ghost, .side.right .track .fill { right: 0; }
+.side.left  .fill { background: var(--left-color); }
+.side.right .fill { background: var(--right-color); }
+.fill.warn { background: var(--hp-warn) !important; }
+.fill.crit { background: var(--hp-crit) !important; animation: pulse 600ms infinite; }
+@keyframes pulse { 0%,100% { opacity: 1 } 50% { opacity: .45 } }
+
+.hpnum { font-size: var(--fs-comment); color: var(--ink-dim); }
+
+/* fan comment — slides in under the damaged bot's bar */
+.comment { max-width: 100%; background: var(--comment-bg);
+  border-left: 3px solid var(--accent); padding: 8px 10px;
+  font-size: var(--fs-comment); line-height: 1.6; opacity: 0;
+  transform: translateY(-10px); transition: opacity 260ms, transform 260ms; }
+.side.right .comment { border-left: 0; border-right: 3px solid var(--accent);
+  text-align: right; }
+.comment.on { opacity: 1; transform: translateY(0); }
+.comment .src { display: block; margin-top: 6px; color: var(--ink-dim);
+  font-size: .82em; }
+
+/* caption */
+#caption { position: absolute; left: 50%; bottom: calc(var(--hud-pad) + 10px);
+  transform: translateX(-50%); max-width: 80vw; text-align: center;
+  font-family: var(--font-pixel); font-size: var(--fs-caption);
+  line-height: 1.7; text-shadow: 3px 3px 0 #000, 0 0 18px #000; }
+#caption::after { content: '_'; opacity: .8; animation: blink 700ms steps(1) infinite; }
+#caption.done::after { content: ''; }
+
+/* hit counter + massive damage */
+#hits { position: absolute; left: 50%; top: calc(var(--hud-pad) + var(--bar-h) + 46px);
+  transform: translateX(-50%); font-size: var(--fs-comment); color: var(--accent);
+  text-shadow: 2px 2px 0 #000; }
+#muted { position: absolute; right: var(--hud-pad); bottom: var(--hud-pad);
+  font-size: var(--fs-comment); color: var(--ink-dim); display: none;
+  pointer-events: auto; cursor: pointer; }
+#muted.on { display: block; }
+#massive { position: absolute; left: 50%; top: 44%; transform: translate(-50%,-50%) scale(.6);
+  font-family: var(--font-pixel); font-size: clamp(18px, 4.4vw, 54px);
+  color: var(--accent-2); text-shadow: 4px 4px 0 #000; opacity: 0; }
+#massive.on { animation: massive 900ms ease-out; }
+@keyframes massive {
+  0% { opacity: 0; transform: translate(-50%,-50%) scale(.4) }
+  18% { opacity: 1; transform: translate(-50%,-50%) scale(1.15) }
+  70% { opacity: 1; transform: translate(-50%,-50%) scale(1) }
+  100% { opacity: 0; transform: translate(-50%,-50%) scale(1) }
+}
+
+/* ---------- screens (title / KO / game over) ---------- */
+.screen { position: absolute; inset: 0; display: none; flex-direction: column;
+  align-items: center; justify-content: center; gap: 26px; text-align: center;
+  background: #05060aee; z-index: 5; }
+.screen.on { display: flex; }
+#title h1 { font-family: var(--font-pixel); font-size: var(--fs-title); margin: 0;
+  color: var(--accent); text-shadow: 6px 6px 0 var(--accent-2); letter-spacing: 4px; }
+#title .sub { color: var(--ink-dim); font-size: var(--fs-comment); letter-spacing: 3px; }
+#coin { font-family: var(--font-pixel); font-size: var(--fs-name); color: var(--ink);
+  animation: blink 900ms steps(1) infinite; }
+@keyframes blink { 0%,49% { opacity: 1 } 50%,100% { opacity: 0 } }
+
+.vs { display: flex; align-items: center; gap: clamp(14px, 4vw, 48px);
+  border: 3px solid var(--panel-edge); background: var(--panel);
+  padding: clamp(12px, 2.4vw, 26px) clamp(16px, 4vw, 44px); }
+.vs .bot { font-family: var(--font-pixel); font-size: var(--fs-name); max-width: 30vw; }
+.vs .bot.l { color: var(--left-color); }
+.vs .bot.r { color: var(--right-color); }
+.vs .mid { font-family: var(--font-pixel); font-size: clamp(18px,3.4vw,40px);
+  color: var(--accent); text-shadow: 3px 3px 0 var(--accent-2); }
+
+/* era B url box */
+#erab { pointer-events: auto; display: flex; flex-direction: column; gap: 10px;
+  align-items: center; }
+#erab input { font-family: var(--font-ui); font-size: 12px; padding: 10px 12px;
+  width: min(70vw, 520px); background: #000; color: var(--ink);
+  border: 2px solid var(--panel-edge); }
+#cmd { font-size: var(--fs-comment); color: var(--accent); background: #000;
+  border: 2px dashed var(--panel-edge); padding: 10px; display: none;
+  width: min(70vw, 520px); word-break: break-all; line-height: 1.7;
+  user-select: all; }
+
+/* KO / GAME OVER */
+#flash { position: absolute; inset: 0; background: #fff; opacity: 0;
+  pointer-events: none; z-index: 6; }
+#flash.on { animation: flash 620ms ease-out; }
+@keyframes flash { 0% { opacity: .95 } 100% { opacity: 0 } }
+#ko { position: absolute; inset: 0; display: none; align-items: center;
+  justify-content: center; z-index: 7; }
+#ko.on { display: flex; }
+#ko span { font-family: var(--font-pixel); font-size: var(--fs-stamp);
+  color: var(--accent-2); text-shadow: 8px 8px 0 #000, 0 0 40px var(--accent-2);
+  animation: stamp 420ms cubic-bezier(.2,1.6,.4,1); }
+@keyframes stamp { 0% { transform: scale(3.4); opacity: 0 } 100% { transform: scale(1); opacity: 1 } }
+
+#over h2 { font-family: var(--font-pixel); font-size: clamp(22px,6vw,64px);
+  color: var(--accent-2); margin: 0; text-shadow: 5px 5px 0 #000; }
+#over .winner { font-family: var(--font-pixel); font-size: var(--fs-name);
+  color: var(--accent); }
+#stats { border: 3px solid var(--panel-edge); background: var(--panel);
+  padding: 18px 24px; font-size: var(--fs-comment); line-height: 2.1;
+  text-align: left; min-width: min(78vw, 420px); }
+#stats b { color: var(--accent); }
+.hint { color: var(--ink-dim); font-size: var(--fs-comment); letter-spacing: 1px; }
+
+/* CRT filter (toggle "c") */
+#crt { position: absolute; inset: 0; pointer-events: none; z-index: 8; display: none;
+  background: repeating-linear-gradient(0deg, #0000 0 2px, #00000059 2px 4px);
+  box-shadow: inset 0 0 180px #000c; }
+#crt.on { display: block; }
+
+/* rainbow easter egg ("g") */
+body.rainbow .fill { background: linear-gradient(90deg,#ff2e63,#ffd23f,#3fff8a,#29d3ff,#c93fff) !important;
+  background-size: 400% 100%; animation: rb 1.4s linear infinite; }
+@keyframes rb { to { background-position: 400% 0 } }
+</style>
+
+<div id="stage">
+  <video id="video" playsinline></video>
+  <div id="placeholder"></div>
+
+  <div id="hud">
+    <div class="bars">
+      <div class="side left">
+        <div class="name" id="nameL">—</div>
+        <div class="track"><div class="ghost" id="ghostL"></div><div class="fill" id="fillL"></div></div>
+        <div class="hpnum" id="hpL">100</div>
+        <div class="comment" id="cmtL"></div>
+      </div>
+      <div class="side right">
+        <div class="name" id="nameR">—</div>
+        <div class="track"><div class="ghost" id="ghostR"></div><div class="fill" id="fillR"></div></div>
+        <div class="hpnum" id="hpR">100</div>
+        <div class="comment" id="cmtR"></div>
+      </div>
+    </div>
+    <div id="hits"></div>
+    <div id="muted">🔇 MUTED BY BROWSER — CLICK TO UNMUTE</div>
+    <div id="massive">MASSIVE DAMAGE</div>
+    <div id="caption"></div>
+  </div>
+
+  <div id="flash"></div>
+  <div id="ko"><span>K.O.</span></div>
+
+  <div class="screen on" id="title">
+    <h1>GAMEOVER</h1>
+    <div class="sub">ROBOT COMBAT / VISION-JUDGED</div>
+    <div class="vs">
+      <div class="bot l" id="vsL">BOT A</div>
+      <div class="mid">VS</div>
+      <div class="bot r" id="vsR">BOT B</div>
+    </div>
+    <div id="coin">INSERT COIN — PRESS ANY KEY</div>
+    <div id="erab">
+      <input id="url" placeholder="paste a YouTube fight URL (era B)" autocomplete="off">
+      <div id="cmd"></div>
+    </div>
+  </div>
+
+  <div class="screen" id="over">
+    <h2>GAME OVER</h2>
+    <div class="winner" id="winner"></div>
+    <div id="stats"></div>
+    <div class="hint">R — REPLAY &nbsp;·&nbsp; C — CRT</div>
+  </div>
+
+  <div id="crt"></div>
+</div>
+
+<script>
+'use strict';
+const $ = id => document.getElementById(id);
+const qs = new URLSearchParams(location.search);
+const CLIP = qs.get('clip') || 'synthfight';
+const DEMO = qs.get('demo') === '1';
+
+const SHAKE_AT = 15, MASSIVE_AT = 20;
+
+let timeline = null, events = [], sources = {},   // comment text -> source label
+    applied = -1, started = false, koDone = false,
+    virtualClock = false, vStart = 0, useVideo = true, duration = 60,
+    hits = 0, audio = null;
+
+/* ---------------- data ---------------- */
+async function loadJSON(url) {
+  const r = await fetch(url, {cache: 'no-store'});
+  if (!r.ok) throw new Error(url + ' -> ' + r.status);
+  return r.json();
+}
+
+async function boot() {
+  const tlUrl = DEMO ? '../demo/fight1.json' : `../timelines/${CLIP}.json`;
+  try {
+    timeline = await loadJSON(tlUrl);
+  } catch (e) {
+    $('title').innerHTML = `<h1>NO TIMELINE</h1><div class="sub">${tlUrl}</div>
+      <div class="hint">run: python backend/analyze.py ${CLIP}.mp4</div>`;
+    return;
+  }
+  events = (timeline.events || []).slice().sort((a, b) => a.t - b.t);
+  duration = (events.length ? events[events.length - 1].t : 30) + 4;
+
+  // source labels for fan comments (contract keeps only the text)
+  try {
+    const cs = await loadJSON(`../comments/${DEMO ? 'fight1' : CLIP}.json`);
+    cs.forEach(c => { sources[norm(c.text)] = c.source; });
+  } catch (e) { /* optional */ }
+
+  $('nameL').textContent = $('vsL').textContent = timeline.bots?.left  || 'BOT A';
+  $('nameR').textContent = $('vsR').textContent = timeline.bots?.right || 'BOT B';
+
+  const src = `../clips/${timeline.clip || CLIP + '.mp4'}`;
+  const v = $('video');
+  v.addEventListener('error', fallbackClock);
+  v.addEventListener('loadedmetadata', () => { duration = v.duration || duration; });
+  v.src = src;
+  render(events[0] || {left_hp: 100, right_hp: 100});
+}
+
+const norm = s => (s || '').toLowerCase().replace(/[^a-z0-9 ]/g, '').trim();
+function fallbackClock() {
+  useVideo = false;
+  $('placeholder').classList.add('on');
+  if (started && !virtualClock) { virtualClock = true; vStart = performance.now(); }
+}
+
+/* Autoplay policies can leave the video paused WITHOUT rejecting play(), which
+   would freeze the whole HUD at t=0. Watch the clock; retry muted, then give up
+   to the virtual clock so the fight always runs. */
+function watchdog() {
+  const v = $('video'), t0 = v.currentTime;
+  const stalled = () => $('video').currentTime <= t0 + 0.05;
+  setTimeout(() => {
+    if (!started || !useVideo || !stalled()) return;
+    v.muted = true;
+    $('muted').classList.add('on');
+    v.play().catch(() => {});
+    setTimeout(() => { if (started && useVideo && stalled()) fallbackClock(); }, 900);
+  }, 1200);
+}
+
+/* ---------------- engine ---------------- */
+function now() {
+  if (useVideo) return $('video').currentTime;
+  return virtualClock ? (performance.now() - vStart) / 1000 : 0;
+}
+
+function indexAt(t) {
+  let i = -1;
+  for (let k = 0; k < events.length; k++) if (events[k].t <= t + 1e-6) i = k; else break;
+  return i;
+}
+
+function tick() {
+  requestAnimationFrame(tick);
+  if (!started || !events.length) return;
+  const t = now(), i = indexAt(t);
+
+  if (i < applied) {                    // scrubbed backwards — re-derive, fire nothing
+    applied = i; hits = 0; koDone = false;
+    $('ko').classList.remove('on'); $('over').classList.remove('on');
+    $('hits').textContent = ''; hideComments();
+    if (i >= 0) { render(events[i]); typeCaption(events[i].caption || ''); }
+    else { $('caption').textContent = ''; }
+  } else while (i > applied) {           // fire each crossed event exactly once
+    applied++;
+    fire(events[applied], applied > 0 ? events[applied - 1] : null);
+  }
+
+  if (!useVideo && t > duration && !koDone) finish();
+}
+
+function fire(ev, prev) {
+  render(ev);
+  const dl = prev ? prev.left_hp  - ev.left_hp  : 0;
+  const dr = prev ? prev.right_hp - ev.right_hp : 0;
+  const drop = Math.max(dl, dr);
+  const side = dl >= dr ? 'L' : 'R';
+
+  if (ev.caption) typeCaption(ev.caption);
+  if (ev.fan_comment) showComment(side, ev.fan_comment);
+
+  if (drop > 0) { hits++; $('hits').textContent = `HITS ${String(hits).padStart(2, '0')}`; }
+  if (drop >= SHAKE_AT) {
+    const st = $('stage');
+    st.classList.remove('shake'); void st.offsetWidth; st.classList.add('shake');
+    sfx('hit');
+  }
+  if (drop >= MASSIVE_AT) {
+    const m = $('massive');
+    m.classList.remove('on'); void m.offsetWidth; m.classList.add('on');
+  }
+  if (ev.ko) koSequence(ev.ko);
+}
+
+function render(ev) {
+  setBar('L', ev.left_hp ?? 100);
+  setBar('R', ev.right_hp ?? 100);
+}
+
+function setBar(side, hp) {
+  hp = Math.max(0, Math.min(100, hp | 0));
+  const fill = $('fill' + side), ghost = $('ghost' + side);
+  fill.style.width = hp + '%';
+  ghost.style.width = hp + '%';
+  $('hp' + side).textContent = hp;
+  fill.classList.toggle('warn', hp < 50 && hp >= 25);
+  fill.classList.toggle('crit', hp < 25);
+}
+
+/* typing caption */
+let typeTimer = null;
+function typeCaption(text) {
+  clearInterval(typeTimer);
+  const el = $('caption');
+  el.textContent = ''; el.classList.remove('done');
+  let i = 0;
+  typeTimer = setInterval(() => {
+    el.textContent = text.slice(0, ++i);
+    if (i >= text.length) { clearInterval(typeTimer); el.classList.add('done'); }
+  }, 34);
+}
+
+function hideComments() { ['L','R'].forEach(s => $('cmt' + s).classList.remove('on')); }
+function showComment(side, text) {
+  const el = $('cmt' + side);
+  const source = sources[norm(text)] || 'reddit';
+  const label = source === 'youtube' ? 'via YouTube comments' : 'via r/battlebots';
+  el.innerHTML = `“${escapeHTML(text)}”<span class="src">${label}</span>`;
+  el.classList.add('on');
+  clearTimeout(el._t);
+  el._t = setTimeout(() => el.classList.remove('on'), 6000);
+}
+const escapeHTML = s => s.replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+
+/* ---------------- KO / game over ---------------- */
+function koSequence(loser) {
+  if (koDone) return;
+  koDone = true;
+  const v = $('video');
+  if (useVideo) v.pause();
+  sfx('ko');
+  setTimeout(() => {                        // 1s freeze-frame, then stamp + flash
+    $('flash').classList.remove('on'); void $('flash').offsetWidth;
+    $('flash').classList.add('on');
+    $('ko').classList.add('on');
+    setTimeout(() => finish(loser), 1800);
+  }, 1000);
+}
+
+function finish(loser) {
+  const last = events[events.length - 1] || {left_hp: 100, right_hp: 100};
+  if (!loser) loser = last.left_hp === last.right_hp ? null
+                    : (last.left_hp < last.right_hp ? 'left' : 'right');
+  const names = {left: timeline.bots?.left || 'BOT A', right: timeline.bots?.right || 'BOT B'};
+  const winner = loser ? (loser === 'left' ? names.right : names.left) : 'DRAW';
+  $('winner').textContent = loser ? `WINNER: ${winner}` : 'DRAW';
+  $('stats').innerHTML = statsCard(names, last);
+  $('over').classList.add('on');
+  $('ko').classList.remove('on');
+  if (useVideo) $('video').pause();
+}
+
+function statsCard(names, last) {
+  let bigL = 0, bigR = 0, hitsL = 0, hitsR = 0;
+  for (let i = 1; i < events.length; i++) {
+    const dl = events[i - 1].left_hp - events[i].left_hp;
+    const dr = events[i - 1].right_hp - events[i].right_hp;
+    if (dl > 0) { hitsR++; bigL = Math.max(bigL, dl); }   // damage TO left = hit BY right
+    if (dr > 0) { hitsL++; bigR = Math.max(bigR, dr); }
+  }
+  const dur = events.length ? events[events.length - 1].t.toFixed(1) : '0.0';
+  return `
+    <div><b>FIGHT TIME</b> ${dur}s</div>
+    <div><b>${escapeHTML(names.left)}</b> — hp ${last.left_hp} · hits landed ${hitsL} · biggest ${bigR}</div>
+    <div><b>${escapeHTML(names.right)}</b> — hp ${last.right_hp} · hits landed ${hitsR} · biggest ${bigL}</div>
+    <div><b>TOTAL EVENTS</b> ${events.length}</div>`;
+}
+
+/* ---------------- audio (synthesized, no asset files needed) ---------------- */
+function ac() { return audio || (audio = new (window.AudioContext || window.webkitAudioContext)()); }
+function tone(freq, dur, type = 'square', gain = .18, slideTo = null) {
+  const c = ac(), o = c.createOscillator(), g = c.createGain();
+  o.type = type; o.frequency.setValueAtTime(freq, c.currentTime);
+  if (slideTo) o.frequency.exponentialRampToValueAtTime(slideTo, c.currentTime + dur);
+  g.gain.setValueAtTime(gain, c.currentTime);
+  g.gain.exponentialRampToValueAtTime(.0001, c.currentTime + dur);
+  o.connect(g).connect(c.destination); o.start(); o.stop(c.currentTime + dur);
+}
+function noise(dur = .25, gain = .3) {
+  const c = ac(), n = c.sampleRate * dur, b = c.createBuffer(1, n, c.sampleRate),
+        d = b.getChannelData(0);
+  for (let i = 0; i < n; i++) d[i] = (Math.random() * 2 - 1) * (1 - i / n);
+  const s = c.createBufferSource(), g = c.createGain(), f = c.createBiquadFilter();
+  f.type = 'lowpass'; f.frequency.value = 900;
+  g.gain.value = gain; s.buffer = b;
+  s.connect(f).connect(g).connect(c.destination); s.start();
+}
+function sfx(kind) {
+  try {
+    if (kind === 'fight') { tone(220, .12); setTimeout(() => tone(330, .12), 130);
+                            setTimeout(() => tone(660, .35, 'square', .2), 270); }
+    if (kind === 'hit')   { noise(.22, .32); tone(90, .18, 'sawtooth', .22, 40); }
+    if (kind === 'ko')    { tone(180, .9, 'sawtooth', .25, 55); noise(.5, .25); }
+    if (kind === 'coin')  { tone(988, .08); setTimeout(() => tone(1319, .22), 90); }
+  } catch (e) { /* audio blocked, fine */ }
+}
+
+/* ---------------- start / keys ---------------- */
+function start() {
+  if (started) return;
+  started = true;
+  sfx('coin');
+  $('title').classList.remove('on');
+  $('hud').classList.add('on');
+  applied = -1;
+  const v = $('video');
+  if (useVideo) {
+    v.play().catch(fallbackClock);
+    if (!v.currentSrc) fallbackClock();
+    watchdog();
+  }
+  if (!useVideo) { virtualClock = true; vStart = performance.now(); }
+  setTimeout(() => sfx('fight'), 250);
+  typeCaption('FIGHT!');
+}
+
+function replay() {
+  started = false; applied = -1; hits = 0; koDone = false;
+  $('over').classList.remove('on'); $('ko').classList.remove('on');
+  $('hits').textContent = ''; hideComments(); $('caption').textContent = '';
+  if (useVideo) $('video').currentTime = 0;
+  render(events[0] || {left_hp: 100, right_hp: 100});
+  start();
+}
+
+addEventListener('keydown', e => {
+  if (e.target.tagName === 'INPUT') return;
+  const k = e.key.toLowerCase();
+  if (k === 'c') { $('crt').classList.toggle('on'); return; }
+  if (k === 'g') { document.body.classList.toggle('rainbow'); return; }
+  if (k === 'r') { replay(); return; }
+  if (!started) start();
+});
+addEventListener('click', e => { if (e.target.tagName !== 'INPUT' && !started) start(); });
+
+$('muted').addEventListener('click', e => {
+  e.stopPropagation();
+  $('video').muted = false;
+  $('muted').classList.remove('on');
+});
+
+/* era B: show the ingest command, no backend server */
+$('url').addEventListener('input', e => {
+  const u = e.target.value.trim();
+  const box = $('cmd');
+  if (!u) { box.style.display = 'none'; return; }
+  box.style.display = 'block';
+  box.textContent = `python backend/ingest.py "${u}"`;
+});
+
+boot();
+requestAnimationFrame(tick);
+</script>
