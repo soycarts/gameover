@@ -1,0 +1,34 @@
+{
+  "clip": "manta-skorpios.mp4",
+  "bots": {
+    "left": "Manta",
+    "right": "Skorpios"
+  },
+  "events": [
+    {
+      "t": 0.0,
+      "left_hp": 100,
+      "right_hp": 100,
+      "caption": ""
+    },
+    {
+      "t": 8.0,
+      "left_hp": 96,
+      "right_hp": 100,
+      "caption": "small black debris on floor"
+    },
+    {
+      "t": 24.0,
+      "left_hp": 96,
+      "right_hp": 100,
+      "caption": "yellow debris on floor"
+    },
+    {
+      "t": 28.0,
+      "left_hp": 0,
+      "right_hp": 100,
+      "caption": "knockout announced",
+      "ko": "left"
+    }
+  ]
+}
