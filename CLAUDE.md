@@ -159,10 +159,14 @@ python3 backend/serve.py     # -> http://localhost:40911/frontend/index.html?cli
   `../timelines/` and `../comments/`. Serving `frontend/` alone breaks it.
 - **No `?clip=` defaults to `madcatter-tombstone`**, so a bare URL is a working share
   link that opens on a real fight. The title card carries a fight picker built from the
-  `FIGHTS` array in `index.html`; each button just navigates to `?clip=<slug>` and the
-  label is derived from the slug, so adding a clip is a one-line change. Any clip in
-  that array must be committed (see the `.gitignore` `!` exceptions) or the public site
-  will 404 it. `synthfight` is still reachable at `?clip=synthfight`.
+  `FIGHTS` array in `index.html`; each button just navigates to `?clip=<slug>`, so
+  adding a clip is a one-line change. Any clip in that array must be committed (see the
+  `.gitignore` `!` exceptions) or the public site will 404 it. `synthfight` is still
+  reachable at `?clip=synthfight`.
+- **A clip's slug is not its arena order.** `jackpot-copperhead` fights *Copperhead* on
+  the left. The picker therefore labels each button from that clip's `bots` and only
+  falls back to the slug if the timeline fetch fails — don't "simplify" it back to
+  splitting the filename.
   There is no `timelines/fight1.json` — `fight1` is a name used only by `demo/`.
 - **Picker buttons must `stopPropagation()`.** A window-level `click` listener starts
   the fight on any click, and `keydown` starts it on any key, so without that guard

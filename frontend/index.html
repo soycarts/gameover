@@ -272,7 +272,7 @@ html, body { margin: 0; height: 100%; background: var(--bg); color: var(--ink);
 #picker { pointer-events: auto; display: flex; flex-wrap: wrap; justify-content: center;
   gap: clamp(6px, 1.2vw, 14px); max-width: min(86vw, 760px); }
 #picker button { font-family: var(--font-pixel); font-size: var(--fs-comment);
-  letter-spacing: .08em; color: var(--ink-dim); background: #000;
+  letter-spacing: .08em; text-transform: uppercase; color: var(--ink-dim); background: #000;
   border: 2px solid var(--panel-edge); padding: 10px 14px; cursor: pointer;
   transition: color 120ms, border-color 120ms; }
 #picker button:hover { color: var(--ink); border-color: var(--steel); }
@@ -890,13 +890,16 @@ $('muted').addEventListener('click', e => {
   $('muted').classList.remove('on');
 });
 
-/* fight select — the slug is the only source of truth, the label is derived from
-   it, so adding a clip here is a one-line change and can't drift from the file. */
+/* fight select — FIGHTS is the only place a clip is named, so adding one is a
+   one-line change. Each button renders straight away from its slug, then relabels
+   from that clip's `bots` once the timeline lands. The slug alone won't do: it
+   carries no casing, and its order isn't the arena order — jackpot-copperhead
+   fights Copperhead on the left. */
 const FIGHTS = ['madcatter-tombstone', 'jackpot-copperhead', 'manta-skorpios'];
 
 FIGHTS.forEach(slug => {
   const b = document.createElement('button');
-  b.textContent = slug.split('-').join(' vs ').toUpperCase();
+  b.textContent = slug.split('-').join(' vs ');
   if (slug === CLIP) b.setAttribute('aria-current', 'true');
   // the window click handler starts the fight — keep picker clicks out of it
   b.addEventListener('click', e => {
@@ -904,6 +907,11 @@ FIGHTS.forEach(slug => {
     if (slug !== CLIP) location.search = '?clip=' + slug;
   });
   $('picker').appendChild(b);
+  loadJSON(`../timelines/${slug}.json`)
+    .then(t => {
+      if (t.bots?.left && t.bots?.right) b.textContent = `${t.bots.left} vs ${t.bots.right}`;
+    })
+    .catch(() => { /* keep the slug label */ });
 });
 
 /* era B: show the ingest command, no backend server */
