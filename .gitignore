@@ -6,7 +6,9 @@ clips/*
 !clips/manta-skorpios.mp4
 !clips/madcatter-tombstone.mp4
 frames/
-frames   # a worktree has no frames/; symlinking the main checkout's is handy
+# A worktree has no frames/, so symlinking the main checkout's is handy — and a
+# symlink is a file, which `frames/` does not match.
+frames
 .env
 __pycache__/
 *.pyc
