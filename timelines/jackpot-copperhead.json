@@ -13,204 +13,97 @@
     },
     {
       "t": 2.0,
-      "left_hp": 75,
-      "right_hp": 100,
-      "caption": "left flipped onto side",
-      "fan_comment": "My only disappointment is that one of Martin and Ray have to lose. I love them both."
+      "left_hp": 100,
+      "right_hp": 88,
+      "caption": "Jackpot flipped, part falls off"
     },
     {
       "t": 8.0,
-      "left_hp": 75,
-      "right_hp": 95,
-      "caption": "right tipped onto side"
-    },
-    {
-      "t": 28.0,
-      "left_hp": 75,
-      "right_hp": 90,
-      "caption": "right top armor bent up"
+      "left_hp": 100,
+      "right_hp": 88,
+      "caption": "minor side contact near wall"
     },
     {
       "t": 30.0,
-      "left_hp": 75,
-      "right_hp": 86,
-      "caption": "right bot flipped upright"
+      "left_hp": 88,
+      "right_hp": 88,
+      "caption": "Copperhead thrown upright"
     },
     {
-      "t": 32.0,
-      "left_hp": 72,
-      "right_hp": 86,
-      "caption": "left weapon assembly detached"
-    },
-    {
-      "t": 34.0,
-      "left_hp": 70,
-      "right_hp": 86,
-      "caption": "left weapon lies separated"
-    },
-    {
-      "t": 46.0,
-      "left_hp": 70,
-      "right_hp": 84,
-      "caption": "right slammed into wall"
+      "t": 42.0,
+      "left_hp": 88,
+      "right_hp": 66,
+      "caption": "Jackpot fork assembly torn off",
+      "fan_comment": "My only disappointment is that one of Martin and Ray have to lose. I love them both."
     },
     {
       "t": 52.0,
-      "left_hp": 70,
-      "right_hp": 72,
-      "caption": "right smoking, wheel detached"
-    },
-    {
-      "t": 54.0,
-      "left_hp": 70,
-      "right_hp": 70,
-      "caption": "right wheel visibly missing"
-    },
-    {
-      "t": 58.0,
-      "left_hp": 70,
-      "right_hp": 66,
-      "caption": "loose wheel and part debris"
+      "left_hp": 88,
+      "right_hp": 54,
+      "caption": "Jackpot starts smoking"
     },
     {
       "t": 60.0,
-      "left_hp": 70,
-      "right_hp": 62,
-      "caption": "right bot sparking under saw"
-    },
-    {
-      "t": 64.0,
-      "left_hp": 70,
-      "right_hp": 61,
-      "caption": "right side appears smoking"
+      "left_hp": 84,
+      "right_hp": 54,
+      "caption": "Copperhead briefly throws sparks"
     },
     {
       "t": 68.0,
-      "left_hp": 66,
-      "right_hp": 61,
-      "caption": "left front armour bent"
+      "left_hp": 84,
+      "right_hp": 54,
+      "caption": "Copperhead pops Jackpot upward"
     },
     {
       "t": 70.0,
-      "left_hp": 66,
+      "left_hp": 84,
       "right_hp": 54,
-      "caption": "right side panel detached"
-    },
-    {
-      "t": 72.0,
-      "left_hp": 66,
-      "right_hp": 52,
-      "caption": "right side panel bent upward"
-    },
-    {
-      "t": 74.0,
-      "left_hp": 60,
-      "right_hp": 52,
-      "caption": "left wheel pod detached"
+      "caption": "Jackpot side panel torn free"
     },
     {
       "t": 82.0,
-      "left_hp": 60,
-      "right_hp": 47,
-      "caption": "right red fork broken off"
-    },
-    {
-      "t": 84.0,
-      "left_hp": 55,
-      "right_hp": 47,
-      "caption": "left weapon blade separated"
-    },
-    {
-      "t": 86.0,
-      "left_hp": 55,
-      "right_hp": 45,
-      "caption": "red endcap lying loose"
-    },
-    {
-      "t": 88.0,
-      "left_hp": 50,
-      "right_hp": 45,
-      "caption": "white bot weapon detached"
-    },
-    {
-      "t": 94.0,
-      "left_hp": 50,
-      "right_hp": 43,
-      "caption": "right side debris visible"
-    },
-    {
-      "t": 110.0,
-      "left_hp": 50,
-      "right_hp": 40,
-      "caption": "white armour panel detached"
+      "left_hp": 84,
+      "right_hp": 54,
+      "caption": "Jackpot wheel lies loose"
     },
     {
       "t": 112.0,
-      "left_hp": 47,
-      "right_hp": 40,
-      "caption": "left wheel smoking at rail"
-    },
-    {
-      "t": 116.0,
-      "left_hp": 47,
-      "right_hp": 34,
-      "caption": "right flipped onto side"
-    },
-    {
-      "t": 118.0,
-      "left_hp": 46,
-      "right_hp": 34,
-      "caption": "left lifter arms bent"
+      "left_hp": 80,
+      "right_hp": 54,
+      "caption": "brief smoke at contact"
     },
     {
       "t": 122.0,
-      "left_hp": 43,
-      "right_hp": 34,
-      "caption": "smoke and debris from impact"
-    },
-    {
-      "t": 124.0,
-      "left_hp": 40,
-      "right_hp": 34,
-      "caption": "front panels bent upward"
-    },
-    {
-      "t": 128.0,
-      "left_hp": 36,
-      "right_hp": 34,
-      "caption": "left side wheel assembly exposed"
+      "left_hp": 76,
+      "right_hp": 54,
+      "caption": "brief smoke at wall contact"
     },
     {
       "t": 130.0,
-      "left_hp": 36,
-      "right_hp": 29,
-      "caption": "right front smoking at wall"
+      "left_hp": 72,
+      "right_hp": 54,
+      "caption": "brief smoke at wall"
     },
     {
       "t": 132.0,
-      "left_hp": 36,
-      "right_hp": 24,
-      "caption": "right bot on fire"
+      "left_hp": 72,
+      "right_hp": 32,
+      "caption": "Jackpot catches fire",
+      "fan_comment": "Blue square sweep"
     },
     {
       "t": 134.0,
-      "left_hp": 36,
-      "right_hp": 20,
-      "caption": "right fire intensifies"
-    },
-    {
-      "t": 138.0,
-      "left_hp": 36,
-      "right_hp": 18,
-      "caption": "right bot smoking"
+      "left_hp": 72,
+      "right_hp": 32,
+      "caption": "flames grow on Jackpot"
     },
     {
       "t": 140.0,
-      "left_hp": 36,
+      "left_hp": 72,
       "right_hp": 0,
-      "caption": "right team taps out",
+      "caption": "",
       "ko": "right",
-      "fan_comment": "You can move us to the confirmed applied list. Also, we're just \"Team Gruff\" now. Thanks!"
+      "fan_comment": "This should be a good one"
     }
   ]
 }
