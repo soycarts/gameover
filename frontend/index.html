@@ -25,7 +25,7 @@
   --core-edge:     #e4ebf3;   /* robot-head outline pixels */
   --panel:         #12151be6;
   --panel-edge:    #ffffff22;
-  --comment-bg:    #10152acc;
+  --comment-bg:    #0a0e1aee;   /* near-opaque: it overlays bright arena footage */
   --ko-panel:      #0a0204b8; /* KO stamp plate */
   --ko-glow:       #ff2d4d8c;
   --ko-ink-shadow: #b3260f;   /* hard pixel shadow under the stamp text */
@@ -48,6 +48,7 @@
   --fs-status:     clamp(7px, 1vw, 13px);
   --fs-caption:    clamp(10px, 1.8vw, 20px);
   --fs-comment:    clamp(8px, 1.1vw, 12px);
+  --fs-fan:        clamp(10px, 1.35vw, 16px);  /* fan comment — must read on video */
   --fs-stamp:      clamp(26px, 7vw, 92px);
 
   /* layout */
@@ -181,7 +182,11 @@ html, body { margin: 0; height: 100%; background: var(--bg); color: var(--ink);
 /* fan comment — order:-1 floats it ABOVE the bottom-anchored cores */
 .comment { order: -1; max-width: 100%; background: var(--comment-bg);
   border-left: 3px solid var(--accent); padding: 8px 10px; margin-top: 4px;
-  font-size: var(--fs-comment); line-height: 1.6; opacity: 0;
+  font-size: var(--fs-fan); line-height: 1.6; opacity: 0;
+  /* the panel sits over arena footage that can be white-hot (sparks, fire), so
+     it carries its own contrast rather than trusting the frame behind it */
+  color: var(--ink); text-shadow: 1px 1px 0 #000;
+  backdrop-filter: blur(3px);
   transform: translateY(10px); transition: opacity 260ms, transform 260ms; }
 .side.right .comment { border-left: 0; border-right: 3px solid var(--accent);
   text-align: right; }

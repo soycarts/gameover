@@ -40,7 +40,8 @@ MODEL = "claude-sonnet-5"
 OPENAI_MODEL = os.environ.get("OPENAI_MODEL", "gpt-5.5")
 BATCH = 3                    # frames per API call
 SECONDS_PER_FRAME = 2.0      # extract_frames.py runs at 0.5 fps
-BIG_DROP = 15                # hp drop that earns a fan comment (and a screen shake)
+BIG_DROP = 15                # screen shake, and the floor for a fallback comment
+COMMENT_DROP = 8             # a hit worth reacting to, if a comment actually matches
 MAX_CAPTION_WORDS = 6
 
 STOPWORDS = {
@@ -209,25 +210,44 @@ def thin(observations: list[dict]) -> list[dict]:
     return events
 
 
-def join_comments(events: list[dict], comments: list[dict]) -> None:
-    """Attach fan comments to big drops by keyword overlap. Each comment used once."""
+def join_comments(events: list[dict], comments: list[dict],
+                  bots: dict | None = None) -> None:
+    """Attach fan comments to damage moments. Each comment is used at most once.
+
+    Ranked, best first:
+      1. caption word overlap  — the comment is about this exact moment
+      2. the damaged bot's name appears in the comment
+      3. anything unused       — only on a genuinely big hit
+
+    Rule 3 exists because real scraped chatter is mostly post titles, which
+    rarely share a content word with a 6-word caption; matching alone left
+    whole fights with zero comments on screen. A generic crowd reaction under
+    a big hit still reads right, an empty HUD does not.
+    """
     used: set[int] = set()
+    bots = bots or {}
     for i, ev in enumerate(events):
         if i == 0:
             continue
-        drop = max(events[i - 1]["left_hp"] - ev["left_hp"],
-                   events[i - 1]["right_hp"] - ev["right_hp"])
-        if drop < BIG_DROP:
+        left_drop = events[i - 1]["left_hp"] - ev["left_hp"]
+        right_drop = events[i - 1]["right_hp"] - ev["right_hp"]
+        drop = max(left_drop, right_drop)
+        if drop < COMMENT_DROP:
             continue
-        cap = words(ev["caption"])
+        hurt = bots.get("left" if left_drop >= right_drop else "right", "")
+        cap, name = words(ev["caption"]), words(hurt)
+
         best, best_score = None, 0
         for j, c in enumerate(comments):
             if j in used:
                 continue
-            score = len(cap & words(c.get("text", "")))
+            ctext = words(c.get("text", ""))
+            score = 2 * len(cap & ctext) + (2 if name and name <= ctext else 0)
             if score > best_score:                 # ties keep the earlier comment
                 best, best_score = j, score
-        if best is not None and best_score >= 1:
+        if best is None and drop >= BIG_DROP:      # fall back to any unused one
+            best = next((j for j in range(len(comments)) if j not in used), None)
+        if best is not None:
             used.add(best)
             ev["fan_comment"] = comments[best]["text"]
 
@@ -298,20 +318,23 @@ def analyze(clip: str, backend: str = "api", bots: dict | None = None) -> Path:
             events = events[:i + 1]
             break
 
+    # A caller who already knows the card wins over the model's reading of the
+    # broadcast graphics; detection stays the default so era B still generalises
+    # to a URL nobody has looked at. Resolved here so the comment join can match
+    # on the real bot names.
+    card = bots or {"left": names["left"] or "Bot A",
+                    "right": names["right"] or "Bot B"}
+
     comments_file = ROOT / "comments" / f"{name}.json"
     comments = json.loads(comments_file.read_text()) if comments_file.exists() else []
     if comments:
-        join_comments(events, comments)
+        join_comments(events, comments, card)
     else:
         print(f"(no {comments_file.name} — skipping fan comments)")
 
     timeline = {
         "clip": f"{name}.mp4",
-        # A caller who already knows the card wins over the model's reading of
-        # the broadcast graphics; detection stays the default so era B still
-        # generalises to a URL nobody has looked at.
-        "bots": bots or {"left": names["left"] or "Bot A",
-                         "right": names["right"] or "Bot B"},
+        "bots": card,
         "events": events,
     }
     validate(timeline)

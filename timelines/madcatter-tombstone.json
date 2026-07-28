@@ -63,7 +63,8 @@
       "t": 32.0,
       "left_hp": 88,
       "right_hp": 72,
-      "caption": "flames engulf right wheel"
+      "caption": "flames engulf right wheel",
+      "fan_comment": "Tombstone and Perfect Phoenix won\u2019t be able to make it to filming this year due to recovering from his hand injury. Best wishes to him and hoping for a speedy recovery!"
     },
     {
       "t": 34.0,
@@ -75,19 +76,22 @@
       "t": 42.0,
       "left_hp": 88,
       "right_hp": 60,
-      "caption": "right rear on fire"
+      "caption": "right rear on fire",
+      "fan_comment": "Tombstone from Battlebots by Aoiluneart"
     },
     {
       "t": 44.0,
       "left_hp": 88,
       "right_hp": 52,
-      "caption": "right fire and smoke worsens"
+      "caption": "right fire and smoke worsens",
+      "fan_comment": "Found an old pic of myself holding one of tombstone's spinners back in like 2018."
     },
     {
       "t": 48.0,
       "left_hp": 70,
       "right_hp": 52,
-      "caption": "left side engulfed in flames"
+      "caption": "left side engulfed in flames",
+      "fan_comment": "The Prototype is NOT a prototype"
     },
     {
       "t": 50.0,
@@ -117,7 +121,8 @@
       "t": 60.0,
       "left_hp": 62,
       "right_hp": 28,
-      "caption": "right bot burning heavily"
+      "caption": "right bot burning heavily",
+      "fan_comment": "Tombstone AMA"
     },
     {
       "t": 62.0,
@@ -142,7 +147,8 @@
       "left_hp": 48,
       "right_hp": 0,
       "caption": "right bot engulfed in flames",
-      "ko": "right"
+      "ko": "right",
+      "fan_comment": "Tombstone from Battlebots gijinka by Aoi_Moon_knight"
     }
   ]
 }
