@@ -134,6 +134,10 @@ html, body { margin: 0; height: 100%; background: var(--bg); color: var(--ink);
    action still reads as deliberate pixel art rather than a blurry JPEG */
 .sigil.shot { image-rendering: pixelated; object-fit: cover;
   border: 2px solid currentColor; border-radius: 2px; }
+/* same sprite, VS-card size — the first thing a viewer sees */
+.vsart { width: clamp(72px, 13vw, 148px); height: auto; image-rendering: pixelated;
+  shape-rendering: crispEdges; filter: drop-shadow(2px 3px 0 #0009); }
+.vsart.shot { object-fit: cover; border: 3px solid currentColor; }
 
 /* ---------- pixel cores (health) ----------
    Five robot heads per bot, 20 hp each. The last one drains first, so damage
@@ -273,7 +277,8 @@ html, body { margin: 0; height: 100%; background: var(--bg); color: var(--ink);
 .vs { display: flex; align-items: center; gap: clamp(14px, 4vw, 48px);
   border: 3px solid var(--panel-edge); background: var(--panel);
   padding: clamp(12px, 2.4vw, 26px) clamp(16px, 4vw, 44px); }
-.vs .bot { font-family: var(--font-display); font-weight: 800;
+.vs .bot { display: flex; flex-direction: column; align-items: center; gap: .6em;
+  font-family: var(--font-display); font-weight: 800;
   font-size: var(--fs-name); letter-spacing: .06em; max-width: 30vw; }
 .vs .bot.l { color: var(--left-color); }
 .vs .bot.r { color: var(--right-color); }
@@ -594,6 +599,51 @@ async function boot() {
     manta: 'disc',
     jackpot: 'wedge',        // hybrid — left neutral rather than guessed
   };
+  /* ---- hand-drawn bot sprites ---------------------------------------------
+     One 16x12 character grid per bot, '.' = transparent. Edit a row and the
+     sprite changes; there is nothing to rebuild and no asset to ship. Palettes
+     use each machine's real livery so the portrait matches the arena.
+     A bot with no sprite here falls back to its weapon sigil, which is what
+     era B gets for a URL nobody has drawn. */
+  const ART = {
+    tombstone: { pal: { k:'#15171c', w:'#31353d', r:'#e0242e', s:'#aeb6c2' }, rows: [
+      '................', '................', '...kkkkkkkkkk...', '..kkkkkkkkkkkk..',
+      '.wkkkkkkkkkkkkw.', 'wwkkkkkksskkkkww', 'wwkkkkkksskkkkww', '.wkkkkkkkkkkkkw.',
+      '..kkkkkkkkkkkk..', 'rrrrrrrrrrrrrrrr', 'rrrrrrrrrrrrrrrr', '................'] },
+    madcatter: { pal: { p:'#6d3fb5', k:'#1b1a22', y:'#ffd23f', w:'#31353d' }, rows: [
+      '..p..........p..', '..pp........pp..', '...pppppppppp...', '..pppppppppppp..',
+      '.ppyyppppppyypp.', '.pppppppppppppp.', 'wwppppppppppppww', 'wwppppppppppppww',
+      '..pppppppppppp..', '...kkkkkkkkkk...', '....yyyyyyyy....', '................'] },
+    manta:      { pal: { b:'#1d5fd0', y:'#f2c018', k:'#14161b', w:'#31353d' }, rows: [
+      '................', '................', '....bbbbbbbb....', '..bbbbbbbbbbbb..',
+      '.bbbbbbbbbbbbbb.', 'wwbbbbbbbbbbbbww', 'wwbbbbbbbbbbbbww', '.bbbbbbbbbbbbbb.',
+      '..yyyyyyyyyyyy..', '..yyyyyyyyyyyy..', '...kkkkkkkkkk...', '................'] },
+    skorpios:   { pal: { k:'#23262c', s:'#c9ced6', b:'#2f9bd6', o:'#e07b28' }, rows: [
+      '..........ss....', '.........ss.....', '...kkkkkkss.....', '..kkkkkkkkss....',
+      '.kkkkkkkkkkkk...', 'bkkkkkkkkkkkkb..', 'bbkkkkkkkkkkbb..', '.kkkkkkkkkkkk...',
+      '..kkkkkkkkkk....', '..oooooooooo....', '................', '................'] },
+    copperhead: { pal: { c:'#b5651d', k:'#1a1c21', s:'#c9ced6', w:'#31353d' }, rows: [
+      '................', '................', '................', '.....cccccc.....',
+      '...cccccccccc...', '..cccccccccccc..', 'wwccccccccccccww', 'wwccccccccccccww',
+      '.kkkkkkkkkkkkkk.', 'ssssssssssssssss', '................', '................'] },
+    jackpot:    { pal: { r:'#d0202a', y:'#ffd23f', k:'#17191e', w:'#31353d' }, rows: [
+      '................', '................', '....rrrrrrrr....', '..rrrrrrrrrrrr..',
+      '.rryyrrrrrryyrr.', 'wwrrrrrrrrrrrrww', 'wwrrrrrrrrrrrrww', '.rrrrrrrrrrrrrr.',
+      '..rrrrrrrrrrrr..', '...kkkkkkkkkk...', '..yyyyyyyyyyyy..', '................'] },
+  };
+  const artFor = name => {
+    const k = (name || '').toLowerCase().replace(/[^a-z]/g, '');
+    return ART[k] || null;
+  };
+  const spriteSVG = (art, cls) => {
+    let px = '';
+    art.rows.forEach((row, y) => [...row].forEach((ch, x) => {
+      const col = art.pal[ch];
+      if (col) px += `<rect x="${x}" y="${y}" width="1" height="1" fill="${col}"/>`;
+    }));
+    return `<svg class="${cls}" viewBox="0 0 16 12" aria-hidden="true">${px}</svg>`;
+  };
+
   const SIGILS = {           // 16x16 pixel silhouettes, currentColor
     bar:   'M1 7h14v2H1z M0 6h2v4H0z M14 6h2v4h-2z M5 10h6v3H5z M4 13h8v2H4z',
     drum:  'M2 9h12v4H2z M1 13h14v2H1z M3 4h4v4H3z M2 3h6v2H2z',
@@ -610,23 +660,37 @@ async function boot() {
      machine on screen. bots/<clip>-<side>.png is produced by bot_shots.py from
      our own footage; drop a better image in at that path and it is picked up
      with no code change. Falls back to the weapon sigil when absent. */
+  /* Portrait cascade: hand-drawn sprite, else a crop of our own footage from
+     bot_shots.py, else the weapon sigil. Era B lands on the last two. */
   const setName = (id, name, side) => {
     const safe = name.replace(/[<&]/g, '');
     const el = $(id);
-    el.innerHTML = sigil(name) + `<span>${safe}</span>`;
-    if (DEMO) return;
+    const art = artFor(name);
+    el.innerHTML = (art ? spriteSVG(art, 'sigil') : sigil(name))
+                 + `<span>${safe}</span>`;
+    if (art || DEMO) return;
     const img = new Image();
     img.onload = () => {
       const svg = el.querySelector('.sigil');
-      if (svg) svg.outerHTML =
-        `<img class="sigil shot" src="${img.src}" alt="">`;
+      if (svg) svg.outerHTML = `<img class="sigil shot" src="${img.src}" alt="">`;
     };
     img.src = `../bots/${CLIP}-${side}.png`;   // 404 -> onload never fires
   };
 
+  /* The VS card is the first thing anyone sees, and it has room the bottom row
+     does not — so the same sprite runs large there. */
+  const setVs = (id, name, side) => {
+    const el = $(id);
+    const art = artFor(name);
+    const big = art ? spriteSVG(art, 'vsart')
+                    : `<img class="vsart shot" src="../bots/${CLIP}-${side}.png"
+                            alt="" onerror="this.remove()">`;
+    el.innerHTML = big + `<span>${name.replace(/[<&]/g, '')}</span>`;
+  };
+
   const nl = timeline.bots?.left || 'BOT A', nr = timeline.bots?.right || 'BOT B';
-  $('vsL').textContent = nl;
-  $('vsR').textContent = nr;
+  setVs('vsL', nl, 'left');
+  setVs('vsR', nr, 'right');
   setName('nameL', nl, 'left');
   setName('nameR', nr, 'right');
 
