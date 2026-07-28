@@ -1,5 +1,10 @@
 # Handover — hitmarkers, hit counting, breakdown panel
 
+> ⚠️ **Read this first: three branches are editing damage judging at once.** This
+> file was written before I noticed, and it is **not** merged with the `HANDOVER.md`
+> that now exists on `main`. Both are live; see "Branch collision" at the bottom.
+
+
 Branch `claude/hit-counter-visibility-ui-942ff0`, worktree
 `.claude/worktrees/public-repo-212b9d`. Code is committed as **b0fd604**. The only
 outstanding work is finishing the timeline re-judge (below).
@@ -106,3 +111,54 @@ crosshair and in **02 / BIGGEST HIT**.
   the core near 700. If you want it back down, the cheapest trims are the `.bd-tier`
   pixel chips (→ a plain `2 HEAVY · 5 SOLID` text line) and `#strikeby` (fold the
   weapon into `#massive`).
+
+## Branch collision — resolve before anything else
+
+Three branches forked from `419b423` and all three rewrite damage judging. Nothing
+here is merged.
+
+| branch | what it did | touches |
+|---|---|---|
+| `main` @ `1d6b1a9` | weapon sigils, bot sprites, captions that name the bot, "judge BOTH bots every frame" damage-balance fix, HTTP Range, **its own `HANDOVER.md`** | `analyze.py`, `prompt.txt`, `index.html`, all timelines |
+| this branch @ `74ea6fb` | the `hit` contract, one hit definition, hitmarkers, breakdown panel | `analyze.py`, `prompt.txt`, `index.html`, timelines |
+| `claude/vision-shake-detection-1b7ee7` @ `cf5f191` | *"Judge damage by severity word, not by nudging an hp number"* — a competing severity model, and it **removes** main's bot sprites | `analyze.py`, `prompt.txt`, `index.html`, timelines |
+
+**The third branch is the one to reconcile first.** It replaces hp-number judging with
+a severity ladder, which is the same problem my `TIERS` table solves — but mine
+derives tiers from hp deltas in the frontend while it moves severity into the model.
+Those two designs cannot both be right; pick one before merging either.
+
+**`prompt.txt` is the sharpest conflict.** Mine is based on the pre-`96aa2f9` version
+plus a `hit` block. Main's has since gained identity tracking, `left_look`/`right_look`,
+"judge BOTH bots every frame", non-competitor exclusion, and bot-named captions. A
+plain merge would silently drop those. The combined file needs main's rules **and** my
+`hit` rules.
+
+### Suggested order
+
+1. Decide between this branch's derived tiers and `vision-shake`'s model-judged
+   severity.
+2. Merge `main` into the winner. Hand-reconcile `prompt.txt` (union of rules),
+   `analyze.py` (main's `name_captions()` + my `normalize_hit()`/`validate()`
+   assertions — they don't overlap), and `index.html` (main's sprites + my
+   hitmarkers/breakdown; both edit `:root` and the bottom row).
+3. **Then** re-judge, once, with the merged prompt. Not before — see below.
+4. Re-join comments afterwards; main's `HANDOVER.md` §2 has the free re-join snippet
+   that skips the vision model.
+
+### What I stopped, and why
+
+My background re-judge of `madcatter-tombstone` and `jackpot-copperhead` was killed
+mid-run and the half-written `madcatter-tombstone.json` reverted to HEAD. It was
+judging against **my** `prompt.txt`, which predates main's identity tracking, named
+captions and non-competitor rules — so its output would have been a regression on
+those axes even though it carried `hit` data. Any re-judge should wait for the merged
+prompt. `manta-skorpios.json` (committed in `74ea6fb`) has the same caveat: it carries
+good `hit` attribution but was judged without main's improvements, so expect to redo
+it too.
+
+Also note main's `HANDOVER.md` §1 reports that `jackpot-copperhead` and
+`madcatter-tombstone` had the **winner stuck at 100 hp** for the whole fight, and that
+its prompt fix for that is still UNVERIFIED. That bug is independent of this work but
+would make the new breakdown panel look broken (one bot with zero damage taken), so
+it is worth confirming in the same re-judge.
