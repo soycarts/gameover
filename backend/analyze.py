@@ -75,19 +75,30 @@ def openai_client():
     return OpenAI(api_key=key)
 
 
-def identity_note(state: dict) -> str:
+def identity_note(state: dict, names: dict | None = None) -> str:
     """Re-state who is who. Repeated on every call because the model has no memory
-    between batches and the bots swap screen sides constantly."""
+    between batches and the bots swap screen sides constantly.
+
+    Naming the two competitors explicitly matters: left to itself the model reads
+    sponsor livery off the machines and captions them as bots ("Rapid Taxis
+    catches fire", which is a taxi firm's decal, not a competitor).
+    """
+    names = names or {}
+    head = ""
+    if names.get("left") and names.get("right"):
+        head = (f"The ONLY two competitors are {names['left']} (left) and "
+                f"{names['right']} (right). Use no other name in a caption — text on "
+                f"the robots is sponsor livery, not a bot.\n")
     bits = []
     for side in ("left", "right"):
         look = state.get(f"{side}_look")
         if look:
             bits.append(f"{side} = {look}")
     if not bits:
-        return ("Identify each bot by appearance, not screen position, and say so in "
-                "left_look / right_look.\n")
-    return ("Identities (fixed for the whole fight, they DO change screen sides): "
-            + "; ".join(bits) + ". Re-identify by appearance in every frame.\n")
+        return head + ("Identify each bot by appearance, not screen position, and say "
+                       "so in left_look / right_look.\n")
+    return head + ("Identities (fixed for the whole fight, they DO change screen sides): "
+                   + "; ".join(bits) + ". Re-identify by appearance in every frame.\n")
 
 
 def parse_json(text: str) -> dict:
@@ -100,7 +111,8 @@ def parse_json(text: str) -> dict:
     return json.loads(text[start:end + 1])
 
 
-def ask(api, prompt: str, frames: list[tuple[float, Path]], state: dict) -> dict:
+def ask(api, prompt: str, frames: list[tuple[float, Path]], state: dict,
+        names: dict | None = None) -> dict:
     content: list[dict] = []
     for t, path in frames:
         content.append({"type": "text", "text": f"Frame at t={t:.1f}s"})
@@ -110,7 +122,7 @@ def ask(api, prompt: str, frames: list[tuple[float, Path]], state: dict) -> dict
                        "data": base64.b64encode(path.read_bytes()).decode()},
         })
     content.append({"type": "text", "text":
-        identity_note(state) +
+        identity_note(state, names) +
         f"Running state — left_hp {state['left']}, right_hp {state['right']}. "
         f"hp may only stay the same or decrease. "
         f"Return one entry per frame above, at exactly these timestamps: "
@@ -132,7 +144,8 @@ def ask(api, prompt: str, frames: list[tuple[float, Path]], state: dict) -> dict
     return {"frames": []}
 
 
-def ask_openai(api, prompt: str, frames: list[tuple[float, Path]], state: dict) -> dict:
+def ask_openai(api, prompt: str, frames: list[tuple[float, Path]], state: dict,
+               names: dict | None = None) -> dict:
     """Same judging call against an OpenAI vision model. See --backend openai."""
     content: list[dict] = []
     for t, path in frames:
@@ -141,7 +154,7 @@ def ask_openai(api, prompt: str, frames: list[tuple[float, Path]], state: dict) 
         content.append({"type": "image_url",
                         "image_url": {"url": f"data:image/jpeg;base64,{data}"}})
     content.append({"type": "text", "text":
-        identity_note(state) +
+        identity_note(state, names) +
         f"Running state — left_hp {state['left']}, right_hp {state['right']}. "
         f"hp may only stay the same or decrease. "
         f"Return one entry per frame above, at exactly these timestamps: "
@@ -168,7 +181,8 @@ def ask_openai(api, prompt: str, frames: list[tuple[float, Path]], state: dict) 
     return {"frames": []}
 
 
-def ask_cli(prompt: str, frames: list[tuple[float, Path]], state: dict) -> dict:
+def ask_cli(prompt: str, frames: list[tuple[float, Path]], state: dict,
+            names: dict | None = None) -> dict:
     """Same judging call, but through `claude -p` so it bills your Claude
     subscription instead of an API key. Claude Code reads the frames with its
     Read tool. Slower and far heavier per call than the API (every call re-sends
@@ -178,7 +192,7 @@ def ask_cli(prompt: str, frames: list[tuple[float, Path]], state: dict) -> dict:
     ask_text = (
         f"{prompt}\n\n"
         f"Read these frame images in order:\n{listing}\n\n"
-        + identity_note(state) +
+        + identity_note(state, names) +
         f"Running state — left_hp {state['left']}, right_hp {state['right']}. "
         f"hp may only stay the same or decrease.\n"
         f"Return one entry per frame at exactly these timestamps: "
@@ -368,9 +382,9 @@ def analyze(clip: str, backend: str = "api", bots: dict | None = None) -> Path:
         batch = stamped[k:k + BATCH]
         print(f"judging t={batch[0][0]:.0f}s..{batch[-1][0]:.0f}s "
               f"({k // BATCH + 1}/{-(-len(stamped) // BATCH)})")
-        out = (ask_cli(prompt, batch, state) if backend == "cli"
-               else ask_openai(api, prompt, batch, state) if backend == "openai"
-               else ask(api, prompt, batch, state))
+        out = (ask_cli(prompt, batch, state, names) if backend == "cli"
+               else ask_openai(api, prompt, batch, state, names) if backend == "openai"
+               else ask(api, prompt, batch, state, names))
 
         for side in ("left", "right"):
             got = (out.get("bots") or {}).get(side)

@@ -12,139 +12,74 @@
       "caption": ""
     },
     {
-      "t": 8.0,
-      "left_hp": 98,
-      "right_hp": 100,
-      "caption": "MaDCaTTer small panel separated"
-    },
-    {
       "t": 16.0,
-      "left_hp": 95,
-      "right_hp": 100,
-      "caption": "MaDCaTTer side sparks from impact"
-    },
-    {
-      "t": 18.0,
-      "left_hp": 95,
-      "right_hp": 96,
-      "caption": "Tombstone showering sparks"
-    },
-    {
-      "t": 20.0,
-      "left_hp": 95,
-      "right_hp": 94,
-      "caption": "Tombstone weapon area sparking"
-    },
-    {
-      "t": 22.0,
-      "left_hp": 93,
-      "right_hp": 90,
-      "caption": "Both armour visibly scuffed"
+      "left_hp": 100,
+      "right_hp": 92,
+      "caption": "Tombstone wedge showering sparks"
     },
     {
       "t": 26.0,
-      "left_hp": 93,
-      "right_hp": 88,
-      "caption": "Tombstone flipped upward"
+      "left_hp": 100,
+      "right_hp": 89,
+      "caption": "Tombstone tipped upright, mobility impaired"
     },
     {
       "t": 28.0,
-      "left_hp": 88,
-      "right_hp": 87,
-      "caption": "MaDCaTTer top armour sparking"
-    },
-    {
-      "t": 30.0,
-      "left_hp": 88,
-      "right_hp": 82,
-      "caption": "Tombstone side ignites"
-    },
-    {
-      "t": 32.0,
-      "left_hp": 88,
-      "right_hp": 72,
-      "caption": "Flames engulf Tombstone wheel"
-    },
-    {
-      "t": 34.0,
-      "left_hp": 88,
-      "right_hp": 68,
-      "caption": "Fire streams from side"
-    },
-    {
-      "t": 42.0,
-      "left_hp": 88,
-      "right_hp": 60,
-      "caption": "Tombstone rear on fire"
-    },
-    {
-      "t": 44.0,
-      "left_hp": 88,
-      "right_hp": 52,
-      "caption": "Tombstone fire and smoke worsens"
+      "left_hp": 100,
+      "right_hp": 84,
+      "caption": "Tombstone wedge showering sparks"
     },
     {
       "t": 48.0,
-      "left_hp": 70,
-      "right_hp": 52,
-      "caption": "MaDCaTTer side engulfed in flames",
+      "left_hp": 100,
+      "right_hp": 62,
+      "caption": "Tombstone wheel area burning",
       "fan_comment": "And then there\u2019s gassy cat in the background"
     },
     {
-      "t": 50.0,
-      "left_hp": 62,
-      "right_hp": 52,
-      "caption": "Flames spread up MaDCaTTer side"
-    },
-    {
       "t": 54.0,
-      "left_hp": 62,
-      "right_hp": 47,
+      "left_hp": 100,
+      "right_hp": 50,
       "caption": "Tombstone side engulfed in flames"
     },
     {
       "t": 56.0,
-      "left_hp": 62,
-      "right_hp": 43,
-      "caption": "Fire spreads across top"
+      "left_hp": 100,
+      "right_hp": 48,
+      "caption": "Tombstone wheel still burning"
     },
     {
       "t": 58.0,
-      "left_hp": 62,
-      "right_hp": 38,
-      "caption": "Wheel engulfed in flames"
+      "left_hp": 100,
+      "right_hp": 45,
+      "caption": "Tombstone rear wheel on fire"
     },
     {
       "t": 60.0,
-      "left_hp": 62,
-      "right_hp": 28,
-      "caption": "Tombstone burning heavily"
+      "left_hp": 100,
+      "right_hp": 30,
+      "caption": "Tombstone on fire",
+      "fan_comment": "This match was such a massacre!! I haven\u2019t seen one that bad in a long time"
     },
     {
       "t": 62.0,
-      "left_hp": 62,
-      "right_hp": 22,
-      "caption": "Tombstone fire intensifies"
+      "left_hp": 100,
+      "right_hp": 25,
+      "caption": "Tombstone flames intensify"
     },
     {
       "t": 66.0,
-      "left_hp": 52,
-      "right_hp": 22,
-      "caption": "MaDCaTTer rear engulfed in flames"
-    },
-    {
-      "t": 70.0,
-      "left_hp": 48,
-      "right_hp": 22,
-      "caption": "Fire persists under MaDCaTTer rear"
+      "left_hp": 100,
+      "right_hp": 15,
+      "caption": "Tombstone engulfed in flames"
     },
     {
       "t": 74.0,
-      "left_hp": 48,
+      "left_hp": 100,
       "right_hp": 0,
-      "caption": "Tombstone engulfed in flames",
+      "caption": "Tombstone knocked out, burning",
       "ko": "right",
-      "fan_comment": "This match was such a massacre!! I haven\u2019t seen one that bad in a long time"
+      "fan_comment": "Let\u2019s just hope the upper deck falls into the Did Not Enter / Did Not Qualify / Dropped Out category"
     }
   ]
 }

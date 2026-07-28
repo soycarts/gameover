@@ -130,6 +130,10 @@ html, body { margin: 0; height: 100%; background: var(--bg); color: var(--ink);
    to the machine actually on screen. Inherits the side colour via currentColor. */
 .sigil { width: var(--sigil-size); height: var(--sigil-size); flex: 0 0 auto;
   shape-rendering: crispEdges; filter: drop-shadow(1px 1px 0 #000); }
+/* a cropped photo instead of a silhouette — kept chunky on purpose so a soft
+   action still reads as deliberate pixel art rather than a blurry JPEG */
+.sigil.shot { image-rendering: pixelated; object-fit: cover;
+  border: 2px solid currentColor; border-radius: 2px; }
 
 /* ---------- pixel cores (health) ----------
    Five robot heads per bot, 20 hp each. The last one drains first, so damage
@@ -602,15 +606,29 @@ async function boot() {
     return `<svg class="sigil" viewBox="0 0 16 16" aria-hidden="true">`
          + `<path fill="currentColor" d="${shape}"/></svg>`;
   };
-  const setName = (id, name) => {
-    $(id).innerHTML = sigil(name) + `<span>${name.replace(/[<&]/g, '')}</span>`;
+  /* A real photo of the bot beats a silhouette for matching the HUD to the
+     machine on screen. bots/<clip>-<side>.png is produced by bot_shots.py from
+     our own footage; drop a better image in at that path and it is picked up
+     with no code change. Falls back to the weapon sigil when absent. */
+  const setName = (id, name, side) => {
+    const safe = name.replace(/[<&]/g, '');
+    const el = $(id);
+    el.innerHTML = sigil(name) + `<span>${safe}</span>`;
+    if (DEMO) return;
+    const img = new Image();
+    img.onload = () => {
+      const svg = el.querySelector('.sigil');
+      if (svg) svg.outerHTML =
+        `<img class="sigil shot" src="${img.src}" alt="">`;
+    };
+    img.src = `../bots/${CLIP}-${side}.png`;   // 404 -> onload never fires
   };
 
   const nl = timeline.bots?.left || 'BOT A', nr = timeline.bots?.right || 'BOT B';
   $('vsL').textContent = nl;
   $('vsR').textContent = nr;
-  setName('nameL', nl);
-  setName('nameR', nr);
+  setName('nameL', nl, 'left');
+  setName('nameR', nr, 'right');
 
   const src = `../clips/${timeline.clip || CLIP + '.mp4'}`;
   const v = $('video');
