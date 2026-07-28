@@ -268,6 +268,17 @@ html, body { margin: 0; height: 100%; background: var(--bg); color: var(--ink);
 .vs .mid { font-family: var(--font-pixel); font-size: clamp(18px,3.4vw,40px);
   color: var(--accent); text-shadow: 3px 3px 0 var(--accent-2); }
 
+/* fight select — one button per clip, current fight highlighted */
+#picker { pointer-events: auto; display: flex; flex-wrap: wrap; justify-content: center;
+  gap: clamp(6px, 1.2vw, 14px); max-width: min(86vw, 760px); }
+#picker button { font-family: var(--font-pixel); font-size: var(--fs-comment);
+  letter-spacing: .08em; color: var(--ink-dim); background: #000;
+  border: 2px solid var(--panel-edge); padding: 10px 14px; cursor: pointer;
+  transition: color 120ms, border-color 120ms; }
+#picker button:hover { color: var(--ink); border-color: var(--steel); }
+#picker button[aria-current='true'] { color: var(--accent); border-color: var(--accent);
+  text-shadow: 2px 2px 0 var(--accent-2); cursor: default; }
+
 /* era B url box */
 #erab { pointer-events: auto; display: flex; flex-direction: column; gap: 10px;
   align-items: center; }
@@ -409,6 +420,7 @@ body.rainbow .core-fill { background: linear-gradient(90deg,#ff2e63,#ffd23f,#3ff
       <div class="bot r" id="vsR">BOT B</div>
     </div>
     <div id="coin">INSERT COIN — PRESS ANY KEY</div>
+    <div id="picker" aria-label="select fight"></div>
     <div id="erab">
       <input id="url" placeholder="paste a YouTube fight URL (era B)" autocomplete="off">
       <div id="cmd"></div>
@@ -429,7 +441,7 @@ body.rainbow .core-fill { background: linear-gradient(90deg,#ff2e63,#ffd23f,#3ff
 'use strict';
 const $ = id => document.getElementById(id);
 const qs = new URLSearchParams(location.search);
-const CLIP = qs.get('clip') || 'synthfight';
+const CLIP = qs.get('clip') || 'madcatter-tombstone';
 const DEMO = qs.get('demo') === '1';
 
 const SHAKE_AT = 15, MASSIVE_AT = 20;
@@ -862,7 +874,8 @@ function replay() {
 }
 
 addEventListener('keydown', e => {
-  if (e.target.tagName === 'INPUT') return;
+  // a focused picker button owns Enter/Space, or it would navigate AND start
+  if (e.target.tagName === 'INPUT' || e.target.tagName === 'BUTTON') return;
   const k = e.key.toLowerCase();
   if (k === 'c') { $('crt').classList.toggle('on'); return; }
   if (k === 'g') { document.body.classList.toggle('rainbow'); return; }
@@ -875,6 +888,22 @@ $('muted').addEventListener('click', e => {
   e.stopPropagation();
   $('video').muted = false;
   $('muted').classList.remove('on');
+});
+
+/* fight select — the slug is the only source of truth, the label is derived from
+   it, so adding a clip here is a one-line change and can't drift from the file. */
+const FIGHTS = ['madcatter-tombstone', 'jackpot-copperhead', 'manta-skorpios'];
+
+FIGHTS.forEach(slug => {
+  const b = document.createElement('button');
+  b.textContent = slug.split('-').join(' vs ').toUpperCase();
+  if (slug === CLIP) b.setAttribute('aria-current', 'true');
+  // the window click handler starts the fight — keep picker clicks out of it
+  b.addEventListener('click', e => {
+    e.stopPropagation();
+    if (slug !== CLIP) location.search = '?clip=' + slug;
+  });
+  $('picker').appendChild(b);
 });
 
 /* era B: show the ingest command, no backend server */

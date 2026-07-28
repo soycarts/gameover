@@ -108,9 +108,10 @@ in the browser. Three pieces make it work, and none of them should be "cleaned u
   readable plaintext to anyone who guessed the path. Note it **replaces** `.gitignore`
   for CLI uploads rather than adding to it, which is why `.env` is listed explicitly —
   being gitignored is not enough to keep a file out of a `vercel --prod` upload.
-- **`clips/synthfight.mp4` is the one clip committed to git** (`.gitignore` is
-  `clips/*` + a `!` exception). A git-connected build only sees committed files, so
-  any new clip you want on the public site needs its own exception.
+- **Clips are committed to git one by one** (`.gitignore` is `clips/*` plus a `!`
+  exception per clip — currently `synthfight` and the three real fights). A
+  git-connected build only sees committed files, so any new clip you want on the
+  public site needs its own exception.
 
 Pushing to `main` on the private GitHub repo auto-deploys. If a shared link ever
 returns **401**, it is Vercel Deployment Protection, not your code — turn it off under
@@ -156,8 +157,16 @@ python3 backend/serve.py     # -> http://localhost:40911/frontend/index.html?cli
   oscillate and the monotonic clamp flattens the timeline into noise.
 - **Serve from the repo root.** `index.html` reaches up to `../clips/`,
   `../timelines/` and `../comments/`. Serving `frontend/` alone breaks it.
-- **No `?clip=` defaults to `synthfight`**, so a bare URL is a working share link.
+- **No `?clip=` defaults to `madcatter-tombstone`**, so a bare URL is a working share
+  link that opens on a real fight. The title card carries a fight picker built from the
+  `FIGHTS` array in `index.html`; each button just navigates to `?clip=<slug>` and the
+  label is derived from the slug, so adding a clip is a one-line change. Any clip in
+  that array must be committed (see the `.gitignore` `!` exceptions) or the public site
+  will 404 it. `synthfight` is still reachable at `?clip=synthfight`.
   There is no `timelines/fight1.json` — `fight1` is a name used only by `demo/`.
+- **Picker buttons must `stopPropagation()`.** A window-level `click` listener starts
+  the fight on any click, and `keydown` starts it on any key, so without that guard
+  choosing a fight would also start the one already loaded.
 - **Frame N (1-indexed) is at t = (N-1) × 2.0s**, from the 0.5 fps extraction.
 - **All model output is untrusted.** Thinning, hp clamping, KO detection (first hp
   to hit 0) and the comment join all happen in Python so the same frames always
