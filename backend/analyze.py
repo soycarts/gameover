@@ -75,6 +75,21 @@ def openai_client():
     return OpenAI(api_key=key)
 
 
+def identity_note(state: dict) -> str:
+    """Re-state who is who. Repeated on every call because the model has no memory
+    between batches and the bots swap screen sides constantly."""
+    bits = []
+    for side in ("left", "right"):
+        look = state.get(f"{side}_look")
+        if look:
+            bits.append(f"{side} = {look}")
+    if not bits:
+        return ("Identify each bot by appearance, not screen position, and say so in "
+                "left_look / right_look.\n")
+    return ("Identities (fixed for the whole fight, they DO change screen sides): "
+            + "; ".join(bits) + ". Re-identify by appearance in every frame.\n")
+
+
 def parse_json(text: str) -> dict:
     """Strict-ish JSON out of a model reply (tolerates ``` fences)."""
     text = text.strip()
@@ -95,6 +110,7 @@ def ask(api, prompt: str, frames: list[tuple[float, Path]], state: dict) -> dict
                        "data": base64.b64encode(path.read_bytes()).decode()},
         })
     content.append({"type": "text", "text":
+        identity_note(state) +
         f"Running state — left_hp {state['left']}, right_hp {state['right']}. "
         f"hp may only stay the same or decrease. "
         f"Return one entry per frame above, at exactly these timestamps: "
@@ -125,6 +141,7 @@ def ask_openai(api, prompt: str, frames: list[tuple[float, Path]], state: dict) 
         content.append({"type": "image_url",
                         "image_url": {"url": f"data:image/jpeg;base64,{data}"}})
     content.append({"type": "text", "text":
+        identity_note(state) +
         f"Running state — left_hp {state['left']}, right_hp {state['right']}. "
         f"hp may only stay the same or decrease. "
         f"Return one entry per frame above, at exactly these timestamps: "
@@ -161,6 +178,7 @@ def ask_cli(prompt: str, frames: list[tuple[float, Path]], state: dict) -> dict:
     ask_text = (
         f"{prompt}\n\n"
         f"Read these frame images in order:\n{listing}\n\n"
+        + identity_note(state) +
         f"Running state — left_hp {state['left']}, right_hp {state['right']}. "
         f"hp may only stay the same or decrease.\n"
         f"Return one entry per frame at exactly these timestamps: "
@@ -193,6 +211,29 @@ def ask_cli(prompt: str, frames: list[tuple[float, Path]], state: dict) -> dict:
 def words(text: str) -> set[str]:
     return {w for w in re.sub(r"[^a-z0-9 ]", " ", (text or "").lower()).split()
             if w and w not in STOPWORDS and len(w) > 2}
+
+
+def name_captions(events: list[dict], card: dict) -> None:
+    """Rewrite "left"/"right" in captions into the actual bot names.
+
+    The model is reliable about WHICH side took damage (every caption agrees with
+    the hp that dropped) but writes "right rear on fire", which tells a viewer
+    nothing. Substituting here rather than trusting the prompt means existing
+    timelines get fixed without paying for a re-judge, and a model that ignores
+    the naming instruction still produces a named caption.
+    """
+    for side, other in (("left", "right"), ("right", "left")):
+        name = (card.get(side) or "").strip()
+        if not name or name.lower() in (f"bot a", "bot b", side, other):
+            continue
+        for ev in events:
+            cap = ev.get("caption") or ""
+            if not cap:
+                continue
+            # "left bot" / "the left bot" collapse to just the name
+            cap = re.sub(rf"\b(?:the\s+)?{side}\s+bot\b", name, cap, flags=re.I)
+            cap = re.sub(rf"\b(?:the\s+)?{side}\b", name, cap, flags=re.I)
+            ev["caption"] = trim_caption(cap[0].upper() + cap[1:] if cap else cap)
 
 
 def trim_caption(text: str) -> str:
@@ -313,8 +354,14 @@ def analyze(clip: str, backend: str = "api", bots: dict | None = None) -> Path:
                                     "api": f"({MODEL}, Anthropic API key)"}[backend])
 
     stamped = [((i) * SECONDS_PER_FRAME, p) for i, p in enumerate(paths)]
-    state = {"left": 100, "right": 100}
+    # `look` carries each bot's appearance between calls. The model is stateless
+    # per batch and the bots cross the arena constantly, so without this it
+    # re-derives "left"/"right" from screen position every few frames and the
+    # identities silently swap mid-fight.
+    state = {"left": 100, "right": 100, "left_look": "", "right_look": ""}
     names = {"left": None, "right": None}
+    if bots:                       # a caller who knows the card anchors identity
+        names.update({k: v for k, v in bots.items() if k in ("left", "right")})
     observations: list[dict] = []
 
     for k in range(0, len(stamped), BATCH):
@@ -329,6 +376,10 @@ def analyze(clip: str, backend: str = "api", bots: dict | None = None) -> Path:
             got = (out.get("bots") or {}).get(side)
             if got and not names[side]:
                 names[side] = str(got)[:24]
+            # first description wins — letting it drift per batch defeats the point
+            look = (out.get("bots") or {}).get(f"{side}_look")
+            if look and not state[f"{side}_look"]:
+                state[f"{side}_look"] = str(look)[:60]
 
         by_t = {round(float(f.get("t", -1)), 1): f for f in out.get("frames", [])}
         for t, _ in batch:
@@ -358,6 +409,8 @@ def analyze(clip: str, backend: str = "api", bots: dict | None = None) -> Path:
     # on the real bot names.
     card = bots or {"left": names["left"] or "Bot A",
                     "right": names["right"] or "Bot B"}
+
+    name_captions(events, card)          # "right rear on fire" -> "Tombstone rear on fire"
 
     comments_file = ROOT / "comments" / f"{name}.json"
     comments = json.loads(comments_file.read_text()) if comments_file.exists() else []
@@ -389,7 +442,18 @@ if __name__ == "__main__":
         del argv[i:i + 2]
     if backend not in ("api", "cli", "openai"):
         sys.exit("--backend must be 'api', 'cli' or 'openai'")
+    # Same flag as ingest.py: re-judging a clip directly would otherwise lose the
+    # card and fall back to "Bot A" / "Bot B".
+    bots = None
+    if "--bots" in argv:
+        i = argv.index("--bots")
+        pair = argv[i + 1] if i + 1 < len(argv) else ""
+        left, _, right = pair.partition(",")
+        if not (left.strip() and right.strip()):
+            sys.exit('--bots needs two names, e.g. --bots "Manta,Skorpios"')
+        bots = {"left": left.strip(), "right": right.strip()}
+        del argv[i:i + 2]
     positional = [a for a in argv if not a.startswith("-")]
     if not positional:
         sys.exit(__doc__)
-    analyze(positional[0], backend=backend)
+    analyze(positional[0], backend=backend, bots=bots)

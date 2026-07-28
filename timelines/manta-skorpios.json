@@ -12,24 +12,25 @@
       "caption": ""
     },
     {
-      "t": 8.0,
-      "left_hp": 96,
-      "right_hp": 100,
-      "caption": "small black debris on floor"
+      "t": 18.0,
+      "left_hp": 100,
+      "right_hp": 90,
+      "caption": "Skorpios front armour crumpled",
+      "fan_comment": "As much as Skorpios is my goat, Manta is going to kick their ass \ud83d\ude2d"
     },
     {
       "t": 24.0,
-      "left_hp": 96,
-      "right_hp": 100,
-      "caption": "yellow debris on floor"
+      "left_hp": 100,
+      "right_hp": 85,
+      "caption": "Skorpios front armour dented"
     },
     {
       "t": 28.0,
-      "left_hp": 0,
-      "right_hp": 100,
-      "caption": "knockout announced",
-      "ko": "left",
-      "fan_comment": "As much as Skorpios is my goat, Manta is going to kick their ass \ud83d\ude2d"
+      "left_hp": 100,
+      "right_hp": 0,
+      "caption": "Skorpios knocked out",
+      "ko": "right",
+      "fan_comment": "Skorpios all the way!!!!"
     }
   ]
 }

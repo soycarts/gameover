@@ -49,6 +49,7 @@
   --fs-caption:    clamp(10px, 1.8vw, 20px);
   --fs-comment:    clamp(8px, 1.1vw, 12px);
   --fs-fan:        clamp(10px, 1.35vw, 16px);  /* fan comment — must read on video */
+  --sigil-size:    clamp(14px, 2.1vw, 26px);   /* weapon icon beside each name */
   --fs-stamp:      clamp(26px, 7vw, 92px);
 
   /* layout */
@@ -119,9 +120,16 @@ html, body { margin: 0; height: 100%; background: var(--bg); color: var(--ink);
 .side.right { align-items: flex-end; }
 
 .name { font-family: var(--font-display); font-weight: 800; font-size: var(--fs-name);
-  letter-spacing: .06em; text-shadow: 2px 2px 0 #000, 0 0 14px #000; }
+  letter-spacing: .06em; text-shadow: 2px 2px 0 #000, 0 0 14px #000;
+  display: flex; align-items: center; gap: .5em; }
+.side.right .name { flex-direction: row-reverse; }
 .side.left  .name { color: var(--left-color); }
 .side.right .name { color: var(--right-color); }
+
+/* weapon sigil — the bot's silhouette, so a viewer can tie this side of the HUD
+   to the machine actually on screen. Inherits the side colour via currentColor. */
+.sigil { width: var(--sigil-size); height: var(--sigil-size); flex: 0 0 auto;
+  shape-rendering: crispEdges; filter: drop-shadow(1px 1px 0 #000); }
 
 /* ---------- pixel cores (health) ----------
    Five robot heads per bot, 20 hp each. The last one drains first, so damage
@@ -568,8 +576,41 @@ async function boot() {
     cs.forEach(c => { sources[norm(c.text)] = c.source; });
   } catch (e) { /* optional */ }
 
-  $('nameL').textContent = $('vsL').textContent = timeline.bots?.left  || 'BOT A';
-  $('nameR').textContent = $('vsR').textContent = timeline.bots?.right || 'BOT B';
+  /* ---- weapon sigils -------------------------------------------------------
+     Which silhouette a bot gets, so the HUD side can be matched to the machine
+     in the arena. Keyed on name because the JSON contract carries names only.
+     Add a bot here when you add a clip; anything unknown falls back to `wedge`,
+     which is deliberately neutral rather than a wrong guess. */
+  const WEAPONS = {
+    tombstone: 'bar',        // horizontal bar spinner
+    copperhead: 'drum',      // vertical drum
+    skorpios: 'disc',        // vertical disc + articulated arm
+    madcatter: 'disc',
+    'mad catter': 'disc',
+    manta: 'disc',
+    jackpot: 'wedge',        // hybrid — left neutral rather than guessed
+  };
+  const SIGILS = {           // 16x16 pixel silhouettes, currentColor
+    bar:   'M1 7h14v2H1z M0 6h2v4H0z M14 6h2v4h-2z M5 10h6v3H5z M4 13h8v2H4z',
+    drum:  'M2 9h12v4H2z M1 13h14v2H1z M3 4h4v4H3z M2 3h6v2H2z',
+    disc:  'M7 1h2v8H7z M5 3h6v2H5z M3 10h10v3H3z M2 13h12v2H2z',
+    wedge: 'M1 12h14v3H1z M2 9l6-4 6 4z',
+  };
+  const sigil = name => {
+    const k = (name || '').toLowerCase().replace(/[^a-z ]/g, '').trim();
+    const shape = SIGILS[WEAPONS[k] || WEAPONS[k.replace(/ /g, '')] || 'wedge'];
+    return `<svg class="sigil" viewBox="0 0 16 16" aria-hidden="true">`
+         + `<path fill="currentColor" d="${shape}"/></svg>`;
+  };
+  const setName = (id, name) => {
+    $(id).innerHTML = sigil(name) + `<span>${name.replace(/[<&]/g, '')}</span>`;
+  };
+
+  const nl = timeline.bots?.left || 'BOT A', nr = timeline.bots?.right || 'BOT B';
+  $('vsL').textContent = nl;
+  $('vsR').textContent = nr;
+  setName('nameL', nl);
+  setName('nameR', nr);
 
   const src = `../clips/${timeline.clip || CLIP + '.mp4'}`;
   const v = $('video');

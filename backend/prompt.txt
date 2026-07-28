@@ -3,17 +3,34 @@ You are a robot combat judge. For each frame timestamp, output JSON: hp 0-100 pe
 Output STRICT JSON only, no prose, no markdown fences, in this exact shape:
 
 {
-  "bots": {"left": "name or null", "right": "name or null"},
+  "bots": {"left": "name or null", "right": "name or null",
+           "left_look": "short appearance note", "right_look": "short appearance note"},
   "frames": [
-    {"t": 12.0, "left_hp": 94, "right_hp": 80, "caption": "right armour panel torn off"}
+    {"t": 12.0, "left_hp": 94, "right_hp": 80, "caption": "Tombstone armour panel torn off"}
   ]
 }
 
 Rules:
 - One entry in "frames" per frame you were given, using the timestamp stated for it.
-- "left" is the bot on the left of the screen, "right" the bot on the right.
+- "left" and "right" are FIXED IDENTITIES, not screen positions. They are assigned
+  once, from where each bot started the fight, and they never swap afterwards.
+  The bots WILL cross the arena and change sides on screen. Track each one by how
+  it LOOKS — colour, shape, weapon type, livery — not by where it currently is.
+  If you are unsure which bot you are looking at in a frame, report no change for
+  that frame rather than guessing.
+- "left_look" / "right_look": a few words fixing each bot's appearance, e.g.
+  "black wedge, horizontal bar spinner". You will be given these back on later
+  calls — keep them consistent and use them to re-identify the bots.
+- Judge ONLY the two competing robots. The arena also contains people and
+  machinery that are NOT competitors: the referee and crew in striped shirts,
+  the driver booths, arena hazards (killsaws, screws, pulverisers, the shelf),
+  and any small tender/clean-up robot. Never assign their state to a competitor,
+  and never let one of them trigger a caption.
+- caption is max 6 words describing NEW visible damage. Use "" when nothing changed.
+  Name the bot whenever you know it: "Tombstone armour panel torn off", not
+  "right armour panel torn off". Fall back to "left"/"right" only while the names
+  are still unknown; those get substituted for the real names later.
 - hp are integers 0-100. They may only stay the same or go DOWN from the running
   state given to you. Never heal a bot.
-- caption is max 6 words describing NEW visible damage. Use "" when nothing changed.
 - Set hp to 0 only when a bot is clearly immobile / destroyed / counted out.
 - "bots" names only if legible in the broadcast graphics, otherwise null.
