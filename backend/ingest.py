@@ -3,9 +3,16 @@
 
     python backend/ingest.py "https://www.youtube.com/watch?v=..."
 
-Downloads at 720p max, caps to the first 120s, extracts frames, scrapes fan
-comments for the video title, runs the vision judge, then prints the URL to open.
+Downloads at 720p max, cuts a window out of it, extracts frames, scrapes fan
+comments, runs the vision judge, then prints the URL to open.
+
+The download is cached under clips/.raw/, so a compilation holding several
+fights costs one download and one run per fight:
+
+    python backend/ingest.py "<url>" --name manta-skorpios \\
+        --start 187 --duration 31 --bots "Manta,Skorpios"
 """
+import argparse
 import json
 import re
 import shutil
@@ -15,12 +22,14 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
+import analyze  # noqa: E402
+import config  # noqa: E402
 import extract_frames  # noqa: E402
 import scrape_comments  # noqa: E402
 
 ROOT = Path(__file__).resolve().parent.parent
 MAX_SECONDS = 120
-PORT = 8000
+PORT = 40911
 
 
 def slug(text: str) -> str:
@@ -28,65 +37,122 @@ def slug(text: str) -> str:
     return (s[:40] or "clip").strip("-")
 
 
+def tool(name: str) -> str:
+    """Resolve a CLI tool, preferring this interpreter's own bin directory.
+
+    yt-dlp is a requirements.txt dependency, so it lives in .venv/bin and is
+    not on PATH unless the venv is activated. Checking PATH alone made
+    `.venv/bin/python backend/ingest.py` exit with "not found" while the tool
+    sat right next to the python running it.
+    """
+    local = Path(sys.executable).parent / name
+    if local.exists():
+        return str(local)
+    found = shutil.which(name)
+    if not found:
+        sys.exit(f"{name} not found on PATH or in {local.parent}")
+    return found
+
+
 def probe_title(url: str) -> str:
-    out = subprocess.run(["yt-dlp", "--no-warnings", "--dump-single-json", url],
+    out = subprocess.run([tool("yt-dlp"), "--no-warnings", "--dump-single-json", url],
                          capture_output=True, text=True)
     if out.returncode != 0:
         sys.exit(f"yt-dlp failed:\n{out.stderr.strip()[:400]}")
     return json.loads(out.stdout).get("title", "fight")
 
 
-def download(url: str, name: str) -> Path:
+def download(url: str, name: str, start: float, duration: float, source: str) -> Path:
     clips = ROOT / "clips"
     clips.mkdir(exist_ok=True)
     final = clips / f"{name}.mp4"
     if final.exists():
-        print(f"{final.name} already downloaded")
+        print(f"{final.name} already cut")
         return final
 
-    raw = clips / f"{name}.raw.mp4"
-    print("downloading (<=720p)...")
-    subprocess.run(
-        ["yt-dlp", "-f", "bestvideo[height<=720]+bestaudio/best[height<=720]",
-         "--merge-output-format", "mp4", "-o", str(raw), url],
-        check=True)
+    # Keep the full download around so cutting a second fight out of the same
+    # video costs nothing. Dotted dir: serve.py 404s dotfiles, so it is never
+    # served, and .gitignore's clips/* already covers it.
+    raw_dir = clips / ".raw"
+    raw_dir.mkdir(exist_ok=True)
+    raw = raw_dir / f"{source}.mp4"
+    if raw.exists():
+        print(f"reusing cached {raw.name}")
+    else:
+        print("downloading (<=720p)...")
+        subprocess.run(
+            [tool("yt-dlp"), "-f", "bestvideo[height<=720]+bestaudio/best[height<=720]",
+             "--merge-output-format", "mp4", "-o", str(raw), url],
+            check=True)
 
-    # Cap length with a stream copy — much faster and more reliable than
-    # yt-dlp --download-sections, which re-encodes and fails on some videos.
-    print(f"capping to first {MAX_SECONDS}s...")
-    subprocess.run(["ffmpeg", "-y", "-i", str(raw), "-t", str(MAX_SECONDS),
-                    "-c", "copy", str(final)],
+    # Cut with a stream copy — much faster and more reliable than yt-dlp
+    # --download-sections, which re-encodes and fails on some videos.
+    # -avoid_negative_ts make_zero rebases the segment's timestamps to 0;
+    # without it currentTime keeps the source offset and the whole HUD desyncs.
+    print(f"cutting {start:g}s..{start + duration:g}s")
+    subprocess.run([tool("ffmpeg"), "-y", "-ss", str(start), "-i", str(raw),
+                    "-t", str(duration), "-c", "copy",
+                    "-avoid_negative_ts", "make_zero", str(final)],
                    check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-    raw.unlink(missing_ok=True)
     return final
 
 
-def main() -> None:
-    if len(sys.argv) < 2:
-        sys.exit(__doc__)
-    url = sys.argv[1]
-    for tool in ("yt-dlp", "ffmpeg"):
-        if not shutil.which(tool):
-            sys.exit(f"{tool} not found on PATH")
+def fetch_comments(query: str) -> list[dict]:
+    """Real Bright Data when a key is configured, mock otherwise.
 
-    title = probe_title(url)
-    name = slug(title)
+    scrape() swallows per-source failures and can return [], so an empty list
+    counts as failure too — otherwise a clip silently ships with no comments.
+    """
+    if config.brightdata_key():
+        try:
+            got = scrape_comments.scrape(query)
+            if got:
+                return got
+            print("  ! bright data returned nothing", file=sys.stderr)
+        except Exception as e:
+            print(f"  ! bright data: {e}", file=sys.stderr)
+    return scrape_comments.mock(query)
+
+
+def main() -> None:
+    ap = argparse.ArgumentParser(
+        description="youtube url -> clips/, frames/, comments/, timelines/")
+    ap.add_argument("url")
+    ap.add_argument("--name", help="clip stem (default: slug of the video title)")
+    ap.add_argument("--start", type=float, default=0.0, metavar="SEC",
+                    help="offset into the source video (default 0)")
+    ap.add_argument("--duration", type=float, default=MAX_SECONDS, metavar="SEC",
+                    help=f"length of the cut (default {MAX_SECONDS})")
+    ap.add_argument("--bots", metavar='"Left,Right"',
+                    help="force HUD names instead of reading them off the broadcast")
+    ap.add_argument("--query", help="comment search text (default: bot names, else title)")
+    ap.add_argument("--backend", default="api", choices=("api", "cli", "openai"),
+                    help="which vision judge analyze.py should use (default api)")
+    args = ap.parse_args()
+
+    bots = None
+    if args.bots:
+        left, _, right = args.bots.partition(",")
+        if not (left.strip() and right.strip()):
+            sys.exit('--bots needs two names, e.g. --bots "Jackpot,Copperhead"')
+        bots = {"left": left.strip(), "right": right.strip()}
+
+    title = probe_title(args.url)
+    name = args.name or slug(title)
+    query = args.query or (f"{bots['left']} {bots['right']}" if bots else title)
     print(f"» {title}  ->  {name}")
 
-    download(url, name)
+    download(args.url, name, args.start, args.duration, slug(title))
     extract_frames.extract(f"{name}.mp4")
 
-    import os
-    comments = (scrape_comments.scrape(title) if os.environ.get("BRIGHTDATA_API_KEY")
-                else scrape_comments.mock(title))
+    comments = fetch_comments(query)
+    (ROOT / "comments").mkdir(exist_ok=True)
     (ROOT / "comments" / f"{name}.json").write_text(json.dumps(comments, indent=2) + "\n")
-    print(f"{len(comments)} comments"
-          f"{'' if os.environ.get('BRIGHTDATA_API_KEY') else ' (mock — no BRIGHTDATA_API_KEY)'}")
+    print(f"{len(comments)} comments for {query!r}")
 
-    import analyze
-    analyze.analyze(f"{name}.mp4")
+    analyze.analyze(f"{name}.mp4", backend=args.backend, bots=bots)
 
-    print("\n  serve from the repo root:  python -m http.server", PORT)
+    print("\n  serve from the repo root:  python3 backend/serve.py")
     print(f"  then open:  http://localhost:{PORT}/frontend/index.html?clip={name}\n")
 
 

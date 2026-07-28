@@ -13,6 +13,7 @@ ROOT = Path(__file__).resolve().parent.parent
 # Accept either spelling so a .env written from memory still works.
 BRIGHTDATA_NAMES = ("BRIGHTDATA_API_KEY", "BRIGHTDATA_KEY")
 ANTHROPIC_NAMES = ("ANTHROPIC_API_KEY", "ANTHROPIC_KEY")
+OPENAI_NAMES = ("OPENAI_API_KEY", "OPENAI_KEY")
 
 
 def load_env(path: Path | None = None) -> None:
@@ -44,3 +45,7 @@ def brightdata_key() -> str | None:
 
 def anthropic_key() -> str | None:
     return get(ANTHROPIC_NAMES)
+
+
+def openai_key() -> str | None:
+    return get(OPENAI_NAMES)

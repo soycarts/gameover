@@ -34,6 +34,12 @@ names aren't legible in the broadcast graphics.
 
 Model for all API calls: **`claude-sonnet-5`**.
 
+`analyze.py` also takes `--backend cli` (shells to `claude -p`, uses your Claude
+subscription) and `--backend openai` (`OPENAI_MODEL`, default `gpt-5.5`). Only the
+model call changes — the prompt, hp clamp, thinning, KO detection and comment join
+are shared, so every backend emits the same JSON contract. The demo clips were
+judged on `--backend openai` because only an `OPENAI_API_KEY` was on hand.
+
 ## Eras
 
 - **Era A** — polished demo on pre-selected clips. Must work. Built first.
@@ -63,7 +69,20 @@ python backend/analyze.py fight1.mp4 --backend cli                 # no API key 
 
 # era B, any fight video
 python backend/ingest.py "https://www.youtube.com/watch?v=..."
+
+# era B, one fight cut out of a multi-fight compilation. The download is cached
+# under clips/.raw/, so the 2nd and 3rd fights cost no bandwidth.
+python backend/ingest.py "<url>" --name manta-skorpios \
+    --start 187 --duration 31 --bots "Manta,Skorpios"
 ```
+
+The three demo fights all come from one video, `youtube.com/watch?v=rC__2ZOQhc4`:
+
+| clip | `--start` | `--duration` | ends on |
+|---|---|---|---|
+| `jackpot-copperhead`  |  23 | 144 | TAP OUT : 152sec |
+| `manta-skorpios`      | 187 |  31 | KNOCKOUT : 24sec |
+| `madcatter-tombstone` | 271 |  79 | KNOCKOUT : 72sec |
 
 Keys in the page: `any` start · `r` replay · `c` CRT filter · `g` rainbow bars.
 
@@ -143,6 +162,20 @@ python3 backend/serve.py     # -> http://localhost:40911/frontend/index.html?cli
 - **All model output is untrusted.** Thinning, hp clamping, KO detection (first hp
   to hit 0) and the comment join all happen in Python so the same frames always
   produce the same timeline.
+- **`ingest.py` cuts a window, it does not take the head of the video.** `--start` /
+  `--duration` pick the fight; the full download is cached at `clips/.raw/<slug>.mp4`
+  and reused, so re-cutting is free. That dir is dotted (`serve.py` 404s dotfiles) and
+  listed in `.vercelignore` — without that entry a `vercel --prod` would upload the
+  whole 34MB source alongside the clips.
+- **`yt-dlp` is not on PATH**, only in `.venv/bin`. `ingest.tool()` resolves tools
+  from the running interpreter's own bin dir first, so `.venv/bin/python
+  backend/ingest.py` works without activating the venv. Don't replace it with a bare
+  `shutil.which()`; that was what made ingest exit with "yt-dlp not found".
+- **Bright Data replies in NDJSON, not a JSON array.** One record per line, and a
+  single-record reply is a bare dict. `resp.json()` plus a `.get("data")` fallback
+  silently yields zero comments on a perfectly healthy HTTP 200 — `_parse_payload()`
+  handles all three shapes. If comments go empty, print `resp.text` before assuming
+  the key or dataset id is wrong.
 - **Everything Bright Data-specific is in one `brightdata_adapter()` function** in
   `scrape_comments.py`, under an ADAPTER banner. The dataset IDs there are
   placeholders. `--mock` keeps the pipeline unblocked.

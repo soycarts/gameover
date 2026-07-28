@@ -1,5 +1,10 @@
 clips/*
 !clips/synthfight.mp4
+# Real fights cut from one BattleBots compilation (~25MB total). A git-connected
+# Vercel build only sees committed files, so each clip needs its own exception.
+!clips/jackpot-copperhead.mp4
+!clips/manta-skorpios.mp4
+!clips/madcatter-tombstone.mp4
 frames/
 .env
 __pycache__/

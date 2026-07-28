@@ -2,6 +2,7 @@
 .env.*
 .venv/
 frames/
+clips/.raw/
 backend/
 CLAUDE.md
 .claude/

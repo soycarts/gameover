@@ -3,6 +3,11 @@
 
     python backend/analyze.py fight1.mp4                    # Anthropic API key
     python backend/analyze.py fight1.mp4 --backend cli      # your Claude subscription
+    python backend/analyze.py fight1.mp4 --backend openai   # OPENAI_API_KEY
+
+--backend openai swaps the vision judge to an OpenAI model (OPENAI_MODEL, default
+gpt-5.5). Only the model call changes: the prompt, the hp clamp, thinning, KO
+detection and the comment join are identical, so the JSON contract is unaffected.
 
 --backend cli shells out to `claude -p` instead of the SDK, so judging runs on your
 Claude Code subscription and needs no ANTHROPIC_API_KEY. It is slower and much
@@ -30,6 +35,9 @@ import config  # noqa: E402
 
 ROOT = Path(__file__).resolve().parent.parent
 MODEL = "claude-sonnet-5"
+# --backend openai only. Override with OPENAI_MODEL; this account has no gpt-4o,
+# so the default is the general GPT-5 model rather than a codex variant.
+OPENAI_MODEL = os.environ.get("OPENAI_MODEL", "gpt-5.5")
 BATCH = 3                    # frames per API call
 SECONDS_PER_FRAME = 2.0      # extract_frames.py runs at 0.5 fps
 BIG_DROP = 15                # hp drop that earns a fan comment (and a screen shake)
@@ -53,6 +61,17 @@ def client():
         sys.exit("no ANTHROPIC_API_KEY in .env or the environment "
                  "(or run with --backend cli to use your Claude subscription)")
     return Anthropic(api_key=key)
+
+
+def openai_client():
+    try:
+        from openai import OpenAI
+    except ImportError:
+        sys.exit("pip install -r backend/requirements.txt")
+    key = config.openai_key()
+    if not key:
+        sys.exit("no OPENAI_API_KEY in .env or the environment")
+    return OpenAI(api_key=key)
 
 
 def parse_json(text: str) -> dict:
@@ -91,6 +110,41 @@ def ask(api, prompt: str, frames: list[tuple[float, Path]], state: dict) -> dict
         except (ValueError, json.JSONDecodeError) as e:
             last_err = e
             content = content + [{"type": "text", "text":
+                "Your last reply was not valid JSON. Reply with the JSON object only."}]
+    print(f"  ! giving up on this batch: {last_err}", file=sys.stderr)
+    return {"frames": []}
+
+
+def ask_openai(api, prompt: str, frames: list[tuple[float, Path]], state: dict) -> dict:
+    """Same judging call against an OpenAI vision model. See --backend openai."""
+    content: list[dict] = []
+    for t, path in frames:
+        content.append({"type": "text", "text": f"Frame at t={t:.1f}s"})
+        data = base64.b64encode(path.read_bytes()).decode()
+        content.append({"type": "image_url",
+                        "image_url": {"url": f"data:image/jpeg;base64,{data}"}})
+    content.append({"type": "text", "text":
+        f"Running state — left_hp {state['left']}, right_hp {state['right']}. "
+        f"hp may only stay the same or decrease. "
+        f"Return one entry per frame above, at exactly these timestamps: "
+        f"{[round(t, 1) for t, _ in frames]}"})
+
+    messages = [{"role": "system", "content": prompt},
+                {"role": "user", "content": content}]
+    last_err = None
+    for attempt in range(2):                       # one retry on bad JSON
+        try:
+            msg = api.chat.completions.create(
+                model=OPENAI_MODEL, messages=messages,
+                response_format={"type": "json_object"})
+        except Exception as e:                     # rate limit, refusal, transport
+            print(f"  ! openai call failed: {str(e)[:200]}", file=sys.stderr)
+            return {"frames": []}
+        try:
+            return parse_json(msg.choices[0].message.content or "")
+        except (ValueError, json.JSONDecodeError) as e:
+            last_err = e
+            messages = messages + [{"role": "user", "content":
                 "Your last reply was not valid JSON. Reply with the JSON object only."}]
     print(f"  ! giving up on this batch: {last_err}", file=sys.stderr)
     return {"frames": []}
@@ -191,7 +245,7 @@ def validate(timeline: dict) -> None:
 
 
 # ------------------------------------------------------------------------ main
-def analyze(clip: str, backend: str = "api") -> Path:
+def analyze(clip: str, backend: str = "api", bots: dict | None = None) -> Path:
     name = Path(clip).stem
     frame_dir = ROOT / "frames" / name
     paths = sorted(frame_dir.glob("*.jpg"))
@@ -199,9 +253,10 @@ def analyze(clip: str, backend: str = "api") -> Path:
         sys.exit(f"no frames in {frame_dir} — run extract_frames.py first")
 
     prompt = (ROOT / "backend" / "prompt.txt").read_text()
-    api = None if backend == "cli" else client()
-    print(f"backend: {backend}" + (" (claude -p, uses your subscription)"
-                                   if backend == "cli" else " (Anthropic API key)"))
+    api = {"cli": lambda: None, "openai": openai_client, "api": client}[backend]()
+    print(f"backend: {backend} " + {"cli": "(claude -p, uses your subscription)",
+                                    "openai": f"({OPENAI_MODEL}, OpenAI API key)",
+                                    "api": f"({MODEL}, Anthropic API key)"}[backend])
 
     stamped = [((i) * SECONDS_PER_FRAME, p) for i, p in enumerate(paths)]
     state = {"left": 100, "right": 100}
@@ -213,6 +268,7 @@ def analyze(clip: str, backend: str = "api") -> Path:
         print(f"judging t={batch[0][0]:.0f}s..{batch[-1][0]:.0f}s "
               f"({k // BATCH + 1}/{-(-len(stamped) // BATCH)})")
         out = (ask_cli(prompt, batch, state) if backend == "cli"
+               else ask_openai(api, prompt, batch, state) if backend == "openai"
                else ask(api, prompt, batch, state))
 
         for side in ("left", "right"):
@@ -251,7 +307,11 @@ def analyze(clip: str, backend: str = "api") -> Path:
 
     timeline = {
         "clip": f"{name}.mp4",
-        "bots": {"left": names["left"] or "Bot A", "right": names["right"] or "Bot B"},
+        # A caller who already knows the card wins over the model's reading of
+        # the broadcast graphics; detection stays the default so era B still
+        # generalises to a URL nobody has looked at.
+        "bots": bots or {"left": names["left"] or "Bot A",
+                         "right": names["right"] or "Bot B"},
         "events": events,
     }
     validate(timeline)
@@ -270,8 +330,8 @@ if __name__ == "__main__":
         i = argv.index("--backend")
         backend = argv[i + 1] if i + 1 < len(argv) else "api"
         del argv[i:i + 2]
-    if backend not in ("api", "cli"):
-        sys.exit("--backend must be 'api' or 'cli'")
+    if backend not in ("api", "cli", "openai"):
+        sys.exit("--backend must be 'api', 'cli' or 'openai'")
     positional = [a for a in argv if not a.startswith("-")]
     if not positional:
         sys.exit(__doc__)
