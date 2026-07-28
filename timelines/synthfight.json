@@ -1,0 +1,68 @@
+{
+  "clip": "synthfight.mp4",
+  "bots": {
+    "left": "Blue Box",
+    "right": "Orange Box"
+  },
+  "events": [
+    {
+      "t": 0.0,
+      "left_hp": 100,
+      "right_hp": 100,
+      "caption": ""
+    },
+    {
+      "t": 4.0,
+      "left_hp": 100,
+      "right_hp": 96,
+      "caption": "Tombstone spins up, first contact"
+    },
+    {
+      "t": 8.0,
+      "left_hp": 92,
+      "right_hp": 71,
+      "caption": "Witch Doctor armour panel torn off",
+      "fan_comment": "NOT THE ARMOUR AGAIN"
+    },
+    {
+      "t": 14.0,
+      "left_hp": 90,
+      "right_hp": 64,
+      "caption": "Sparks fly, both bots mobile"
+    },
+    {
+      "t": 21.0,
+      "left_hp": 78,
+      "right_hp": 58,
+      "caption": "Tombstone blade grazes own frame",
+      "fan_comment": "tombstone hitting itself lmao"
+    },
+    {
+      "t": 27.0,
+      "left_hp": 76,
+      "right_hp": 37,
+      "caption": "Massive hit, Witch Doctor airborne",
+      "fan_comment": "THAT SENT HIM TO THE MOON"
+    },
+    {
+      "t": 33.0,
+      "left_hp": 74,
+      "right_hp": 25,
+      "caption": "Right wheel wobbling badly"
+    },
+    {
+      "t": 37.0,
+      "left_hp": 72,
+      "right_hp": 12,
+      "caption": "Weapon chain snapped, drive failing",
+      "fan_comment": "the drive is gone, it's over"
+    },
+    {
+      "t": 41.0,
+      "left_hp": 70,
+      "right_hp": 0,
+      "caption": "Witch Doctor immobile, drive dead",
+      "ko": "right"
+    }
+  ]
+}

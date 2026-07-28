@@ -1,0 +1,8 @@
+clips/*
+!clips/synthfight.mp4
+frames/
+.env
+__pycache__/
+*.pyc
+.DS_Store
+.venv/
