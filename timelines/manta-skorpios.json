@@ -12,22 +12,37 @@
       "caption": ""
     },
     {
-      "t": 8.0,
-      "left_hp": 96,
+      "t": 4.0,
+      "left_hp": 94,
       "right_hp": 100,
-      "caption": "small black debris on floor"
+      "caption": "left front wedge bent",
+      "hit": {
+        "by": "right",
+        "weapon": "vertical spinner",
+        "clean": true
+      }
     },
     {
-      "t": 24.0,
-      "left_hp": 96,
+      "t": 8.0,
+      "left_hp": 90,
       "right_hp": 100,
-      "caption": "yellow debris on floor"
+      "caption": "small black debris on floor",
+      "hit": {
+        "by": "right",
+        "weapon": "vertical spinner",
+        "clean": true
+      }
     },
     {
       "t": 28.0,
       "left_hp": 0,
       "right_hp": 100,
-      "caption": "knockout announced",
+      "caption": "left counted out",
+      "hit": {
+        "by": "right",
+        "weapon": null,
+        "clean": true
+      },
       "ko": "left",
       "fan_comment": "As much as Skorpios is my goat, Manta is going to kick their ass \ud83d\ude2d"
     }
