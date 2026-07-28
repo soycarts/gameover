@@ -16,6 +16,7 @@ brightdata_adapter() below — see the ADAPTER banner.
 import json
 import os
 import random
+import re
 import sys
 from pathlib import Path
 
@@ -195,17 +196,46 @@ def brightdata_adapter(query: str, source: str, api_key: str) -> list[dict]:
 # ============================ END ADAPTER ===================================
 
 
+# Real comment threads are not stage-safe. The MaD CaTTer thread, for one, is a
+# sustained sexual joke — fine on Reddit, not fine burned into a clip shown to
+# judges or submitted to BattleBots. Filtering happens here, in Python, so the
+# same scrape always yields the same safe set.
+DROP_EXACT = {"[deleted]", "[removed]", "deleted", "removed"}
+DROP_WORDS = re.compile(
+    r"\b(fuck\w*|shit\w*|cunt\w*|cock|dick|tits|porn\w*|sex\w*|rape\w*|nsfw|"
+    r"humping|furries|scalies|slut\w*|whore|nigg\w+|fag\w*|retard\w*)\b|"
+    r"(?:that|my|the)\s+hole\b",
+    re.I)
+MIN_LEN, MAX_LEN = 12, 180
+
+
+def is_showable(text: str) -> bool:
+    """Deterministic gate for anything that will appear on screen."""
+    t = text.strip()
+    if t.lower() in DROP_EXACT or not (MIN_LEN <= len(t) <= MAX_LEN):
+        return False
+    if DROP_WORDS.search(t):
+        return False
+    return not t.lower().startswith(("http://", "https://", "www."))
+
+
 def _rows_to_comments(rows: list[dict], source: str) -> list[dict]:
-    out = []
+    out, dropped = [], 0
     for row in rows:
         if not isinstance(row, dict):
             continue
         text = next((str(row[f]).strip() for f in TEXT_FIELDS
                      if row.get(f) and str(row[f]).strip()), None)
-        if not text or len(text) < 3:
+        if not text:
+            continue
+        text = " ".join(text.split())            # collapse newlines from threads
+        if not is_showable(text):
+            dropped += 1
             continue
         url = next((str(row[f]) for f in URL_FIELDS if row.get(f)), "")
-        out.append({"text": text[:220], "source": source, "url": url})
+        out.append({"text": text[:MAX_LEN], "source": source, "url": url})
+    if dropped:
+        print(f"  … filtered {dropped} unshowable comments", file=sys.stderr)
     return out
 
 

@@ -3,6 +3,7 @@
 .venv/
 frames/
 clips/.raw/
+comments/.titles-backup/
 backend/
 CLAUDE.md
 .claude/

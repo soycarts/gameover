@@ -210,6 +210,30 @@ def thin(observations: list[dict]) -> list[dict]:
     return events
 
 
+# Scraped threads are about the whole season, so a MaD CaTTer search surfaces the
+# SawBlaze fight too. Captioning a Tombstone hit with a SawBlaze comment is the
+# kind of thing a BattleBots viewer spots immediately, so a comment naming a bot
+# that is not in THIS fight is used only as a last resort.
+KNOWN_BOTS = {
+    "tombstone", "witch doctor", "sawblaze", "madcatter", "mad catter", "manta",
+    "skorpios", "jackpot", "copperhead", "hydra", "riptide", "end game",
+    "whiplash", "bite force", "minotaur", "hypershock", "black dragon", "glitch",
+    "banshee", "huge", "shatter", "lucky", "uppercut", "gigabyte", "valkyrie",
+    "ripperoni", "malice", "yeti", "bronco", "icewave", "beta", "captain shrederator",
+}
+
+
+def names_a_rival(text: str, card: dict) -> bool:
+    low = " " + " ".join(text.lower().split()) + " "
+    ours = {card.get("left", "").lower(), card.get("right", "").lower()}
+    for bot in KNOWN_BOTS:
+        if bot in ours or any(bot in o for o in ours if o):
+            continue
+        if f" {bot} " in low or f" {bot}'s " in low:
+            return True
+    return False
+
+
 def join_comments(events: list[dict], comments: list[dict],
                   bots: dict | None = None) -> None:
     """Attach fan comments to damage moments. Each comment is used at most once.
@@ -239,14 +263,16 @@ def join_comments(events: list[dict], comments: list[dict],
 
         best, best_score = None, 0
         for j, c in enumerate(comments):
-            if j in used:
+            if j in used or names_a_rival(c.get("text", ""), bots):
                 continue
             ctext = words(c.get("text", ""))
             score = 2 * len(cap & ctext) + (2 if name and name <= ctext else 0)
             if score > best_score:                 # ties keep the earlier comment
                 best, best_score = j, score
-        if best is None and drop >= BIG_DROP:      # fall back to any unused one
-            best = next((j for j in range(len(comments)) if j not in used), None)
+        if best is None and drop >= BIG_DROP:      # fall back to any clean unused one
+            best = next((j for j, c in enumerate(comments)
+                         if j not in used and not names_a_rival(c.get("text", ""), bots)),
+                        None)
         if best is not None:
             used.add(best)
             ev["fan_comment"] = comments[best]["text"]
