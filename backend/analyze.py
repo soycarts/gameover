@@ -4,6 +4,12 @@
     python backend/analyze.py fight1.mp4                    # Anthropic API key
     python backend/analyze.py fight1.mp4 --backend cli      # your Claude subscription
     python backend/analyze.py fight1.mp4 --backend openai   # OPENAI_API_KEY
+    python backend/analyze.py fight1.mp4 --bots "Manta,Skorpios"
+
+--bots pins the card instead of trusting the model's reading of the broadcast
+graphics, same flag ingest.py takes. Worth using on a re-judge: name detection
+depends on whether a lower-third happens to be legible in the sampled frames, so
+a clip that resolved to "Manta" once can come back as "Bot A" the next time.
 
 --backend openai swaps the vision judge to an OpenAI model (OPENAI_MODEL, default
 gpt-5.5). Only the model call changes: the prompt, the hp clamp, thinning, KO
@@ -43,6 +49,8 @@ SECONDS_PER_FRAME = 2.0      # extract_frames.py runs at 0.5 fps
 BIG_DROP = 15                # screen shake, and the floor for a fallback comment
 COMMENT_DROP = 8             # a hit worth reacting to, if a comment actually matches
 MAX_CAPTION_WORDS = 6
+MAX_WEAPON_WORDS = 3
+SIDES = ("left", "right")
 
 STOPWORDS = {
     "the", "a", "an", "is", "it", "its", "to", "of", "and", "on", "in", "at",
@@ -85,6 +93,24 @@ def parse_json(text: str) -> dict:
     return json.loads(text[start:end + 1])
 
 
+def state_reminder(frames: list[tuple[float, Path]], state: dict) -> str:
+    """The per-call nudge, shared by all three backends.
+
+    The model is stateless between calls, so this carries the running hp. It also
+    re-states the "hit" rule every time: without it the field is honoured in the
+    first batch or two and then quietly forgotten for the rest of a long clip.
+    """
+    return (
+        f"Running state — left_hp {state['left']}, right_hp {state['right']}. "
+        f"hp may only stay the same or decrease. "
+        f"For every frame where an hp goes DOWN, include \"hit\" "
+        f"({{\"by\": \"left\"|\"right\", \"weapon\": ..., \"clean\": true|false}}) "
+        f"naming the bot that LANDED the blow. Omit \"hit\" when nothing was hurt. "
+        f"Return one entry per frame above, at exactly these timestamps: "
+        f"{[round(t, 1) for t, _ in frames]}"
+    )
+
+
 def ask(api, prompt: str, frames: list[tuple[float, Path]], state: dict) -> dict:
     content: list[dict] = []
     for t, path in frames:
@@ -94,11 +120,7 @@ def ask(api, prompt: str, frames: list[tuple[float, Path]], state: dict) -> dict
             "source": {"type": "base64", "media_type": "image/jpeg",
                        "data": base64.b64encode(path.read_bytes()).decode()},
         })
-    content.append({"type": "text", "text":
-        f"Running state — left_hp {state['left']}, right_hp {state['right']}. "
-        f"hp may only stay the same or decrease. "
-        f"Return one entry per frame above, at exactly these timestamps: "
-        f"{[round(t, 1) for t, _ in frames]}"})
+    content.append({"type": "text", "text": state_reminder(frames, state)})
 
     last_err = None
     for attempt in range(2):                       # one retry on bad JSON
@@ -124,11 +146,7 @@ def ask_openai(api, prompt: str, frames: list[tuple[float, Path]], state: dict) 
         data = base64.b64encode(path.read_bytes()).decode()
         content.append({"type": "image_url",
                         "image_url": {"url": f"data:image/jpeg;base64,{data}"}})
-    content.append({"type": "text", "text":
-        f"Running state — left_hp {state['left']}, right_hp {state['right']}. "
-        f"hp may only stay the same or decrease. "
-        f"Return one entry per frame above, at exactly these timestamps: "
-        f"{[round(t, 1) for t, _ in frames]}"})
+    content.append({"type": "text", "text": state_reminder(frames, state)})
 
     messages = [{"role": "system", "content": prompt},
                 {"role": "user", "content": content}]
@@ -161,10 +179,7 @@ def ask_cli(prompt: str, frames: list[tuple[float, Path]], state: dict) -> dict:
     ask_text = (
         f"{prompt}\n\n"
         f"Read these frame images in order:\n{listing}\n\n"
-        f"Running state — left_hp {state['left']}, right_hp {state['right']}. "
-        f"hp may only stay the same or decrease.\n"
-        f"Return one entry per frame at exactly these timestamps: "
-        f"{[round(t, 1) for t, _ in frames]}\n"
+        f"{state_reminder(frames, state)}\n"
         f"Reply with the JSON object only."
     )
     cmd = ["claude", "-p", "--model", MODEL, "--output-format", "json",
@@ -200,7 +215,12 @@ def trim_caption(text: str) -> str:
 
 
 def thin(observations: list[dict]) -> list[dict]:
-    """~60 frame observations -> ~10 events: keep only visible change."""
+    """~60 frame observations -> ~10 events: keep only visible change.
+
+    Observations are kept by reference, so a "hit" rides along untouched. That is
+    safe because normalize_hit() only attaches one where hp actually dropped, so a
+    caption-only observation can never carry one.
+    """
     events, prev = [], None
     for o in observations:
         changed = prev is None or o["left_hp"] != prev["left_hp"] or o["right_hp"] != prev["right_hp"]
@@ -208,6 +228,30 @@ def thin(observations: list[dict]) -> list[dict]:
             events.append(o)
             prev = o
     return events
+
+
+def normalize_hit(raw, prev: dict, cur: dict) -> dict | None:
+    """Model hit -> contract hit, or None. Deterministic, like the hp clamp.
+
+    Runs AFTER the clamp so it judges the damage the timeline will actually show:
+    hp deltas are the only evidence a blow landed, and a hit with none behind it is
+    dropped. The frontend derives damage, victim and tier from those same deltas —
+    what survives here is only what the model could see and code cannot infer.
+    """
+    if not isinstance(raw, dict):
+        return None
+    dropped = [s for s in SIDES if prev[s] > cur[s]]
+    if not dropped:
+        return None                                   # no damage -> not a hit
+    by = str(raw.get("by", "")).strip().lower()
+    if by not in SIDES:
+        return None                                   # unattributed; frontend defaults
+    clean = raw.get("clean", True) is not False
+    if clean and by in dropped and len(dropped) == 1:
+        by = "right" if by == "left" else "left"      # model named the victim; flip
+    weapon = raw.get("weapon")
+    weapon = " ".join(str(weapon).split()[:MAX_WEAPON_WORDS]).lower()[:24] if weapon else ""
+    return {"by": by, "weapon": weapon or None, "clean": clean}
 
 
 # Scraped threads are about the whole season, so a MaD CaTTer search surfaces the
@@ -296,6 +340,23 @@ def validate(timeline: dict) -> None:
             assert e["t"] >= evs[i - 1]["t"], "events out of order"
             assert e["left_hp"] <= evs[i - 1]["left_hp"], f"left hp increased at {e['t']}"
             assert e["right_hp"] <= evs[i - 1]["right_hp"], f"right hp increased at {e['t']}"
+        # normalize_hit() clamps model noise; these catch bugs in our own code.
+        h = e.get("hit")
+        if h is not None:
+            assert isinstance(h, dict) and set(h) == {"by", "weapon", "clean"}, \
+                f"bad hit shape at {e['t']}"
+            assert h["by"] in SIDES, f"bad hit.by at {e['t']}"
+            assert isinstance(h["clean"], bool), f"bad hit.clean at {e['t']}"
+            w = h["weapon"]
+            assert w is None or (isinstance(w, str) and 0 < len(w) <= 24
+                                 and len(w.split()) <= MAX_WEAPON_WORDS), \
+                f"bad hit.weapon at {e['t']}"
+            assert i, "hit on the baseline event"
+            hurt = [s for s in SIDES if evs[i - 1][f"{s}_hp"] > e[f"{s}_hp"]]
+            assert hurt, f"hit with no damage at {e['t']}"
+            # an incidental blow has to name a bot that actually lost hp, or the
+            # frontend can never match it to a damaged side
+            assert h["clean"] or h["by"] in hurt, f"incidental hit misattributed at {e['t']}"
 
 
 # ------------------------------------------------------------------------ main
@@ -337,14 +398,22 @@ def analyze(clip: str, backend: str = "api", bots: dict | None = None) -> Path:
                 continue
             left = min(state["left"], max(0, int(f.get("left_hp", state["left"]))))
             right = min(state["right"], max(0, int(f.get("right_hp", state["right"]))))
+            before = dict(state)
             state["left"], state["right"] = left, right
-            observations.append({"t": round(t, 1), "left_hp": left, "right_hp": right,
-                                 "caption": trim_caption(f.get("caption", ""))})
+            obs = {"t": round(t, 1), "left_hp": left, "right_hp": right,
+                   "caption": trim_caption(f.get("caption", ""))}
+            hit = normalize_hit(f.get("hit"), before, state)
+            if hit:
+                obs["hit"] = hit
+            elif f.get("hit"):
+                print(f"  ~ dropped unusable hit at t={t:.1f}s")
+            observations.append(obs)
 
     events = thin(observations)
     if not events or events[0]["t"] != 0.0:
         events.insert(0, {"t": 0.0, "left_hp": 100, "right_hp": 100, "caption": ""})
     events[0]["caption"] = ""
+    events[0].pop("hit", None)                     # t=0 is a baseline, not a blow
 
     for i, ev in enumerate(events):                # KO = first time an hp hits 0
         if ev["left_hp"] == 0 or ev["right_hp"] == 0:
@@ -389,7 +458,15 @@ if __name__ == "__main__":
         del argv[i:i + 2]
     if backend not in ("api", "cli", "openai"):
         sys.exit("--backend must be 'api', 'cli' or 'openai'")
+    bots = None
+    if "--bots" in argv:
+        i = argv.index("--bots")
+        left, _, right = (argv[i + 1] if i + 1 < len(argv) else "").partition(",")
+        if not left.strip() or not right.strip():
+            sys.exit('--bots needs two names, e.g. --bots "Jackpot,Copperhead"')
+        bots = {"left": left.strip(), "right": right.strip()}
+        del argv[i:i + 2]
     positional = [a for a in argv if not a.startswith("-")]
     if not positional:
         sys.exit(__doc__)
-    analyze(positional[0], backend=backend)
+    analyze(positional[0], backend=backend, bots=bots)
