@@ -1,7 +1,14 @@
 #!/usr/bin/env python3
 """analyze.py <clip> — frames -> Claude vision -> timelines/<clip>.json
 
-    python backend/analyze.py fight1.mp4
+    python backend/analyze.py fight1.mp4                    # Anthropic API key
+    python backend/analyze.py fight1.mp4 --backend cli      # your Claude subscription
+
+--backend cli shells out to `claude -p` instead of the SDK, so judging runs on your
+Claude Code subscription and needs no ANTHROPIC_API_KEY. It is slower and much
+heavier per call (Claude Code re-sends its own system prompt and tool definitions
+every time) and it consumes the same quota you need for coding. Fine for a demo
+clip; use the API backend for anything long.
 
 Sends frames in order, 2-3 per API call, with their timestamps and the running
 hp state (the model is stateless between calls, so it must be told where the
@@ -258,6 +265,14 @@ def analyze(clip: str, backend: str = "api") -> Path:
 
 
 if __name__ == "__main__":
-    if len(sys.argv) < 2:
+    argv, backend = sys.argv[1:], "api"
+    if "--backend" in argv:
+        i = argv.index("--backend")
+        backend = argv[i + 1] if i + 1 < len(argv) else "api"
+        del argv[i:i + 2]
+    if backend not in ("api", "cli"):
+        sys.exit("--backend must be 'api' or 'cli'")
+    positional = [a for a in argv if not a.startswith("-")]
+    if not positional:
         sys.exit(__doc__)
-    analyze(sys.argv[1])
+    analyze(positional[0], backend=backend)

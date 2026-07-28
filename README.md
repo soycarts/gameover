@@ -45,14 +45,13 @@ the public site. Pushing to `main` redeploys.
 
 For a local LAN link, `python3 backend/serve.py` binds all interfaces on port 40911 —
 use it rather than `python -m http.server`, which renders a browsable directory listing
-and happily hands out `.env` and `.git/`. Better still, keep keys out of the folder:
-nothing here reads dotenv files, so `export ANTHROPIC_API_KEY=...` is enough.
+and happily hands out `.env` and `.git/`. Keys in `.env` are live — `backend/config.py`
+reads it — so blocking dotfiles is what keeps that from being a leak.
 
 ## Era A — a curated clip end to end
 
 ```bash
 pip install -r backend/requirements.txt
-export ANTHROPIC_API_KEY=...
 
 # put your clip at clips/fight1.mp4
 python backend/extract_frames.py fight1.mp4                        # 0.5 fps, 768px
@@ -62,9 +61,24 @@ python backend/analyze.py fight1.mp4                               # -> timeline
 
 Open **http://localhost:40911/frontend/index.html?clip=fight1**.
 
-For real fan chatter drop `--mock` and set `BRIGHTDATA_API_KEY`. Everything Bright
-Data-specific lives in one `brightdata_adapter()` function in
-[scrape_comments.py](backend/scrape_comments.py) — marked with an ADAPTER banner.
+### Which judging backend
+
+`analyze.py` needs an `ANTHROPIC_API_KEY` (from `.env` or the shell) by default. To
+run on your Claude subscription instead, with no key at all:
+
+```bash
+python backend/analyze.py fight1.mp4 --backend cli
+```
+
+That shells out to `claude -p`. It works, but each call re-sends Claude Code's whole
+system prompt, so it's roughly 20× the tokens and several times slower than the API
+path — about 2.5 minutes for a 45s clip — and it spends the same quota you need for
+coding. Good for a demo run, wrong for a long clip.
+
+For real fan chatter drop `--mock` and set a Bright Data key (`BRIGHTDATA_API_KEY` or
+`BRIGHTDATA_KEY`, either spelling). Everything Bright Data-specific lives in one
+`brightdata_adapter()` function in [scrape_comments.py](backend/scrape_comments.py) —
+marked with an ADAPTER banner.
 
 ## Era B — any YouTube fight
 

@@ -59,6 +59,7 @@ bash backend/make_test_clip.sh
 python backend/extract_frames.py fight1.mp4                        # 0.5 fps, 768px
 python backend/scrape_comments.py fight1 "tombstone witch doctor" --mock
 python backend/analyze.py fight1.mp4                               # -> timelines/
+python backend/analyze.py fight1.mp4 --backend cli                 # no API key needed
 
 # era B, any fight video
 python backend/ingest.py "https://www.youtube.com/watch?v=..."
@@ -111,14 +112,26 @@ python3 backend/serve.py     # -> http://localhost:40911/frontend/index.html?cli
   version has no auth, renders a browsable directory listing, and happily hands out
   `.env` and `.git/` to anyone on the wifi — this already happened once during
   development. `serve.py` is the same static server with dotfiles and directory
-  listings 404'd. Better still, keep keys out of the folder entirely: nothing here
-  loads dotenv files, so `export ANTHROPIC_API_KEY=...` in your shell is enough.
+  listings 404'd. `backend/config.py` does read `.env`, so keys in the repo are live
+  — `serve.py` blocking dotfiles is what keeps that from being a leak. Exporting in
+  your shell instead still works and always wins over the file.
 - Edits are live on refresh; no restart needed. Timeline/comment fetches use
   `no-store`, but the browser caches `index.html`, so hard-refresh (Cmd+Shift+R)
   after editing the page itself.
 
 ## Gotchas worth not rediscovering
 
+- **Two judging backends.** `--backend api` (default) uses the SDK and needs an
+  `ANTHROPIC_API_KEY`. `--backend cli` shells out to `claude -p`, which bills your
+  Claude subscription and needs no key — verified working end to end. The catch is
+  weight: every `claude -p` call re-sends Claude Code's own system prompt and tool
+  definitions, so one 2-frame batch cost ~87k tokens and ~10s versus roughly 4k
+  tokens direct. A 45s clip is 8 batches / ~2.5 min; a 120s Era B clip is ~20. It
+  draws down the same quota you need for coding, so prefer the API backend for
+  anything long.
+- **Keys come from `.env` or the shell.** `backend/config.py` loads `.env` (real env
+  vars win) and accepts either `BRIGHTDATA_API_KEY` or `BRIGHTDATA_KEY` — the two
+  spellings already diverged once and silently produced "no key found".
 - **The vision model is stateless between calls.** `analyze.py` sends 2–3 frames per
   call and must include the running hp state in the message, or per-call guesses
   oscillate and the monotonic clamp flattens the timeline into noise.
