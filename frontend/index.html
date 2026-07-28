@@ -35,10 +35,15 @@
   --fs-stamp:      clamp(48px, 16vw, 190px);
 
   /* layout */
-  --bar-w:         clamp(180px, 34vw, 520px);
+  --bar-w:         clamp(150px, 30vw, 520px);
   --bar-h:         clamp(14px, 2.4vw, 30px);
   --hud-pad:       clamp(12px, 2.4vw, 34px);
   --radius:        3px;
+  /* Broadcast footage puts its own graphics in the TOP-LEFT (match clock,
+     "KNOCKOUT : 72sec" banner), so the HUD keeps that corner empty: bars run
+     along the bottom and the only top-anchored readouts hug the right edge.
+     Raise --safe-top if a broadcaster's band spans the full width. */
+  --safe-top:      var(--hud-pad);
 
   /* motion */
   --tween:         400ms;      /* health bar tween (spec) */
@@ -77,10 +82,13 @@ html, body { margin: 0; height: 100%; background: var(--bg); color: var(--ink);
   transition: opacity 500ms; }
 #hud.on { opacity: 1; }
 
-.bars { position: absolute; top: var(--hud-pad); left: var(--hud-pad);
+/* one bottom row: left stack · caption · right stack — the top of the frame
+   belongs to the broadcaster (see --safe-top). */
+.bars { position: absolute; bottom: var(--hud-pad); left: var(--hud-pad);
   right: var(--hud-pad); display: flex; justify-content: space-between;
-  align-items: flex-start; gap: 16px; }
-.side { display: flex; flex-direction: column; gap: 8px; width: var(--bar-w); }
+  align-items: flex-end; gap: clamp(10px, 3vw, 44px); }
+.side { display: flex; flex-direction: column; gap: 8px;
+  flex: 0 1 var(--bar-w); min-width: 0; }
 .side.right { align-items: flex-end; }
 
 .name { font-family: var(--font-pixel); font-size: var(--fs-name);
@@ -104,32 +112,40 @@ html, body { margin: 0; height: 100%; background: var(--bg); color: var(--ink);
 
 .hpnum { font-size: var(--fs-comment); color: var(--ink-dim); }
 
-/* fan comment — slides in under the damaged bot's bar */
-.comment { max-width: 100%; background: var(--comment-bg);
+/* fan comment — slides in above the damaged bot's bar (order: -1 keeps it
+   clear of the bottom edge now that the bars are bottom-anchored) */
+.comment { order: -1; max-width: 100%; background: var(--comment-bg);
   border-left: 3px solid var(--accent); padding: 8px 10px;
   font-size: var(--fs-comment); line-height: 1.6; opacity: 0;
-  transform: translateY(-10px); transition: opacity 260ms, transform 260ms; }
+  transform: translateY(10px); transition: opacity 260ms, transform 260ms; }
 .side.right .comment { border-left: 0; border-right: 3px solid var(--accent);
   text-align: right; }
 .comment.on { opacity: 1; transform: translateY(0); }
 .comment .src { display: block; margin-top: 6px; color: var(--ink-dim);
-  font-size: .82em; }
+  font-size: .82em; overflow-wrap: anywhere; }
 
-/* caption */
-#caption { position: absolute; left: 50%; bottom: calc(var(--hud-pad) + 10px);
-  transform: translateX(-50%); max-width: 80vw; text-align: center;
+/* caption — centre column of the bottom row */
+#caption { flex: 1 1 auto; min-width: 0; text-align: center;
+  overflow-wrap: break-word; padding-bottom: 4px;
   font-family: var(--font-pixel); font-size: var(--fs-caption);
   line-height: 1.7; text-shadow: 3px 3px 0 #000, 0 0 18px #000; }
+/* too narrow for three columns — caption takes its own line above the bars */
+@media (max-width: 620px) {
+  .bars { flex-wrap: wrap; }
+  #caption { order: -2; flex: 1 0 100%; padding-bottom: 10px; }
+}
 #caption::after { content: '_'; opacity: .8; animation: blink 700ms steps(1) infinite; }
 #caption.done::after { content: ''; }
 
 /* hit counter + massive damage */
-#hits { position: absolute; left: 50%; top: calc(var(--hud-pad) + var(--bar-h) + 46px);
-  transform: translateX(-50%); font-size: var(--fs-comment); color: var(--accent);
+#hits { position: absolute; right: var(--hud-pad); top: var(--safe-top);
+  font-size: var(--fs-comment); color: var(--accent);
   text-shadow: 2px 2px 0 #000; }
-#muted { position: absolute; right: var(--hud-pad); bottom: var(--hud-pad);
+#muted { position: absolute; right: var(--hud-pad);
+  top: calc(var(--safe-top) + var(--fs-comment) + 14px);
   font-size: var(--fs-comment); color: var(--ink-dim); display: none;
-  pointer-events: auto; cursor: pointer; }
+  pointer-events: auto; cursor: pointer; text-align: right;
+  max-width: min(60vw, 420px); line-height: 1.7; }
 #muted.on { display: block; }
 #massive { position: absolute; left: 50%; top: 44%; transform: translate(-50%,-50%) scale(.6);
   font-family: var(--font-pixel); font-size: clamp(18px, 4.4vw, 54px);
@@ -221,6 +237,7 @@ body.rainbow .fill { background: linear-gradient(90deg,#ff2e63,#ffd23f,#3fff8a,#
         <div class="hpnum" id="hpL">100</div>
         <div class="comment" id="cmtL"></div>
       </div>
+      <div id="caption"></div>
       <div class="side right">
         <div class="name" id="nameR">—</div>
         <div class="track"><div class="ghost" id="ghostR"></div><div class="fill" id="fillR"></div></div>
@@ -229,9 +246,8 @@ body.rainbow .fill { background: linear-gradient(90deg,#ff2e63,#ffd23f,#3fff8a,#
       </div>
     </div>
     <div id="hits"></div>
-    <div id="muted">🔇 MUTED BY BROWSER — CLICK TO UNMUTE</div>
+    <div id="muted">🔇 MUTED — CLICK TO UNMUTE</div>
     <div id="massive">MASSIVE DAMAGE</div>
-    <div id="caption"></div>
   </div>
 
   <div id="flash"></div>
