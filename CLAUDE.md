@@ -200,3 +200,12 @@ python3 backend/serve.py     # -> http://localhost:40911/frontend/index.html?cli
 Every colour, font and size is a CSS variable in the `:root` block at the top of
 `frontend/index.html`. Reskinning should not require touching anything below that
 block.
+
+**The top-left of the frame belongs to the broadcaster.** Real fight footage burns
+in its own graphics there — the match clock and a `KNOCKOUT : 72sec` banner that
+runs from the left edge to roughly 60% of the width and a quarter of the way down.
+Anything the HUD puts in that corner is unreadable on top of it. So the health
+bars, names, hp numbers and fan comments live in **one bottom row** (left stack ·
+caption · right stack), and the only top-anchored readouts (`#hits`, `#muted`) hug
+the **right** edge at `--safe-top`. Raise `--safe-top` if a clip's band spans the
+full width; do not move the bars back up to reclaim the space.
