@@ -224,12 +224,20 @@ KNOWN_BOTS = {
 
 
 def names_a_rival(text: str, card: dict) -> bool:
-    low = " " + " ".join(text.lower().split()) + " "
-    ours = {card.get("left", "").lower(), card.get("right", "").lower()}
+    """True if the comment names a known bot that is not in this fight.
+
+    Word-boundary matched, so "Manta," and "Mad Catter's" are caught — an
+    endswith/space check misses trailing punctuation, which is exactly how a
+    Manta comment first slipped onto a Copperhead hit.
+    """
+    low = " ".join(text.lower().split())
+    ours = {n.lower() for n in (card.get("left", ""), card.get("right", "")) if n}
     for bot in KNOWN_BOTS:
-        if bot in ours or any(bot in o for o in ours if o):
+        # "madcatter" and "mad catter" both count as ours if either name contains it
+        if any(bot in o or o in bot for o in ours):
             continue
-        if f" {bot} " in low or f" {bot}'s " in low:
+        # trailing s / possessive: "Mad Catters design", "Tombstone's blade"
+        if re.search(rf"\b{re.escape(bot)}(?:'s|’s|s)?\b", low):
             return True
     return False
 

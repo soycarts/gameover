@@ -176,6 +176,24 @@ python3 backend/serve.py     # -> http://localhost:40911/frontend/index.html?cli
   silently yields zero comments on a perfectly healthy HTTP 200 — `_parse_payload()`
   handles all three shapes. If comments go empty, print `resp.text` before assuming
   the key or dataset id is wrong.
+- **Scraped comments are NOT safe to show unfiltered.** Reddit threads are the
+  real thing: the MaD CaTTer thread is a sustained sexual joke, `[deleted]` bodies
+  appear as literal text, and a search for one bot surfaces its *other* fights.
+  Two deterministic gates handle it — `is_showable()` in `scrape_comments.py`
+  (drops explicit language, deleted bodies, junk lengths) and `names_a_rival()` in
+  `analyze.py` (a comment naming a bot that is not in THIS fight is last-resort
+  only, so a SawBlaze quote never lands on a Tombstone hit). Filtering ~45% of a
+  scrape is normal. Never loosen these for a public build.
+- **Two-step comment scrape.** `discover_by=subreddit_url` finds posts, then the
+  Reddit-Comments dataset (`gd_lvzdpsdlw09j6t702`) expands the top
+  `POSTS_FOR_COMMENTS` of them into real threaded reactions. Post *titles* alone
+  read like headlines ("Season 6 Rumor Mill") and make a poor fan comment.
+  `GAMEOVER_THREADED=0` falls back to titles. `GET /datasets/list` (undocumented)
+  returns every dataset id on the account.
+- **`serve.py` implements HTTP Range itself.** `SimpleHTTPRequestHandler` ignores
+  the header and answers 200 with the whole file, so the browser cannot seek and
+  `currentTime` snaps back to 0. Vercel serves ranges already; this only ever bit
+  local dev, which is where demos get rehearsed.
 - **Everything Bright Data-specific is in one `brightdata_adapter()` function** in
   `scrape_comments.py`, under an ADAPTER banner. The dataset IDs there are
   placeholders. `--mock` keeps the pipeline unblocked.
