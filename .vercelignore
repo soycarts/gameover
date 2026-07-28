@@ -9,3 +9,4 @@ CLAUDE.md
 .DS_Store
 __pycache__/
 *.pyc
+frontend/DESIGN_ARTIFACT.html
