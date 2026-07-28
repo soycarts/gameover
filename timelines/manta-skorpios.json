@@ -12,24 +12,25 @@
       "caption": ""
     },
     {
-      "t": 8.0,
+      "t": 4.0,
       "left_hp": 96,
       "right_hp": 100,
-      "caption": "small black debris on floor"
+      "caption": "Manta takes harmless shove"
     },
     {
       "t": 24.0,
       "left_hp": 96,
-      "right_hp": 100,
-      "caption": "yellow debris on floor"
+      "right_hp": 88,
+      "caption": "Skorpios armor fragment on floor",
+      "fan_comment": "As much as Skorpios is my goat, Manta is going to kick their ass \ud83d\ude2d"
     },
     {
       "t": 28.0,
       "left_hp": 0,
-      "right_hp": 100,
-      "caption": "knockout announced",
+      "right_hp": 88,
+      "caption": "",
       "ko": "left",
-      "fan_comment": "As much as Skorpios is my goat, Manta is going to kick their ass \ud83d\ude2d"
+      "fan_comment": "Just a causal reminder that the only robot to ever beat Manta in a fight is Hexy-D (and really Manta lost that fight because of it's own ESC blew up)."
     }
   ]
 }

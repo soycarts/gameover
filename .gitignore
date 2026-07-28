@@ -6,6 +6,7 @@ clips/*
 !clips/manta-skorpios.mp4
 !clips/madcatter-tombstone.mp4
 frames/
+frames   # a worktree has no frames/; symlinking the main checkout's is handy
 .env
 __pycache__/
 *.pyc

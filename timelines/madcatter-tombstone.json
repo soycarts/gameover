@@ -12,140 +12,68 @@
       "caption": ""
     },
     {
-      "t": 8.0,
-      "left_hp": 98,
+      "t": 10.0,
+      "left_hp": 96,
       "right_hp": 100,
-      "caption": "left small panel separated"
+      "caption": "Tombstone glances MaDCaTTer"
     },
     {
       "t": 16.0,
-      "left_hp": 95,
+      "left_hp": 84,
       "right_hp": 100,
-      "caption": "left side sparks from impact"
-    },
-    {
-      "t": 18.0,
-      "left_hp": 95,
-      "right_hp": 96,
-      "caption": "right showering sparks"
+      "caption": "Tombstone launches MaDCaTTer with sparks"
     },
     {
       "t": 20.0,
-      "left_hp": 95,
-      "right_hp": 94,
-      "caption": "right weapon area sparking"
-    },
-    {
-      "t": 22.0,
-      "left_hp": 93,
-      "right_hp": 90,
-      "caption": "both armour visibly scuffed"
-    },
-    {
-      "t": 26.0,
-      "left_hp": 93,
-      "right_hp": 88,
-      "caption": "right bot flipped upward"
-    },
-    {
-      "t": 28.0,
-      "left_hp": 88,
-      "right_hp": 87,
-      "caption": "left top armour sparking"
-    },
-    {
-      "t": 30.0,
-      "left_hp": 88,
-      "right_hp": 82,
-      "caption": "right side ignites"
-    },
-    {
-      "t": 32.0,
-      "left_hp": 88,
-      "right_hp": 72,
-      "caption": "flames engulf right wheel",
+      "left_hp": 72,
+      "right_hp": 100,
+      "caption": "Tombstone lands another weapon hit",
       "fan_comment": "the weapon's stuck, right?"
     },
     {
-      "t": 34.0,
-      "left_hp": 88,
-      "right_hp": 68,
-      "caption": "fire streams from side"
+      "t": 26.0,
+      "left_hp": 72,
+      "right_hp": 88,
+      "caption": "Tombstone flipped upward"
     },
     {
-      "t": 42.0,
-      "left_hp": 88,
-      "right_hp": 60,
-      "caption": "right rear on fire"
+      "t": 28.0,
+      "left_hp": 60,
+      "right_hp": 88,
+      "caption": "Tombstone sparks on MaDCaTTer"
     },
     {
-      "t": 44.0,
-      "left_hp": 88,
-      "right_hp": 52,
-      "caption": "right fire and smoke worsens"
-    },
-    {
-      "t": 48.0,
-      "left_hp": 70,
-      "right_hp": 52,
-      "caption": "left side engulfed in flames",
+      "t": 30.0,
+      "left_hp": 60,
+      "right_hp": 66,
+      "caption": "Tombstone catches fire",
       "fan_comment": "And then there\u2019s gassy cat in the background"
     },
     {
-      "t": 50.0,
-      "left_hp": 62,
-      "right_hp": 52,
-      "caption": "flames spread up left side"
+      "t": 32.0,
+      "left_hp": 60,
+      "right_hp": 62,
+      "caption": "fire flares larger"
     },
     {
       "t": 54.0,
-      "left_hp": 62,
-      "right_hp": 47,
-      "caption": "right side engulfed in flames"
-    },
-    {
-      "t": 56.0,
-      "left_hp": 62,
-      "right_hp": 43,
-      "caption": "fire spreads across top"
-    },
-    {
-      "t": 58.0,
-      "left_hp": 62,
-      "right_hp": 38,
-      "caption": "wheel engulfed in flames"
-    },
-    {
-      "t": 60.0,
-      "left_hp": 62,
-      "right_hp": 28,
-      "caption": "right bot burning heavily"
+      "left_hp": 60,
+      "right_hp": 58,
+      "caption": "Tombstone fire flares again"
     },
     {
       "t": 62.0,
-      "left_hp": 62,
-      "right_hp": 22,
-      "caption": "right fire intensifies"
-    },
-    {
-      "t": 66.0,
-      "left_hp": 52,
-      "right_hp": 22,
-      "caption": "left rear engulfed in flames"
-    },
-    {
-      "t": 70.0,
-      "left_hp": 48,
-      "right_hp": 22,
-      "caption": "fire persists under left rear"
+      "left_hp": 60,
+      "right_hp": 54,
+      "caption": "Tombstone fire spreads"
     },
     {
       "t": 74.0,
-      "left_hp": 48,
+      "left_hp": 60,
       "right_hp": 0,
-      "caption": "right bot engulfed in flames",
+      "caption": "Tombstone knocked out burning",
       "ko": "right",
-      "fan_comment": "This match was such a massacre!! I haven\u2019t seen one that bad in a long time"
+      "fan_comment": "Let\u2019s just hope the upper deck falls into the Did Not Enter / Did Not Qualify / Dropped Out category"
     }
   ]
 }
