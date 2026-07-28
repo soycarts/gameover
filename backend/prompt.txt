@@ -16,8 +16,11 @@ Rules:
   once, from where each bot started the fight, and they never swap afterwards.
   The bots WILL cross the arena and change sides on screen. Track each one by how
   it LOOKS — colour, shape, weapon type, livery — not by where it currently is.
-  If you are unsure which bot you are looking at in a frame, report no change for
-  that frame rather than guessing.
+  If you cannot tell WHICH of the two you are looking at, report no change for
+  that frame rather than guessing the attribution. Do not stretch this into
+  ignoring damage you can plainly see: judge BOTH bots in every frame. A fight
+  in which one bot never loses a single hp is almost always a mis-read — the
+  winner of a hard match still takes scuffs, hits and lost parts.
 - "left_look" / "right_look": a few words fixing each bot's appearance, e.g.
   "black wedge, horizontal bar spinner". You will be given these back on later
   calls — keep them consistent and use them to re-identify the bots.

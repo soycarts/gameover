@@ -13,111 +13,113 @@
     },
     {
       "t": 2.0,
-      "left_hp": 96,
-      "right_hp": 92,
-      "caption": "Copperhead tipped, Jackpot panel loose"
+      "left_hp": 100,
+      "right_hp": 90,
+      "caption": "Jackpot flipped onto side"
     },
     {
-      "t": 8.0,
-      "left_hp": 96,
-      "right_hp": 88,
-      "caption": "Jackpot tipped against screws"
-    },
-    {
-      "t": 28.0,
-      "left_hp": 94,
-      "right_hp": 88,
-      "caption": "Copperhead top panel bent up"
+      "t": 50.0,
+      "left_hp": 100,
+      "right_hp": 80,
+      "caption": "Jackpot weapon parts flying off"
     },
     {
       "t": 52.0,
-      "left_hp": 84,
-      "right_hp": 88,
-      "caption": "Copperhead smoking, part shed"
+      "left_hp": 100,
+      "right_hp": 65,
+      "caption": "Jackpot smoking, weapon part detached",
+      "fan_comment": "My only disappointment is that one of Martin and Ray have to lose. I love them both."
     },
     {
       "t": 58.0,
-      "left_hp": 76,
-      "right_hp": 88,
-      "caption": "Copperhead wheel torn off"
-    },
-    {
-      "t": 66.0,
-      "left_hp": 72,
-      "right_hp": 88,
-      "caption": "Copperhead armour piece on floor"
-    },
-    {
-      "t": 68.0,
-      "left_hp": 68,
-      "right_hp": 88,
-      "caption": "Copperhead front armour crumpled"
+      "left_hp": 100,
+      "right_hp": 55,
+      "caption": "Jackpot wheel torn off"
     },
     {
       "t": 70.0,
-      "left_hp": 66,
-      "right_hp": 88,
-      "caption": "Copperhead side panel fully detached"
+      "left_hp": 100,
+      "right_hp": 45,
+      "caption": "Jackpot armour panel torn off"
     },
     {
       "t": 72.0,
-      "left_hp": 63,
-      "right_hp": 88,
-      "caption": "Copperhead high-centered on opponent"
+      "left_hp": 100,
+      "right_hp": 38,
+      "caption": "Jackpot front armour bent upward"
+    },
+    {
+      "t": 74.0,
+      "left_hp": 100,
+      "right_hp": 32,
+      "caption": "Jackpot armour piece detached"
     },
     {
       "t": 78.0,
-      "left_hp": 55,
-      "right_hp": 88,
-      "caption": "Copperhead fork assembly torn off"
+      "left_hp": 100,
+      "right_hp": 30,
+      "caption": "Jackpot front fork broken loose"
     },
     {
-      "t": 84.0,
-      "left_hp": 55,
-      "right_hp": 78,
-      "caption": "Jackpot overturned against wall"
+      "t": 82.0,
+      "left_hp": 100,
+      "right_hp": 28,
+      "caption": "Jackpot red fork dragging"
     },
     {
       "t": 112.0,
-      "left_hp": 55,
-      "right_hp": 74,
-      "caption": "Jackpot smoking"
+      "left_hp": 100,
+      "right_hp": 24,
+      "caption": "Jackpot side smoking"
     },
     {
       "t": 122.0,
-      "left_hp": 55,
-      "right_hp": 68,
-      "caption": "Jackpot smoking in corner"
+      "left_hp": 100,
+      "right_hp": 22,
+      "caption": "Jackpot smoking near wall"
+    },
+    {
+      "t": 124.0,
+      "left_hp": 100,
+      "right_hp": 18,
+      "caption": "Jackpot armour panel dislodged"
     },
     {
       "t": 128.0,
-      "left_hp": 55,
-      "right_hp": 63,
-      "caption": "Jackpot drive side exposed"
+      "left_hp": 100,
+      "right_hp": 15,
+      "caption": "Jackpot front wedge crumpled"
     },
     {
       "t": 130.0,
-      "left_hp": 55,
-      "right_hp": 58,
-      "caption": "Jackpot smoking under pin"
+      "left_hp": 100,
+      "right_hp": 10,
+      "caption": "Jackpot smoking against wall"
     },
     {
       "t": 132.0,
-      "left_hp": 45,
-      "right_hp": 58,
-      "caption": "Rapid Taxis catches fire"
+      "left_hp": 100,
+      "right_hp": 5,
+      "caption": "Jackpot on fire"
     },
     {
       "t": 134.0,
-      "left_hp": 38,
-      "right_hp": 58,
-      "caption": "Rapid Taxis fire intensifies"
+      "left_hp": 100,
+      "right_hp": 3,
+      "caption": "Jackpot fire intensifies"
     },
     {
       "t": 138.0,
-      "left_hp": 30,
-      "right_hp": 58,
-      "caption": "Copperhead smoking against wall"
+      "left_hp": 100,
+      "right_hp": 2,
+      "caption": "Jackpot smoking against wall"
+    },
+    {
+      "t": 140.0,
+      "left_hp": 100,
+      "right_hp": 0,
+      "caption": "",
+      "ko": "right"
     }
   ]
 }
