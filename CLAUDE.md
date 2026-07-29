@@ -118,15 +118,24 @@ python backend/ingest.py "<url>" --name manta-skorpios \
 ```
 
 The three demo fights all come from one video, `youtube.com/watch?v=rC__2ZOQhc4`.
-**Always re-judge them with `--bots`** — name detection depends on whether a
-lower-third happens to be legible in the sampled frames, and a re-run that came back
-`Manta vs Skorpios` once will happily return `Bot A vs Bot B` the next time:
+**Always re-judge them with `--bots`, and with `--ko` where the table gives one.**
+Name detection depends on whether a lower-third happens to be legible in the sampled
+frames, and a re-run that came back `Manta vs Skorpios` once will happily return
+`Bot A vs Bot B` the next time. Worse, an unpinned card also switches off the "the
+ONLY two competitors are X and Y" line in `identity_note()`, which is the thing
+stopping the model captioning sponsor decals as robots — a run with a broken
+`--bots` came back `Bot A vs Horizon`, and Horizon is a sponsor.
 
-| clip | `--start` | `--duration` | `--bots` (left,right) | ends on |
-|---|---|---|---|---|
-| `jackpot-copperhead`  |  23 | 144 | `Copperhead,Jackpot` | TAP OUT : 152sec |
-| `manta-skorpios`      | 187 |  31 | `Manta,Skorpios`     | KNOCKOUT : 24sec |
-| `madcatter-tombstone` | 271 |  79 | `MaDCaTTer,Tombstone`| KNOCKOUT : 72sec |
+| clip | `--start` | `--duration` | `--bots` (left,right) | `--ko` | ends on |
+|---|---|---|---|---|---|
+| `jackpot-copperhead`  |  23 | 144 | `Copperhead,Jackpot` | —      | TAP OUT : 152sec |
+| `manta-skorpios`      | 187 |  31 | `Manta,Skorpios`     | `left` | KNOCKOUT : 24sec |
+| `madcatter-tombstone` | 271 |  79 | `MaDCaTTer,Tombstone`| —      | KNOCKOUT : 72sec |
+
+`manta-skorpios` **needs** `--ko left`: ~6 of its 16 frames are crowd shots and Manta
+is flat on the floor from t≈4s, so the model reads the sides backwards and does it
+*consistently* — the damage cross-check agrees with the wrong answer, so only the
+explicit flag fixes it.
 
 Keys in the page: `any` start · `r` replay · `c` CRT filter · `g` rainbow bars.
 

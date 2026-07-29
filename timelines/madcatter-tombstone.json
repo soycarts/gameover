@@ -12,74 +12,112 @@
       "caption": ""
     },
     {
-      "t": 16.0,
+      "t": 10.0,
       "left_hp": 100,
-      "right_hp": 92,
-      "caption": "Tombstone wedge showering sparks"
+      "right_hp": 88,
+      "caption": "MaDCaTTer flips Tombstone",
+      "hit": {
+        "by": "left",
+        "weapon": "vertical spinner",
+        "clean": true
+      }
+    },
+    {
+      "t": 16.0,
+      "left_hp": 96,
+      "right_hp": 88,
+      "caption": "MaDCaTTer takes bar sparks",
+      "hit": {
+        "by": "right",
+        "weapon": "horizontal bar",
+        "clean": true
+      }
+    },
+    {
+      "t": 18.0,
+      "left_hp": 96,
+      "right_hp": 76,
+      "caption": "MaDCaTTer flips Tombstone again",
+      "hit": {
+        "by": "left",
+        "weapon": "vertical spinner",
+        "clean": true
+      }
+    },
+    {
+      "t": 20.0,
+      "left_hp": 92,
+      "right_hp": 76,
+      "caption": "MaDCaTTer sheds fresh sparks",
+      "hit": {
+        "by": "right",
+        "weapon": "horizontal bar",
+        "clean": true
+      }
     },
     {
       "t": 26.0,
-      "left_hp": 100,
-      "right_hp": 89,
-      "caption": "Tombstone tipped upright, mobility impaired"
+      "left_hp": 92,
+      "right_hp": 64,
+      "caption": "MaDCaTTer launches Tombstone",
+      "hit": {
+        "by": "left",
+        "weapon": "vertical spinner",
+        "clean": true
+      }
     },
     {
       "t": 28.0,
-      "left_hp": 100,
-      "right_hp": 84,
-      "caption": "Tombstone wedge showering sparks"
+      "left_hp": 92,
+      "right_hp": 60,
+      "caption": "MaDCaTTer sparks Tombstone",
+      "hit": {
+        "by": "left",
+        "weapon": "vertical spinner",
+        "clean": true
+      }
     },
     {
-      "t": 48.0,
-      "left_hp": 100,
-      "right_hp": 62,
-      "caption": "Tombstone wheel area burning",
+      "t": 30.0,
+      "left_hp": 92,
+      "right_hp": 38,
+      "caption": "Tombstone catches fire",
+      "hit": {
+        "by": "left",
+        "weapon": "vertical spinner",
+        "clean": true
+      },
       "fan_comment": "And then there\u2019s gassy cat in the background"
     },
     {
-      "t": 54.0,
-      "left_hp": 100,
-      "right_hp": 50,
-      "caption": "Tombstone side engulfed in flames"
-    },
-    {
-      "t": 56.0,
-      "left_hp": 100,
-      "right_hp": 48,
-      "caption": "Tombstone wheel still burning"
-    },
-    {
-      "t": 58.0,
-      "left_hp": 100,
-      "right_hp": 45,
-      "caption": "Tombstone rear wheel on fire"
-    },
-    {
-      "t": 60.0,
-      "left_hp": 100,
-      "right_hp": 30,
-      "caption": "Tombstone on fire",
-      "fan_comment": "This match was such a massacre!! I haven\u2019t seen one that bad in a long time"
+      "t": 32.0,
+      "left_hp": 92,
+      "right_hp": 34,
+      "caption": "Tombstone fire grows",
+      "hit": {
+        "by": "left",
+        "weapon": "vertical spinner",
+        "clean": true
+      }
     },
     {
       "t": 62.0,
-      "left_hp": 100,
-      "right_hp": 25,
-      "caption": "Tombstone flames intensify"
-    },
-    {
-      "t": 66.0,
-      "left_hp": 100,
-      "right_hp": 15,
-      "caption": "Tombstone engulfed in flames"
+      "left_hp": 92,
+      "right_hp": 30,
+      "caption": "Tombstone fire flares larger",
+      "hit": {
+        "by": "left",
+        "weapon": "vertical spinner",
+        "clean": true
+      }
     },
     {
       "t": 74.0,
-      "left_hp": 100,
+      "left_hp": 92,
       "right_hp": 0,
-      "caption": "Tombstone knocked out, burning",
+      "caption": "",
       "ko": "right",
-      "fan_comment": "Let\u2019s just hope the upper deck falls into the Did Not Enter / Did Not Qualify / Dropped Out category"
+      "fan_comment": "This match was such a massacre!! I haven\u2019t seen one that bad in a long time"
     }
   ]
 }
