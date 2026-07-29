@@ -54,6 +54,38 @@ judged on `--backend openai` because only an `OPENAI_API_KEY` was on hand.
 - **Era B** — same pipeline generalised to any YouTube URL via `ingest.py`.
   Stretch goal; only touch it once Era A runs end to end.
 
+## Orchestration — parallelise, and loop on quality
+
+This is a hackathon with a real prize on the line, so **reach for subagents and
+workflows whenever the work genuinely forks**. Judgement call, not a mandate: the
+win comes from covering more ground and from iterating on output quality, not from
+spawning agents for their own sake.
+
+Worth orchestrating:
+
+- **Independent reads that don't share context.** Auditing `analyze.py`, the HUD
+  and the scrape gates at once; sweeping several clips or several timelines;
+  checking a change against every fight in the picker. Each agent reads its own
+  slice and reports a conclusion, so the context cost is paid once per slice
+  rather than once per file in one window.
+- **Loops that improve an artifact.** Judging quality is the whole product, and it
+  is the thing most worth iterating on: generate → critique → regenerate until a
+  pass comes back with nothing new. The same shape fits caption wording, sprite
+  rows in the `ART` table, and fan-comment selection.
+- **Adversarial verification before trusting a result.** Model output is untrusted
+  by design here. A finding about a timeline — "the KO is on the wrong side", "this
+  hit is misattributed" — is worth a second, independent agent trying to refute it
+  before anyone spends a re-judge on it.
+
+Not worth it: anything where the agents would all have to read the same files to
+start (that duplicates context rather than dividing it), and single mechanical
+edits. One judgement worth keeping in mind — a full three-way merge of this repo's
+branches was **faster to do inline** than to farm out, because every conflict
+needed the same three files in one head.
+
+Cost note: a re-judge is real money and ~15–30 min of wall clock, so parallelise
+the *analysis* freely and the *API-spending* runs deliberately.
+
 ## Commands
 
 Python deps live in `.venv/` (gitignored). Use `.venv/bin/python`, not system
