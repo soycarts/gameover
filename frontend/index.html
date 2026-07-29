@@ -461,7 +461,9 @@ const qs = new URLSearchParams(location.search);
 const CLIP = qs.get('clip') || 'madcatter-tombstone';
 const DEMO = qs.get('demo') === '1';
 
-const SHAKE_AT = 15, MASSIVE_AT = 20;
+/* on the backend's damage ladder: glance 4, solid 12, heavy 22, catastrophic 35 —
+   so solid+ shakes, heavy+ shakes hard and reads MASSIVE DAMAGE, glance does neither */
+const SHAKE_AT = 10, MASSIVE_AT = 20;
 const CORES = 5, HP_PER_CORE = 100 / CORES;
 let EMBERS = [];
 
@@ -698,6 +700,9 @@ async function boot() {
   const v = $('video');
   v.addEventListener('error', fallbackClock);
   v.addEventListener('loadedmetadata', () => { duration = v.duration || duration; });
+  // the KO now comes from a single flagged frame, so a missed flag would mean no
+  // GAME OVER screen at all — end of clip is the backstop
+  v.addEventListener('ended', () => { if (!koDone) finish(); });
   v.src = src;
   render(events[0] || {left_hp: 100, right_hp: 100});
 }
@@ -771,8 +776,8 @@ function fire(ev, prev) {
   if (ev.caption) typeCaption(ev.caption);
   if (ev.fan_comment) showComment(side, ev.fan_comment);
 
-  if (drop > 0) { hits++; $('hits').textContent = `HITS ${String(hits).padStart(2, '0')}`; }
-  if (drop >= SHAKE_AT) { shake(false); sfx('hit'); }
+  if (drop > 0) { hits++; $('hits').textContent = `HITS ${String(hits).padStart(2, '0')}`; sfx('hit'); }
+  if (drop >= SHAKE_AT) shake(drop >= MASSIVE_AT);   // reuse the KO's harder keyframes
   if (drop >= MASSIVE_AT) {
     const m = $('massive');
     m.classList.remove('on'); void m.offsetWidth; m.classList.add('on');

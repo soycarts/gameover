@@ -4,6 +4,7 @@
     python backend/analyze.py fight1.mp4                    # Anthropic API key
     python backend/analyze.py fight1.mp4 --backend cli      # your Claude subscription
     python backend/analyze.py fight1.mp4 --backend openai   # OPENAI_API_KEY
+    python backend/analyze.py fight1.mp4 --bots "Tombstone,Witch Doctor" --ko right
 
 --backend openai swaps the vision judge to an OpenAI model (OPENAI_MODEL, default
 gpt-5.5). Only the model call changes: the prompt, the hp clamp, thinning, KO
@@ -15,10 +16,13 @@ heavier per call (Claude Code re-sends its own system prompt and tool definition
 every time) and it consumes the same quota you need for coding. Fine for a demo
 clip; use the API backend for anything long.
 
-Sends frames in order, 2-3 per API call, with their timestamps and the running
-hp state (the model is stateless between calls, so it must be told where the
-fight stands). Everything else -- clamping, thinning, KO detection and the fan
-comment join -- is deterministic Python, not model output.
+Sends frames in order, 2-3 per API call, each batch led by the previous batch's
+last frame as unjudged context, plus a note of the last damage already reported
+(the model is stateless between calls, so without it the same fire gets reported
+as fresh damage on every frame). The model never emits hp: it rates each frame
+with a damage word per bot, and SEVERITY turns that into points. Everything else
+-- the budget, thinning, KO detection and the fan comment join -- is
+deterministic Python, not model output.
 
 Idempotent: same frames + same comments file produce the same timeline.
 """
@@ -38,11 +42,21 @@ MODEL = "claude-sonnet-5"
 # --backend openai only. Override with OPENAI_MODEL; this account has no gpt-4o,
 # so the default is the general GPT-5 model rather than a codex variant.
 OPENAI_MODEL = os.environ.get("OPENAI_MODEL", "gpt-5.5")
-BATCH = 3                    # frames per API call
+BATCH = 3                    # frames judged per API call
 SECONDS_PER_FRAME = 2.0      # extract_frames.py runs at 0.5 fps
-BIG_DROP = 15                # screen shake, and the floor for a fallback comment
-COMMENT_DROP = 8             # a hit worth reacting to, if a comment actually matches
+BIG_DROP = 20                # heavy+ — the floor for a last-resort fan comment
+COMMENT_DROP = 10            # solid+ — a hit worth reacting to, if a comment matches
 MAX_CAPTION_WORDS = 6
+
+# The model judges severity; Python owns every number. Asking it for absolute hp
+# instead made it nudge the bar down 3-5 points per frame to signal "time passed",
+# which the HUD renders as mush. Nothing exists here between 0 and 4, so that drip
+# is not representable. The rungs are spaced against the HUD's 5 cores x 20 hp, so
+# a mis-graded hit is wrong by a category rather than by an unreadable 3 points.
+SEVERITY = {"none": 0, "glance": 4, "solid": 12, "heavy": 22, "catastrophic": 35}
+KO_BUDGET = 70               # damage a bot may take BEFORE the finishing blow
+LIVE_BUDGET = 55             # ... for a bot still fighting at the end
+FINISH_WINDOW = 0.7          # a finish flag in the first 70% of a clip is a misread
 
 STOPWORDS = {
     "the", "a", "an", "is", "it", "its", "to", "of", "and", "on", "in", "at",
@@ -111,22 +125,59 @@ def parse_json(text: str) -> dict:
     return json.loads(text[start:end + 1])
 
 
-def ask(api, prompt: str, frames: list[tuple[float, Path]], state: dict,
-        names: dict | None = None) -> dict:
+def context_note(t: float) -> str:
+    """Label for the carried-over frame that leads every batch after the first.
+
+    A batch is asked for damage "new since the previous frame", so its leading
+    frame is unanswerable without a predecessor — batches used to be disjoint and
+    every 3rd frame had nothing to diff against."""
+    return (f"Frame at t={t:.1f}s — CONTEXT ONLY, already judged. Use it as the "
+            f"'previous frame' for the first frame below. Do not return an entry for it.")
+
+
+def footer(frames: list[tuple[float, Path]], recent: list[str],
+           card: dict | None = None, state: dict | None = None) -> str:
+    """Shared tail of every judging call. The model is stateless between calls, so
+    everything it needs to stay consistent has to be re-sent every time:
+
+    - who the two bots are and what they look like (identity_note) — the camera
+      pans and cuts, so "the bot on the left of the screen" is not the same bot
+      frame to frame. On madcatter-tombstone that ambiguity flipped which side got
+      the KO between two runs of the same clip;
+    - what it already reported, or it re-reports standing damage (a fire still
+      burning, a panel already gone) as fresh damage on every frame;
+    - the "hit" rule, which it otherwise honours for a batch or two and then
+      quietly forgets for the rest of a long clip.
+
+    There is deliberately no running-hp line: under the severity ladder the model
+    never emits hp at all, so there is no hp state to carry.
+    """
+    return (identity_note(state or {}, card)
+            + f"Already reported: {'; '.join(recent) or 'nothing yet'}\n"
+            + 'For every frame where a bot takes damage (any word other than '
+              '"none"), include "hit" ({"by": "left"|"right", "weapon": ..., '
+              '"clean": true|false}) naming the bot that LANDED the blow. '
+              'Omit "hit" when both bots are "none".\n'
+            + f"Return one entry per frame above, at exactly these timestamps: "
+              f"{[round(t, 1) for t, _ in frames]}")
+
+
+def ask(api, prompt: str, frames: list[tuple[float, Path]],
+        ctx: tuple[float, Path] | None, recent: list[str],
+        card: dict | None = None, state: dict | None = None) -> dict:
+    def image(path: Path) -> dict:
+        return {"type": "image",
+                "source": {"type": "base64", "media_type": "image/jpeg",
+                           "data": base64.b64encode(path.read_bytes()).decode()}}
+
     content: list[dict] = []
+    if ctx:
+        content.append({"type": "text", "text": context_note(ctx[0])})
+        content.append(image(ctx[1]))
     for t, path in frames:
         content.append({"type": "text", "text": f"Frame at t={t:.1f}s"})
-        content.append({
-            "type": "image",
-            "source": {"type": "base64", "media_type": "image/jpeg",
-                       "data": base64.b64encode(path.read_bytes()).decode()},
-        })
-    content.append({"type": "text", "text":
-        identity_note(state, names) +
-        f"Running state — left_hp {state['left']}, right_hp {state['right']}. "
-        f"hp may only stay the same or decrease. "
-        f"Return one entry per frame above, at exactly these timestamps: "
-        f"{[round(t, 1) for t, _ in frames]}"})
+        content.append(image(path))
+    content.append({"type": "text", "text": footer(frames, recent, card, state)})
 
     last_err = None
     for attempt in range(2):                       # one retry on bad JSON
@@ -144,21 +195,23 @@ def ask(api, prompt: str, frames: list[tuple[float, Path]], state: dict,
     return {"frames": []}
 
 
-def ask_openai(api, prompt: str, frames: list[tuple[float, Path]], state: dict,
-               names: dict | None = None) -> dict:
+def ask_openai(api, prompt: str, frames: list[tuple[float, Path]],
+               ctx: tuple[float, Path] | None, recent: list[str],
+               card: dict | None = None, state: dict | None = None) -> dict:
     """Same judging call against an OpenAI vision model. See --backend openai."""
+    def image(path: Path) -> dict:
+        data = base64.b64encode(path.read_bytes()).decode()
+        return {"type": "image_url",
+                "image_url": {"url": f"data:image/jpeg;base64,{data}"}}
+
     content: list[dict] = []
+    if ctx:
+        content.append({"type": "text", "text": context_note(ctx[0])})
+        content.append(image(ctx[1]))
     for t, path in frames:
         content.append({"type": "text", "text": f"Frame at t={t:.1f}s"})
-        data = base64.b64encode(path.read_bytes()).decode()
-        content.append({"type": "image_url",
-                        "image_url": {"url": f"data:image/jpeg;base64,{data}"}})
-    content.append({"type": "text", "text":
-        identity_note(state, names) +
-        f"Running state — left_hp {state['left']}, right_hp {state['right']}. "
-        f"hp may only stay the same or decrease. "
-        f"Return one entry per frame above, at exactly these timestamps: "
-        f"{[round(t, 1) for t, _ in frames]}"})
+        content.append(image(path))
+    content.append({"type": "text", "text": footer(frames, recent, card, state)})
 
     messages = [{"role": "system", "content": prompt},
                 {"role": "user", "content": content}]
@@ -181,22 +234,22 @@ def ask_openai(api, prompt: str, frames: list[tuple[float, Path]], state: dict,
     return {"frames": []}
 
 
-def ask_cli(prompt: str, frames: list[tuple[float, Path]], state: dict,
-            names: dict | None = None) -> dict:
+def ask_cli(prompt: str, frames: list[tuple[float, Path]],
+            ctx: tuple[float, Path] | None, recent: list[str],
+            card: dict | None = None, state: dict | None = None) -> dict:
     """Same judging call, but through `claude -p` so it bills your Claude
     subscription instead of an API key. Claude Code reads the frames with its
     Read tool. Slower and far heavier per call than the API (every call re-sends
     Claude Code's own system prompt and tool definitions) -- fine for a demo run,
     wasteful for a long clip. See --backend in the docstring."""
-    listing = "\n".join(f"- {p.resolve()}  (t={t:.1f}s)" for t, p in frames)
+    lines = []
+    if ctx:
+        lines.append(f"- {ctx[1].resolve()}  ({context_note(ctx[0])})")
+    lines += [f"- {p.resolve()}  (t={t:.1f}s)" for t, p in frames]
     ask_text = (
         f"{prompt}\n\n"
-        f"Read these frame images in order:\n{listing}\n\n"
-        + identity_note(state, names) +
-        f"Running state — left_hp {state['left']}, right_hp {state['right']}. "
-        f"hp may only stay the same or decrease.\n"
-        f"Return one entry per frame at exactly these timestamps: "
-        f"{[round(t, 1) for t, _ in frames]}\n"
+        f"Read these frame images in order:\n" + "\n".join(lines) + "\n\n"
+        f"{footer(frames, recent, card, state)}\n"
         f"Reply with the JSON object only."
     )
     cmd = ["claude", "-p", "--model", MODEL, "--output-format", "json",
@@ -254,12 +307,52 @@ def trim_caption(text: str) -> str:
     return " ".join((text or "").split()[:MAX_CAPTION_WORDS])
 
 
+def pay(obs: list[dict], side: str, budget: int) -> None:
+    """Spend a fixed damage budget on the worst moments first; zero the rest.
+
+    A busy fight overshoots badly — the model will happily call 30 hits, and 30
+    hits at 12 points each is 360 damage against a 100 point bar. Scaling every
+    hit down to fit would just re-create the 3-5 point drip this replaces, and a
+    plain floor would flatline the bar halfway through the fight. Paying the big
+    hits first keeps them full size and drops the surplus scuffing. Ties go to the
+    earlier frame, so the result is stable and idempotent.
+
+    The budget is under 100 on purpose: a bot bottoms out with hp to spare, and
+    the only route to 0 is the model's finish flag."""
+    spent = 0
+    for i in sorted(range(len(obs)), key=lambda i: (-obs[i]["cost"][side], i)):
+        c = obs[i]["cost"][side]
+        if c and spent + c <= budget:
+            spent += c
+        else:
+            obs[i]["cost"][side] = 0
+
+
+def finish_at(obs: list[dict]) -> tuple[int | None, str | None]:
+    """First frame flagged as the finish, ignoring flags in the first 70% of the
+    clip. Events are cut at the KO, so a model that calls a knockout at t=10 of a
+    144s fight would throw the whole fight away. ingest.py cuts each clip to the
+    fight, so the real finish is always near the end: 140/144, 74/78, 28/32 on the
+    three demo clips."""
+    cut = int(len(obs) * FINISH_WINDOW)
+    for i, o in enumerate(obs):
+        if o["finish"] and i >= cut:
+            return i, o["finish"]
+    return None, None
+
+
 def thin(observations: list[dict]) -> list[dict]:
-    """~60 frame observations -> ~10 events: keep only visible change."""
+    """~60 frame observations -> ~10 events: keep only visible change.
+
+    A caption with no hp change is still kept — pay() zeroes surplus hits, and the
+    caption beat gives the HUD something to type across a long fight. But a caption
+    that just repeats the one before it is dropped: the model narrates a fire for
+    ten frames running, and the HUD should not type "right side on fire" ten times.
+    """
     events, prev = [], None
     for o in observations:
         changed = prev is None or o["left_hp"] != prev["left_hp"] or o["right_hp"] != prev["right_hp"]
-        if changed or o["caption"]:
+        if changed or (o["caption"] and o["caption"] != prev["caption"]):
             events.append(o)
             prev = o
     return events
@@ -354,7 +447,8 @@ def validate(timeline: dict) -> None:
 
 
 # ------------------------------------------------------------------------ main
-def analyze(clip: str, backend: str = "api", bots: dict | None = None) -> Path:
+def analyze(clip: str, backend: str = "api", bots: dict | None = None,
+            ko: str | None = None) -> Path:
     name = Path(clip).stem
     frame_dir = ROOT / "frames" / name
     paths = sorted(frame_dir.glob("*.jpg"))
@@ -371,20 +465,26 @@ def analyze(clip: str, backend: str = "api", bots: dict | None = None) -> Path:
     # `look` carries each bot's appearance between calls. The model is stateless
     # per batch and the bots cross the arena constantly, so without this it
     # re-derives "left"/"right" from screen position every few frames and the
-    # identities silently swap mid-fight.
-    state = {"left": 100, "right": 100, "left_look": "", "right_look": ""}
+    # identities silently swap mid-fight. No hp here any more — the model emits
+    # severity words and Python owns every number.
+    state = {"left_look": "", "right_look": ""}
     names = {"left": None, "right": None}
     if bots:                       # a caller who knows the card anchors identity
         names.update({k: v for k, v in bots.items() if k in ("left", "right")})
-    observations: list[dict] = []
+    obs: list[dict] = []
+    recent: list[str] = []
 
     for k in range(0, len(stamped), BATCH):
         batch = stamped[k:k + BATCH]
+        ctx = stamped[k - 1] if k else None    # every judged frame gets a predecessor
         print(f"judging t={batch[0][0]:.0f}s..{batch[-1][0]:.0f}s "
               f"({k // BATCH + 1}/{-(-len(stamped) // BATCH)})")
-        out = (ask_cli(prompt, batch, state, names) if backend == "cli"
-               else ask_openai(api, prompt, batch, state, names) if backend == "openai"
-               else ask(api, prompt, batch, state, names))
+        # `names`, not `bots` — it is seeded from --bots when given and filled in
+        # from the broadcast graphics otherwise, so the card gets pinned either way
+        out = (ask_cli(prompt, batch, ctx, recent, names, state) if backend == "cli"
+               else ask_openai(api, prompt, batch, ctx, recent, names, state)
+               if backend == "openai"
+               else ask(api, prompt, batch, ctx, recent, names, state))
 
         for side in ("left", "right"):
             got = (out.get("bots") or {}).get(side)
@@ -397,25 +497,63 @@ def analyze(clip: str, backend: str = "api", bots: dict | None = None) -> Path:
 
         by_t = {round(float(f.get("t", -1)), 1): f for f in out.get("frames", [])}
         for t, _ in batch:
-            f = by_t.get(round(t, 1))
-            if not f:
-                continue
-            left = min(state["left"], max(0, int(f.get("left_hp", state["left"]))))
-            right = min(state["right"], max(0, int(f.get("right_hp", state["right"]))))
-            state["left"], state["right"] = left, right
-            observations.append({"t": round(t, 1), "left_hp": left, "right_hp": right,
-                                 "caption": trim_caption(f.get("caption", ""))})
+            f = by_t.get(round(t, 1)) or {}     # a dropped frame is simply "no damage"
+            sev = {s: str(f.get(s, "none")).lower().strip() for s in ("left", "right")}
+            for s in ("left", "right"):
+                if sev[s] not in SEVERITY:
+                    print(f"  ! unknown severity {sev[s]!r} at t={t:.0f}s, treating as none",
+                          file=sys.stderr)
+            cost = {s: SEVERITY.get(sev[s], 0) for s in ("left", "right")}
+            fin = f.get("finish") if f.get("finish") in ("left", "right") else None
+            cap = trim_caption(f.get("caption", ""))
+            obs.append({"t": round(t, 1), "cost": cost, "finish": fin, "caption": cap})
+            if cost["left"] or cost["right"]:
+                recent.append(f"{t:.0f}s left {sev['left']}, right {sev['right']}"
+                              + (f" — {cap}" if cap else ""))
+                del recent[:-2]                 # last two only; keep the footer short
+
+    fin_i, loser = finish_at(obs)
+    if fin_i is not None:
+        obs = obs[:fin_i + 1]
+    else:
+        print("  ! no finish flag — timeline will have no KO", file=sys.stderr)
+    if loser:
+        # One flagged frame decides the KO, and it is often the worst frame to decide
+        # it from: on manta-skorpios the KNOCKOUT graphic lands over a crowd shot with
+        # no bot in it and the model picks a side at random. --ko settles it for a
+        # clip someone has actually watched; otherwise the fight the model just
+        # described is better evidence than its guess, so the more-damaged bot loses.
+        # Ties and 0-0 keep the flag.
+        took = {s: sum(o["cost"][s] for o in obs) for s in ("left", "right")}
+        other = "left" if loser == "right" else "right"
+        if ko and ko != loser:
+            print(f"  ! KO flagged on {loser}, but --ko says {ko}", file=sys.stderr)
+            loser = ko
+        elif not ko and took[loser] < took[other]:
+            print(f"  ! KO flagged on {loser}, but {other} took more damage "
+                  f"({took}) — going with {other}", file=sys.stderr)
+            loser = other
+        obs[-1]["cost"][loser] = 0     # the finishing blow is free — it is forced to
+                                       # 0 below, so charging it would spend budget
+                                       # that belongs to the fight
+    for side in ("left", "right"):
+        pay(obs, side, KO_BUDGET if side == loser else LIVE_BUDGET)
+
+    hp, observations = {"left": 100, "right": 100}, []
+    for o in obs:
+        for s in ("left", "right"):
+            hp[s] = max(0, hp[s] - o["cost"][s])
+        observations.append({"t": o["t"], "left_hp": hp["left"],
+                             "right_hp": hp["right"], "caption": o["caption"]})
+    if loser:                                   # only the finish reaches zero
+        observations[-1][f"{loser}_hp"] = 0
 
     events = thin(observations)
     if not events or events[0]["t"] != 0.0:
         events.insert(0, {"t": 0.0, "left_hp": 100, "right_hp": 100, "caption": ""})
     events[0]["caption"] = ""
-
-    for i, ev in enumerate(events):                # KO = first time an hp hits 0
-        if ev["left_hp"] == 0 or ev["right_hp"] == 0:
-            ev["ko"] = "left" if ev["left_hp"] == 0 else "right"
-            events = events[:i + 1]
-            break
+    if loser:
+        events[-1]["ko"] = loser
 
     # A caller who already knows the card wins over the model's reading of the
     # broadcast graphics; detection stays the default so era B still generalises
@@ -449,11 +587,25 @@ def analyze(clip: str, backend: str = "api", bots: dict | None = None) -> Path:
 
 
 if __name__ == "__main__":
-    argv, backend = sys.argv[1:], "api"
+    argv, backend, bots, ko = sys.argv[1:], "api", None, None
     if "--backend" in argv:
         i = argv.index("--backend")
         backend = argv[i + 1] if i + 1 < len(argv) else "api"
         del argv[i:i + 2]
+    if "--bots" in argv:                    # same flag ingest.py takes; the broadcast
+        i = argv.index("--bots")            # graphics are not always legible, and a
+        pair = argv[i + 1] if i + 1 < len(argv) else ""   # misread name is worse than
+        del argv[i:i + 2]                                 # no name at all
+        left, _, right = pair.partition(",")
+        if not (left.strip() and right.strip()):
+            sys.exit('--bots takes "Left,Right"')
+        bots = {"left": left.strip(), "right": right.strip()}
+    if "--ko" in argv:                      # for a clip someone has watched: the
+        i = argv.index("--ko")              # finish frame is often a crowd shot, and
+        ko = argv[i + 1] if i + 1 < len(argv) else ""   # the model guesses the side
+        del argv[i:i + 2]
+        if ko not in ("left", "right"):
+            sys.exit("--ko must be 'left' or 'right'")
     if backend not in ("api", "cli", "openai"):
         sys.exit("--backend must be 'api', 'cli' or 'openai'")
     # Same flag as ingest.py: re-judging a clip directly would otherwise lose the
@@ -470,4 +622,4 @@ if __name__ == "__main__":
     positional = [a for a in argv if not a.startswith("-")]
     if not positional:
         sys.exit(__doc__)
-    analyze(positional[0], backend=backend, bots=bots)
+    analyze(positional[0], backend=backend, bots=bots, ko=ko)

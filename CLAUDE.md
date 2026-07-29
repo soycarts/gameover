@@ -152,9 +152,24 @@ python3 backend/serve.py     # -> http://localhost:40911/frontend/index.html?cli
 - **Keys come from `.env` or the shell.** `backend/config.py` loads `.env` (real env
   vars win) and accepts either `BRIGHTDATA_API_KEY` or `BRIGHTDATA_KEY` — the two
   spellings already diverged once and silently produced "no key found".
-- **The vision model is stateless between calls.** `analyze.py` sends 2–3 frames per
-  call and must include the running hp state in the message, or per-call guesses
-  oscillate and the monotonic clamp flattens the timeline into noise.
+- **The model never emits hp — it rates a damage word.** `prompt.txt` asks for
+  `none`/`glance`/`solid`/`heavy`/`catastrophic` per bot per frame; `SEVERITY` in
+  `analyze.py` turns that into 0/4/12/22/35 points. Asking for absolute hp instead is
+  what the pipeline used to do, and the model nudged the bar down 3–5 points a frame to
+  signal "time passed" — 23 events with only 2 clearing the shake threshold, a HUD that
+  drains but never hits. With a ladder, a 3-point delta is not representable.
+- **The vision model is stateless between calls, and the state it needs is what it
+  already said.** Each batch is led by the previous batch's last frame as unjudged
+  context (otherwise every 3rd frame has nothing to diff "new damage" against) and
+  carries the last two reported hits in the footer. Without that the model narrates one
+  fire as fresh damage on ten consecutive frames.
+- **`pay()` overspending is expected, not a bug.** The model over-fires — a fire
+  sequence alone can bill 150+ points against a 100-point bar — so `pay()` spends a
+  fixed budget (`KO_BUDGET`/`LIVE_BUDGET`) on the most severe moments and zeroes the
+  rest. Do **not** "fix" it by scaling every hit down to fit; that reconstructs the
+  3–5 point drip exactly. Budgets are under 100 on purpose: a bot bottoms out around
+  hp 30 and the only route to 0 is the model's `finish` flag. Zeroed hits keep their
+  captions, so the HUD still has something to type between real hits.
 - **Serve from the repo root.** `index.html` reaches up to `../clips/`,
   `../timelines/` and `../comments/`. Serving `frontend/` alone breaks it.
 - **No `?clip=` defaults to `madcatter-tombstone`**, so a bare URL is a working share
@@ -172,9 +187,11 @@ python3 backend/serve.py     # -> http://localhost:40911/frontend/index.html?cli
   the fight on any click, and `keydown` starts it on any key, so without that guard
   choosing a fight would also start the one already loaded.
 - **Frame N (1-indexed) is at t = (N-1) × 2.0s**, from the 0.5 fps extraction.
-- **All model output is untrusted.** Thinning, hp clamping, KO detection (first hp
-  to hit 0) and the comment join all happen in Python so the same frames always
-  produce the same timeline.
+- **All model output is untrusted.** Thinning, the severity→hp table, the `pay()`
+  budget, KO detection (`finish_at()` — the first frame flagged `finish` in the last
+  30% of the clip; an earlier flag is a misread and would truncate the fight) and the
+  comment join all happen in Python so the same frames always produce the same
+  timeline.
 - **`ingest.py` cuts a window, it does not take the head of the video.** `--start` /
   `--duration` pick the fight; the full download is cached at `clips/.raw/<slug>.mp4`
   and reused, so re-cutting is free. That dir is dotted (`serve.py` 404s dotfiles) and
