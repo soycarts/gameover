@@ -21,6 +21,7 @@ Two independent halves joined by **one JSON contract**, `timelines/<clip>.json`.
   "events": [
     {"t": 8.0, "left_hp": 92, "right_hp": 71,
      "caption": "Witch Doctor armour panel torn off",
+     "hit": {"by": "left", "weapon": "vertical spinner", "clean": true},
      "fan_comment": "NOT THE ARMOUR AGAIN"},
     {"t": 41.0, "left_hp": 88, "right_hp": 0,
      "caption": "Witch Doctor immobile, drive dead", "ko": "right"}
@@ -29,8 +30,15 @@ Two independent halves joined by **one JSON contract**, `timelines/<clip>.json`.
 ```
 
 Events sorted by `t`; hp integers 0–100 that **never increase**; `caption` max 6
-words; `fan_comment` and `ko` optional. Era B falls back to `Bot A` / `Bot B` when
-names aren't legible in the broadcast graphics.
+words; `fan_comment`, `hit` and `ko` optional. Era B falls back to `Bot A` / `Bot B`
+when names aren't legible in the broadcast graphics.
+
+`hit` carries **only what the model can see**: `by` (the side that LANDED it),
+`weapon` (≤3 words or null) and `clean` (false = wall, hazard, fall, self-inflicted).
+Damage, victim and tier are deliberately **not** stored — they are pure functions of
+two adjacent events, and the frontend must derive them anyway for the synthetic
+timelines that have no `hit` at all. Storing them twice is how the hit count ended up
+with three different answers in the first place.
 
 Model for all API calls: **`claude-sonnet-5`**.
 
@@ -45,6 +53,38 @@ judged on `--backend openai` because only an `OPENAI_API_KEY` was on hand.
 - **Era A** — polished demo on pre-selected clips. Must work. Built first.
 - **Era B** — same pipeline generalised to any YouTube URL via `ingest.py`.
   Stretch goal; only touch it once Era A runs end to end.
+
+## Orchestration — parallelise, and loop on quality
+
+This is a hackathon with a real prize on the line, so **reach for subagents and
+workflows whenever the work genuinely forks**. Judgement call, not a mandate: the
+win comes from covering more ground and from iterating on output quality, not from
+spawning agents for their own sake.
+
+Worth orchestrating:
+
+- **Independent reads that don't share context.** Auditing `analyze.py`, the HUD
+  and the scrape gates at once; sweeping several clips or several timelines;
+  checking a change against every fight in the picker. Each agent reads its own
+  slice and reports a conclusion, so the context cost is paid once per slice
+  rather than once per file in one window.
+- **Loops that improve an artifact.** Judging quality is the whole product, and it
+  is the thing most worth iterating on: generate → critique → regenerate until a
+  pass comes back with nothing new. The same shape fits caption wording, sprite
+  rows in the `ART` table, and fan-comment selection.
+- **Adversarial verification before trusting a result.** Model output is untrusted
+  by design here. A finding about a timeline — "the KO is on the wrong side", "this
+  hit is misattributed" — is worth a second, independent agent trying to refute it
+  before anyone spends a re-judge on it.
+
+Not worth it: anything where the agents would all have to read the same files to
+start (that duplicates context rather than dividing it), and single mechanical
+edits. One judgement worth keeping in mind — a full three-way merge of this repo's
+branches was **faster to do inline** than to farm out, because every conflict
+needed the same three files in one head.
+
+Cost note: a re-judge is real money and ~15–30 min of wall clock, so parallelise
+the *analysis* freely and the *API-spending* runs deliberately.
 
 ## Commands
 
@@ -66,6 +106,7 @@ python backend/extract_frames.py fight1.mp4                        # 0.5 fps, 76
 python backend/scrape_comments.py fight1 "tombstone witch doctor" --mock
 python backend/analyze.py fight1.mp4                               # -> timelines/
 python backend/analyze.py fight1.mp4 --backend cli                 # no API key needed
+python backend/analyze.py fight1.mp4 --bots "Manta,Skorpios"       # pin the card
 
 # era B, any fight video
 python backend/ingest.py "https://www.youtube.com/watch?v=..."
@@ -76,13 +117,25 @@ python backend/ingest.py "<url>" --name manta-skorpios \
     --start 187 --duration 31 --bots "Manta,Skorpios"
 ```
 
-The three demo fights all come from one video, `youtube.com/watch?v=rC__2ZOQhc4`:
+The three demo fights all come from one video, `youtube.com/watch?v=rC__2ZOQhc4`.
+**Always re-judge them with `--bots`, and with `--ko` where the table gives one.**
+Name detection depends on whether a lower-third happens to be legible in the sampled
+frames, and a re-run that came back `Manta vs Skorpios` once will happily return
+`Bot A vs Bot B` the next time. Worse, an unpinned card also switches off the "the
+ONLY two competitors are X and Y" line in `identity_note()`, which is the thing
+stopping the model captioning sponsor decals as robots — a run with a broken
+`--bots` came back `Bot A vs Horizon`, and Horizon is a sponsor.
 
-| clip | `--start` | `--duration` | ends on |
-|---|---|---|---|
-| `jackpot-copperhead`  |  23 | 144 | TAP OUT : 152sec |
-| `manta-skorpios`      | 187 |  31 | KNOCKOUT : 24sec |
-| `madcatter-tombstone` | 271 |  79 | KNOCKOUT : 72sec |
+| clip | `--start` | `--duration` | `--bots` (left,right) | `--ko` | ends on |
+|---|---|---|---|---|---|
+| `jackpot-copperhead`  |  23 | 144 | `Copperhead,Jackpot` | —      | TAP OUT : 152sec |
+| `manta-skorpios`      | 187 |  31 | `Manta,Skorpios`     | `left` | KNOCKOUT : 24sec |
+| `madcatter-tombstone` | 271 |  79 | `MaDCaTTer,Tombstone`| —      | KNOCKOUT : 72sec |
+
+`manta-skorpios` **needs** `--ko left`: ~6 of its 16 frames are crowd shots and Manta
+is flat on the floor from t≈4s, so the model reads the sides backwards and does it
+*consistently* — the damage cross-check agrees with the wrong answer, so only the
+explicit flag fixes it.
 
 Keys in the page: `any` start · `r` replay · `c` CRT filter · `g` rainbow bars.
 
@@ -152,9 +205,53 @@ python3 backend/serve.py     # -> http://localhost:40911/frontend/index.html?cli
 - **Keys come from `.env` or the shell.** `backend/config.py` loads `.env` (real env
   vars win) and accepts either `BRIGHTDATA_API_KEY` or `BRIGHTDATA_KEY` — the two
   spellings already diverged once and silently produced "no key found".
-- **The vision model is stateless between calls.** `analyze.py` sends 2–3 frames per
-  call and must include the running hp state in the message, or per-call guesses
-  oscillate and the monotonic clamp flattens the timeline into noise.
+- **The model never emits hp — it rates a damage word.** `prompt.txt` asks for
+  `none`/`glance`/`solid`/`heavy`/`catastrophic` per bot per frame; `SEVERITY` in
+  `analyze.py` turns that into 0/4/12/22/35 points. Asking for absolute hp instead is
+  what the pipeline used to do, and the model nudged the bar down 3–5 points a frame to
+  signal "time passed" — 23 events with only 2 clearing the shake threshold, a HUD that
+  drains but never hits. With a ladder, a 3-point delta is not representable.
+- **The vision model is stateless between calls, and the state it needs is what it
+  already said.** Each batch is led by the previous batch's last frame as unjudged
+  context (otherwise every 3rd frame has nothing to diff "new damage" against) and
+  carries the last two reported hits in the footer. Without that the model narrates one
+  fire as fresh damage on ten consecutive frames. That message is `footer()`, shared by
+  all three backends — it also re-states who the bots are and what they look like
+  (`identity_note()`) and the `hit` rule, because a field explained only in
+  `prompt.txt` gets honoured for a batch or two and then quietly forgotten for the
+  rest of a long clip. There is deliberately no running-hp line: the model never
+  emits hp.
+- **`pay()` overspending is expected, not a bug.** The model over-fires — a fire
+  sequence alone can bill 150+ points against a 100-point bar — so `pay()` spends a
+  fixed budget (`KO_BUDGET`/`LIVE_BUDGET`) on the most severe moments and zeroes the
+  rest. Do **not** "fix" it by scaling every hit down to fit; that reconstructs the
+  3–5 point drip exactly. Budgets are under 100 on purpose: a bot bottoms out around
+  hp 30 and the only route to 0 is the model's `finish` flag. Zeroed hits keep their
+  captions, so the HUD still has something to type between real hits.
+- **The ladder and the HUD's `TIERS` table are one design in two halves.** `SEVERITY`
+  scores glance 4 / solid 12 / heavy 22 / catastrophic 35, and `TIERS` in `index.html`
+  bands at 1 / 10 / 20 / 30, so each rung lands squarely in one tier. The backend owns
+  *how much* damage, the frontend owns *how it looks*; they meet only at the hp delta.
+  Move a rung on either side without the other and a whole category of hit silently
+  changes colour, size and whether it shakes the screen.
+- **One hit = one bot losing armour at one moment**, so an exchange that damages both
+  bots is TWO hits. This lives in exactly one function, `deriveHits()` in
+  `index.html`, which runs once at load; `fire()`, the `#hits` readout and the
+  end-of-fight breakdown all read the list it returns. Before that there were three
+  separate answers — the live counter said 22 on `madcatter-tombstone`, the end card
+  said 24, and a backward scrub reset it to 0 and never recounted. Do not re-derive
+  hits inline anywhere; if the HUD total and the breakdown ever disagree again,
+  something did.
+- **Damage, victim and tier are derived, never stored.** The timeline's `hit` object
+  carries only what the model can see (`by`, `weapon`, `clean`). `deriveHits()` works
+  with no `hit` field at all — `synthfight` and `demo/fight1.json` are synthetic and
+  are never re-judged, which makes them the regression test for the fallback path.
+  Model data only ever *enriches* a hit record that the hp deltas already produced.
+- **A transient's lifetime lives in its CSS variable, not in a JS timer.** `lifeMs()`
+  reads `--hm-life` / `--strike-life` so the removal timer and the animation can't
+  disagree; hard-coding a second copy in JS is how the hitmarkers first ended up
+  vanishing mid-animation. It is deliberately not `animationend` — reduced motion
+  kills the animation and the event with it.
 - **Serve from the repo root.** `index.html` reaches up to `../clips/`,
   `../timelines/` and `../comments/`. Serving `frontend/` alone breaks it.
 - **No `?clip=` defaults to `madcatter-tombstone`**, so a bare URL is a working share
@@ -172,9 +269,11 @@ python3 backend/serve.py     # -> http://localhost:40911/frontend/index.html?cli
   the fight on any click, and `keydown` starts it on any key, so without that guard
   choosing a fight would also start the one already loaded.
 - **Frame N (1-indexed) is at t = (N-1) × 2.0s**, from the 0.5 fps extraction.
-- **All model output is untrusted.** Thinning, hp clamping, KO detection (first hp
-  to hit 0) and the comment join all happen in Python so the same frames always
-  produce the same timeline.
+- **All model output is untrusted.** Thinning, the severity→hp table, the `pay()`
+  budget, KO detection (`finish_at()` — the first frame flagged `finish` in the last
+  30% of the clip; an earlier flag is a misread and would truncate the fight) and the
+  comment join all happen in Python so the same frames always produce the same
+  timeline.
 - **`ingest.py` cuts a window, it does not take the head of the video.** `--start` /
   `--duration` pick the fight; the full download is cached at `clips/.raw/<slug>.mp4`
   and reused, so re-cutting is free. That dir is dotted (`serve.py` 404s dotfiles) and
@@ -224,7 +323,12 @@ python3 backend/serve.py     # -> http://localhost:40911/frontend/index.html?cli
 - **Verifying in a headless browser is misleading.** `requestAnimationFrame` and
   media playback stall when nothing is painting, so state reads between JS calls go
   stale and look like engine bugs. Force a paint (take a screenshot) before trusting
-  a DOM read.
+  a DOM read. Two corollaries that cost real time: `tick()` never advances on its own
+  there, so drive the engine by calling `tick()` after setting `video.currentTime`;
+  and a transient like `.hitmark` is long gone by the time a screenshot lands, so
+  freeze it (`animation: none; opacity: 1`) rather than trying to catch it. Slowing
+  the animation down does not work — it just stretches the fade-*in*, so the capture
+  arrives while the element is still at `opacity: 0`.
 
 ## Restyling
 
@@ -240,3 +344,9 @@ bars, names, hp numbers and fan comments live in **one bottom row** (left stack 
 caption · right stack), and the only top-anchored readouts (`#hits`, `#muted`) hug
 the **right** edge at `--safe-top`. Raise `--safe-top` if a clip's band spans the
 full width; do not move the bars back up to reclaim the space.
+
+The same rule constrains the hitmarkers. On-bar `.hitmark` bursts are anchored to the
+core rows, so they are structurally incapable of reaching that corner. The full-stage
+`#strike` crosshair is not — it is parked at `--strike-top` (54%) and nudged toward
+the victim's half. If a clip's burned-in band runs taller, raise `--strike-top` and
+`--safe-top` together; that is why both are variables.

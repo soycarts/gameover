@@ -1,100 +1,137 @@
-# Handover — 28 Jul 2026
+# Handover — 29 Jul 2026
 
 State of play, what is trustworthy, and what to pick up next. Read
-[CLAUDE.md](CLAUDE.md) first for architecture and commands; this file is only
-the open loops.
+[CLAUDE.md](CLAUDE.md) first for architecture and commands; this file is only the
+open loops.
+
+**This replaces three competing HANDOVER.md files.** Three branches forked from
+`419b423` and all three rewrote damage judging, each with its own handover warning
+about the other two. They are now merged and those branches are gone. If you find
+a reference to a "three-way collision", it is stale — it is resolved.
+
+## The design, now that it is one design
+
+Two of the three handovers claimed the severity ladder and the frontend tier table
+were rival designs and that someone had to pick one. That was wrong, and it is
+worth understanding why, because the shape matters:
+
+- **The backend owns *how much*.** The model never emits hp. It rates each frame
+  with a damage word per bot; `SEVERITY` maps those to 4/12/22/35 points; `pay()`
+  spends a fixed budget on the worst moments and zeroes the surplus.
+- **The frontend owns *how it looks*.** `deriveHits()` reads hp deltas and `TIERS`
+  bands them at 1/10/20/30 into graze / solid / heavy / massive.
+- **They meet only at the hp delta**, and the ladder quantises every delta to
+  exactly one of four values, so each rung lands squarely in one tier.
+
+Keep the two tables in step. Move a rung on either side without the other and a
+whole category of hit silently changes colour, size and whether it shakes the
+screen.
+
+`hit {by, weapon, clean}` is orthogonal to both — it carries only what the model
+can see. Damage, victim and tier stay derived, never stored.
 
 ## Works and verified
 
-- HUD renders end to end on all three fights (title → VS card → fight → KO).
-- Hand-drawn pixel sprites for all six bots, large on the VS card, small beside
-  each name in-fight. Cascade is sprite → footage crop → weapon sigil.
-- Captions name the bot ("Tombstone rear on fire") rather than a screen side.
-- Real Reddit threaded comments, filtered for explicit content and for comments
-  naming bots that are not in the fight.
-- `serve.py` now implements HTTP Range, so the clip can be scrubbed locally.
+- **Both health bars move.** `madcatter-tombstone` re-judged against the merged
+  prompt: MaDCaTTer 100 → 92, Tombstone 100 → 0. It used to be pinned at 100 for
+  all 79s, which was the top outstanding problem in the previous handover.
+- **The enriched path has now been seen in a browser** — it never had been. Real
+  weapon labels on both sides (MaDCaTTer "vertical spinner", Tombstone "horizontal
+  bar"), 9 of 10 hits labelled, all four tiers exercised.
+- **The two hit-count paths agree**: live counter, per-side split and the breakdown
+  panel all read 8 + 2 = 10.
+- **The fallback path still works.** `?clip=synthfight` carries no `hit` fields at
+  all and still derives 15 hits with correct tiers — that is the regression test
+  for era B and the demo timeline, so keep it that way.
+- **Backward scrub recounts** rather than zeroing: 00 → 09 → 03 → 15 → 00.
+- Sprites, footage crops, weapon sigils, bot-named captions, the fight picker,
+  HTTP Range and the filtered Reddit comments all survived the merge intact
+  (audited file by file against each branch).
 
 ## Outstanding — highest value first
 
-### 1. Re-judge two clips: the winner's health bar never moves
+### 1. Two clips are still judged by the OLD pipeline
 
-**This is the most visible problem.** `jackpot-copperhead` has Copperhead pinned
-at 100 for the whole 140s, and `madcatter-tombstone` has MaDCaTTer at 100 for
-79s. Half the HUD is therefore dead on screen for most of the demo, and a
-BattleBots fight where the winner takes zero damage is not credible.
+`jackpot-copperhead` and `manta-skorpios` were **deliberately not re-judged** —
+only one clip's worth of API spend was authorised. Their timelines are still
+hp-number output from before the merge, so on those two:
 
-Cause: the identity-tracking instruction added to `prompt.txt` told the model to
-"report no change" when unsure which bot it was looking at, and it generalised
-that into ignoring damage it could plainly see.
+- the winner's bar barely moves (Copperhead pinned at 100 for 140s);
+- there are no `hit` fields, so no weapon labels and no attribution — the HUD
+  falls back to "the other bot", which is correct but plain;
+- deltas are not ladder values, so they land in tiers a bit arbitrarily.
 
-**`prompt.txt` is already fixed** (it now says to judge both bots every frame and
-that a bot never losing a single hp is almost always a mis-read) — but the fix
-is UNVERIFIED. A re-judge was started and killed by a tool timeout at batch
-12/24. Nothing has been judged with the corrected prompt yet.
+**Lead the demo with `madcatter-tombstone`** (it is already the no-`?clip=`
+default). When you do re-judge the other two:
 
 ```bash
 nohup .venv/bin/python -u backend/analyze.py jackpot-copperhead.mp4 \
     --backend openai --bots "Copperhead,Jackpot" > /tmp/jc.log 2>&1 &
-nohup .venv/bin/python -u backend/analyze.py madcatter-tombstone.mp4 \
-    --backend openai --bots "MaDCaTTer,Tombstone" > /tmp/mt.log 2>&1 &
+nohup .venv/bin/python -u backend/analyze.py manta-skorpios.mp4 \
+    --backend openai --bots "Manta,Skorpios" --ko left > /tmp/ms.log 2>&1 &
 ```
 
-Roughly 30 min and 15 min respectively. Then re-join comments (below). If the
-winner still ends on 100, the prompt needs stronger wording rather than another
-identical run.
+`manta-skorpios` **must** have `--ko left` — see the CLAUDE.md fights table for why.
+Jackpot is the slow one, ~24 batches. Roughly 3 minutes per 14 batches in practice.
 
-### 2. Re-join comments after any re-judge
+### 2. A 30-second caption gap on madcatter-tombstone
 
-Re-judging rewrites the timeline and drops `fan_comment`. This is free and takes
-seconds — it never re-runs the vision model:
+Events jump t=32 → t=62 → t=74. The anti-repeat rule in `thin()` silences a
+burning bot almost completely, and the "worsening counts as `glance`" line in the
+prompt softened it without closing it. The HUD types nothing for half a minute.
+Only worth touching if it reads as dead on the big screen — the fan comments and
+the hit counter still animate through it.
 
-```python
-import sys, json; sys.path.insert(0, 'backend')
-from pathlib import Path
-import analyze
-for tl in sorted(Path('timelines').glob('*.json')):
-    cf = Path('comments', tl.stem + '.json')
-    if not cf.exists(): continue
-    d = json.loads(tl.read_text())
-    analyze.name_captions(d['events'], d['bots'])
-    for e in d['events']: e.pop('fan_comment', None)
-    analyze.join_comments(d['events'], json.loads(cf.read_text()), d['bots'])
-    tl.write_text(json.dumps(d, indent=2) + '\n')
-```
+The KO event also has an empty caption, so the finish lands on GAME OVER with no
+line of text. Fixable in the prompt (`finish` frames currently tend to rate both
+bots `none`, which forces `caption: ""`).
 
-### 3. `manta-skorpios` is too sparse to demo
+### 3. Jackpot's sprite is a placeholder
 
-4 events across 31s, so the HUD barely moves. It was judged before both the
-sponsor-name and balanced-damage prompt fixes. Re-judge it with
-`--bots "Manta,Skorpios"`; if it stays thin, drop it from the demo rotation and
-lead with `madcatter-tombstone`.
+Still a neutral red body rather than a wrong mechanism, because nobody confirmed
+what weapon Jackpot runs. Fix the rows in the `ART` table in `frontend/index.html`
+— a 16x12 character grid, no rebuild. Same table is where a new bot gets added.
 
-### 4. Jackpot's sprite is a placeholder
-
-I could not confirm what weapon Jackpot runs, so it is a neutral red body rather
-than a wrong mechanism. Fix the rows in the `ART` table in
-`frontend/index.html` — it is a 16x12 character grid, no rebuild needed. Same
-table is where a new bot gets added.
-
-### 5. Fan comments are thin on two clips
+### 4. Fan comments are thin on two clips
 
 `jackpot-copperhead` has 1, `manta-skorpios` has 2. Discovery searches the whole
-subreddit, so genuine moment-by-moment reactions are rare and much of what comes
-back is season chatter. Options: scrape with a tighter query, raise
-`POSTS_FOR_COMMENTS` in `scrape_comments.py` to expand more threads, or accept
-it. Do NOT loosen `is_showable()` / `names_a_rival()` to get more volume — see
-the content warning in CLAUDE.md.
+subreddit, so genuine moment-by-moment reactions are rare. Options: a tighter
+scrape query, or raise `POSTS_FOR_COMMENTS` in `scrape_comments.py`. Do **not**
+loosen `is_showable()` / `names_a_rival()` — see the content warning in CLAUDE.md.
 
-## Traps that cost time today
+### 5. `frontend/index.html` is ~1390 lines against a ~700 target
 
-- **macOS has no `setsid`.** Launch long jobs with `nohup … &` and poll the log;
-  a long foreground wait gets killed by the tool timeout and takes the job with
-  it, leaving a half-written timeline.
-- **Headless DOM reads go stale.** Transitions and rAF do not advance without a
-  paint, so `getComputedStyle` lies between JS calls. Take a screenshot first —
-  this cost an hour chasing a health-core "bug" that did not exist.
+CLAUDE.md wants the core near 700. Cheapest trims are the `.bd-tier` pixel chips
+(→ a plain `2 HEAVY · 5 SOLID` text line) and `#strikeby` (fold the weapon into
+`#massive`). Not urgent; noted so it does not creep further unnoticed.
+
+### 6. `ingest.py` cannot pass `--ko`
+
+Its `analyze()` call still forwards only `bots`. Era B has no way to set the KO
+side. Fine while nobody has watched those clips, but it is a one-line gap.
+
+## Traps that cost time
+
+- **A three-way merge can duplicate a whole code block without conflicting.** The
+  merged `analyze.py` ended up with *both* branches' `--bots` parsers: the first
+  parsed the flag and deleted it from `argv`, the second reset `bots = None` and
+  could never re-fire. Every re-judge silently ran with no card. It cost a full
+  14-batch run that came back `Bot A vs Horizon` — *Horizon* is a sponsor decal,
+  which is exactly what `identity_note()`'s competitor-pinning header exists to
+  prevent. **After any merge, run the CLI end to end before spending API calls.**
+- **macOS has no `setsid`.** Launch long jobs with `nohup … &` and poll the log; a
+  long foreground wait gets killed by the tool timeout and takes the job with it,
+  leaving a half-written timeline.
+- **Check which worktree your dev server is serving.** Ports 40911 and 40922 were
+  already occupied by servers from earlier sessions pointed at *other* worktrees,
+  and both answered 200 — so a page that looked merged was not. Grep the served
+  HTML for something you just changed before trusting it.
+- **Headless DOM reads go stale.** rAF and transitions do not advance without a
+  paint. Drive the clock by setting `video.currentTime` then calling `tick()`, and
+  screenshot before trusting a computed style. Freeze a `.hitmark` with
+  `animation: none; opacity: 1` rather than trying to catch it mid-fade.
 - **A real `analyze.py` run overwrites the committed fixture** for whichever clip
-  you name. `timelines/synthfight.json` is a hand-made demo fixture, not model
-  output; re-judging `synthfight` will wreck the deployed demo page.
+  you name. `timelines/synthfight.json` is hand-made, not model output; re-judging
+  `synthfight` would wreck both the deployed demo and the fallback-path test.
 - **Bright Data's "Synchronous (Real-time)" mode is not synchronous** — it still
   returns 202 and a snapshot id to poll. Jobs took 1–6 minutes.

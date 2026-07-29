@@ -31,6 +31,20 @@
   --ko-ink-shadow: #b3260f;   /* hard pixel shadow under the stamp text */
   --embers:        #ffe27a,#ff9d3d,#ff5a1a,#ff3d1a;
 
+  /* hitmarkers — one colour per damage tier (see TIERS in the script) */
+  --hit-graze:     #ffd23f;
+  --hit-solid:     #ff9d3d;
+  --hit-heavy:     #ff5a1a;
+  --hit-massive:   #ff2d4d;
+  --hit-self:      #8a94a3;   /* incidental: wall, hazard, self-inflicted */
+
+  /* breakdown panel — card language borrowed from DESIGN_ARTIFACT.html */
+  --panel-raised:  #191d25;
+  --hairline:      #262b34;
+  --steel-light:   #b3bdc9;
+  --ok:            #3dff9e;   /* card eyebrow */
+  --energy:        #f2a13c;   /* weapon labels */
+
   /* health ramp — sampled by JS, interpolated per hp */
   --ramp-0:        255,45,77;    /* critical */
   --ramp-25:       255,157,61;
@@ -51,6 +65,10 @@
   --fs-fan:        clamp(10px, 1.35vw, 16px);  /* fan comment — must read on video */
   --sigil-size:    clamp(14px, 2.1vw, 26px);   /* weapon icon beside each name */
   --fs-stamp:      clamp(26px, 7vw, 92px);
+  --fs-hits-tot:   clamp(12px, 1.7vw, 20px);   /* the running hit total */
+  --fs-eyebrow:    clamp(8px, .95vw, 11px);    /* breakdown: "01 / DAMAGE" */
+  --fs-card-title: clamp(13px, 1.7vw, 19px);
+  --fs-stat:       clamp(15px, 2.2vw, 26px);
 
   /* layout */
   --core-size:     clamp(30px, 5.4vw, 78px);   /* width of one robot-head core */
@@ -63,11 +81,30 @@
      along the bottom and the only top-anchored readouts hug the right edge.
      Raise --safe-top if a broadcaster's band spans the full width. */
   --safe-top:      var(--hud-pad);
+  --hits-h:        calc(var(--fs-hits-tot) + var(--fs-comment) * 3.4);
+
+  /* hitmarker sizes, one per tier */
+  --hm-graze:      clamp(34px, 5vw, 66px);
+  --hm-solid:      clamp(46px, 7vw, 94px);
+  --hm-heavy:      clamp(62px, 10vw, 132px);
+  --hm-massive:    clamp(78px, 13vw, 172px);
+  --hm-size:       var(--hm-graze);            /* default tier */
+  --strike-size:   clamp(180px, 36vmin, 440px);
+  /* the crosshair parks below the broadcaster's band — push it down together
+     with --safe-top if a clip's burned-in graphics run taller */
+  --strike-top:    54%;
+
+  /* breakdown layout */
+  --bd-radius:     10px;
+  --bd-gap:        clamp(10px, 1.6vw, 20px);
+  --strip-h:       clamp(46px, 8vh, 74px);
 
   /* motion */
   --tween:         400ms;      /* health drain tween (spec) */
   --ghost-tween:   900ms;
   --shake-time:    420ms;
+  --hm-life:       420ms;
+  --strike-life:   720ms;
 }
 
 * { box-sizing: border-box; }
@@ -223,20 +260,73 @@ html, body { margin: 0; height: 100%; background: var(--bg); color: var(--ink);
 #caption::after { content: '_'; opacity: .8; animation: blink 700ms steps(1) infinite; }
 #caption.done::after { content: ''; }
 
-/* hit counter + massive damage */
+/* hit counter — it has to explain itself: what is being counted, who landed
+   them, and what the last one was. Stays top-RIGHT and narrow; the top-left of
+   the frame belongs to the broadcaster (see --safe-top). */
 #hits { position: absolute; right: var(--hud-pad); top: var(--safe-top);
-  font-family: var(--font-mono); font-weight: 700;
-  font-size: var(--fs-comment); letter-spacing: .18em; color: var(--accent);
-  text-shadow: 2px 2px 0 #000; }
+  width: max-content; max-width: min(52vw, 380px); text-align: right;
+  font-family: var(--font-mono); font-size: var(--fs-comment);
+  letter-spacing: .12em; text-shadow: 2px 2px 0 #000, 0 0 10px #000; }
+#hits .hh { display: flex; justify-content: flex-end; align-items: baseline; gap: 8px; }
+#hits .lbl { color: var(--ink-dim); font-size: .86em; letter-spacing: .24em; }
+#hits .hh b { font-family: var(--font-pixel); font-size: var(--fs-hits-tot);
+  color: var(--accent); }
+#hits .hs { display: flex; justify-content: flex-end; gap: 14px; margin-top: 5px; }
+#hits .s { display: flex; align-items: center; gap: 6px; min-width: 0; }
+#hits .s b { color: var(--ink); font-weight: 700; }
+#hits .s em { font-style: normal; color: var(--steel); font-size: .84em;
+  max-width: 14ch; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#hits .dot { width: 7px; height: 7px; flex: 0 0 7px; }
+#hits .dot.l { background: var(--left-color);  box-shadow: 0 0 8px var(--left-color); }
+#hits .dot.r { background: var(--right-color); box-shadow: 0 0 8px var(--right-color); }
+#hits .hl { margin-top: 6px; font-size: .86em; color: var(--ink-dim);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#hits .hl.t-solid   { color: var(--hit-solid); }
+#hits .hl.t-heavy   { color: var(--hit-heavy); }
+#hits .hl.t-massive { color: var(--hit-massive); }
+#hits .hl.flash { animation: hlFlash 500ms steps(2, end); }
+@keyframes hlFlash { 0%,100% { filter: none } 50% { filter: brightness(2.4) } }
+@media (max-width: 620px) {
+  #hits .s em, #hits .hl .wpn { display: none; }  /* dot + number still attribute */
+}
 #muted { position: absolute; right: var(--hud-pad);
-  top: calc(var(--safe-top) + var(--fs-comment) + 14px);
+  top: calc(var(--safe-top) + var(--hits-h) + 12px);
   font-size: var(--fs-comment); color: var(--ink-dim); display: none;
   pointer-events: auto; cursor: pointer; text-align: right;
   max-width: min(60vw, 420px); line-height: 1.7; }
 #muted.on { display: block; }
-#massive { position: absolute; left: 50%; top: 44%; transform: translate(-50%,-50%) scale(.6);
-  font-family: var(--font-pixel); font-size: clamp(18px, 4.4vw, 54px);
-  color: var(--accent-2); text-shadow: 4px 4px 0 #000; opacity: 0; }
+/* full-stage crosshair — heavy blows and up. Wraps #massive so the tier word
+   keeps its original animation instead of gaining a second one. Nudged toward
+   the bot that got hit, and parked below the broadcaster's band. */
+#strike { position: absolute; left: var(--strike-x, 50%); top: var(--strike-top);
+  width: var(--strike-size); height: var(--strike-size);
+  margin: calc(var(--strike-size) / -2) 0 0 calc(var(--strike-size) / -2);
+  pointer-events: none; opacity: 0; z-index: 9; color: var(--hit-heavy); }
+#strike.on { animation: strikeIn var(--strike-life) steps(4, end) forwards; }
+#strike.t-massive { color: var(--hit-massive); }
+@keyframes strikeIn {
+  0% { opacity: 0; transform: scale(1.9) }
+  20% { opacity: 1; transform: scale(1) }
+  70% { opacity: 1; transform: scale(1) }
+  100% { opacity: 0; transform: scale(1.12) }
+}
+#strike .ring { position: absolute; inset: 12%; border: 3px solid currentColor;
+  border-radius: 50%; box-shadow: 0 0 24px currentColor, inset 0 0 18px currentColor;
+  clip-path: polygon(0 0,100% 0,100% 34%,0 34%,0 0,
+                     0 66%,100% 66%,100% 100%,0 100%); }
+#strike .tick { position: absolute; background: currentColor;
+  box-shadow: 0 0 14px currentColor; }
+#strike .tick.n, #strike .tick.s { left: 50%; width: 3px; height: 12%; margin-left: -1.5px; }
+#strike .tick.n { top: 0 }
+#strike .tick.s { bottom: 0 }
+#strike .tick.w, #strike .tick.e { top: 50%; height: 3px; width: 12%; margin-top: -1.5px; }
+#strike .tick.w { left: 0 }
+#strike .tick.e { right: 0 }
+
+#massive { position: absolute; left: 50%; top: 50%;
+  transform: translate(-50%,-50%) scale(.6); white-space: nowrap;
+  font-family: var(--font-pixel); font-size: clamp(14px, 3vw, 40px);
+  color: currentColor; text-shadow: 4px 4px 0 #000; opacity: 0; }
 #massive.on { animation: massive 900ms ease-out; }
 @keyframes massive {
   0% { opacity: 0; transform: translate(-50%,-50%) scale(.4) }
@@ -244,6 +334,10 @@ html, body { margin: 0; height: 100%; background: var(--bg); color: var(--ink);
   70% { opacity: 1; transform: translate(-50%,-50%) scale(1) }
   100% { opacity: 0; transform: translate(-50%,-50%) scale(1) }
 }
+#strikeby { position: absolute; left: 50%; top: calc(50% + var(--strike-size) * .17);
+  transform: translateX(-50%); white-space: nowrap;
+  font-family: var(--font-mono); font-weight: 700; font-size: var(--fs-comment);
+  letter-spacing: .18em; color: var(--ink); text-shadow: 2px 2px 0 #000; }
 
 /* damage floaters + KO embers */
 .floater { position: absolute; font-family: var(--font-display); font-weight: 800;
@@ -254,6 +348,28 @@ html, body { margin: 0; height: 100%; background: var(--bg); color: var(--ink);
   0% { opacity: 0; transform: translateY(6px) scale(.8) }
   20% { opacity: 1; transform: translateY(-4px) scale(1.1) }
   100% { opacity: 0; transform: translateY(-46px) scale(1) }
+}
+/* hitmarker — lands on the core that actually drained, sized and coloured by
+   tier. Reuses the core pixel-mask builder, so there is one of those, not two. */
+.hitmark { position: absolute; pointer-events: none; z-index: 10;
+  width: var(--hm-size); height: var(--hm-size);
+  margin: calc(var(--hm-size) / -2) 0 0 calc(var(--hm-size) / -2);
+  color: var(--hit-graze);
+  animation: hmPop var(--hm-life) steps(3, end) forwards; }
+.hitmark::before, .hitmark::after { content: ''; position: absolute; inset: 0;
+  background: currentColor;
+  -webkit-mask: var(--hm-mask) center / 100% 100% no-repeat;
+          mask: var(--hm-mask) center / 100% 100% no-repeat; }
+.hitmark::after { filter: blur(7px); opacity: .75; }
+.hitmark.t-solid   { color: var(--hit-solid);   --hm-size: var(--hm-solid); }
+.hitmark.t-heavy   { color: var(--hit-heavy);   --hm-size: var(--hm-heavy); }
+.hitmark.t-massive { color: var(--hit-massive); --hm-size: var(--hm-massive); }
+.hitmark.self      { color: var(--hit-self); }   /* not a clean blow */
+@keyframes hmPop {
+  0% { opacity: 0; transform: scale(.3) rotate(-14deg) }
+  22% { opacity: 1; transform: scale(1.3) rotate(0deg) }
+  55% { opacity: 1; transform: scale(1) }
+  100% { opacity: 0; transform: scale(1.45) }
 }
 .ember { position: absolute; width: 5px; height: 5px; border-radius: 1px;
   pointer-events: none; z-index: 9; animation: emberOut .7s ease-out forwards; }
@@ -270,6 +386,8 @@ html, body { margin: 0; height: 100%; background: var(--bg); color: var(--ink);
 #title h1 { font-family: var(--font-pixel); font-size: var(--fs-title); margin: 0;
   color: var(--accent); text-shadow: 6px 6px 0 var(--accent-2); letter-spacing: 4px; }
 #title .sub { color: var(--ink-dim); font-size: var(--fs-comment); letter-spacing: 3px; }
+/* the counting rule, stated once so the HUD readout needs no explaining */
+#title .rule { color: var(--accent); opacity: .75; margin-top: -14px; }
 #coin { font-family: var(--font-pixel); font-size: var(--fs-comment); color: var(--ink);
   animation: blink 900ms steps(1) infinite; }
 @keyframes blink { 0%,49% { opacity: 1 } 50%,100% { opacity: 0 } }
@@ -312,6 +430,9 @@ html, body { margin: 0; height: 100%; background: var(--bg); color: var(--ink);
   pointer-events: none; z-index: 6; }
 #flash.on { animation: flash 620ms ease-out; }
 @keyframes flash { 0% { opacity: .95 } 100% { opacity: 0 } }
+/* the same element, borrowed for a much lighter punch under a heavy hit */
+#flash.tap { animation: flashTap 200ms ease-out; }
+@keyframes flashTap { 0% { opacity: .18 } 100% { opacity: 0 } }
 
 #ko { position: absolute; inset: 0; display: flex; align-items: center;
   justify-content: center; pointer-events: none; opacity: 0; overflow: hidden;
@@ -366,14 +487,88 @@ html, body { margin: 0; height: 100%; background: var(--bg); color: var(--ink);
 .cores.dead { opacity: 0; transform: scale(.82); filter: blur(1.5px);
   transition: opacity .4s ease .28s, transform .4s ease .28s, filter .4s ease .28s; }
 
-#over h2 { font-family: var(--font-pixel); font-size: clamp(22px,6vw,64px);
+/* ---------- end-of-fight breakdown ---------- */
+#over { justify-content: flex-start; overflow-y: auto;
+  padding: 4vh 4vw; gap: clamp(12px, 2vw, 22px); }
+#over .ko-line { display: grid; gap: 8px; }
+#over h2 { font-family: var(--font-pixel); font-size: clamp(20px,5vw,54px);
   color: var(--accent-2); margin: 0; text-shadow: 5px 5px 0 #000; }
 #over .winner { font-family: var(--font-display); font-weight: 800;
   font-size: var(--fs-name); letter-spacing: .06em; color: var(--accent); }
-#stats { border: 3px solid var(--panel-edge); background: var(--panel);
-  padding: 18px 24px; font-size: var(--fs-comment); line-height: 2.1;
-  text-align: left; min-width: min(78vw, 420px); }
-#stats b { color: var(--accent); }
+
+#breakdown { display: grid; grid-template-columns: 1fr 1fr; gap: var(--bd-gap);
+  width: min(96vw, 900px); text-align: left; }
+.bd.bd-wide { grid-column: 1 / -1; }
+@media (max-width: 620px) { #breakdown { grid-template-columns: 1fr; } }
+
+.bd { position: relative; overflow: hidden; padding: clamp(12px,2vw,22px);
+  border: 1px solid var(--hairline); border-radius: var(--bd-radius);
+  background: linear-gradient(180deg, var(--panel-raised), var(--panel));
+  box-shadow: 0 20px 40px -20px #000000e6, inset 0 1px 0 #ffffff08; }
+.bd::before { content: ''; position: absolute; top: -1px; left: 16px; right: 16px;
+  height: 1px; opacity: .8;
+  background: linear-gradient(90deg, transparent, var(--ok), transparent); }
+.bd-head { display: flex; justify-content: space-between; align-items: flex-start;
+  gap: 12px; padding-bottom: 10px; margin-bottom: 14px;
+  border-bottom: 1px dashed var(--hairline); }
+.bd-num { font-family: var(--font-mono); font-size: var(--fs-eyebrow);
+  letter-spacing: .22em; color: var(--ok); }
+.bd-title { font-family: var(--font-display); font-weight: 700; margin-top: 5px;
+  font-size: var(--fs-card-title); color: var(--ink); text-transform: uppercase; }
+.bd-desc { max-width: 24ch; text-align: right; line-height: 1.5;
+  font-size: var(--fs-comment); color: var(--ink-dim); }
+.bd-desc b { color: var(--steel-light); font-weight: 500; }
+
+.bd-grid { display: grid; gap: 14px; }
+.bd-bot { display: grid; gap: 6px; }
+.bd-bot .who { font-family: var(--font-display); font-weight: 800;
+  font-size: var(--fs-name); letter-spacing: .06em; }
+.bd-bot.l .who { color: var(--left-color); }
+.bd-bot.r .who { color: var(--right-color); }
+.bd-nums { display: flex; gap: clamp(12px,2.4vw,28px); font-family: var(--font-mono); }
+.bd-nums div { display: grid; }
+.bd-nums k { font-size: var(--fs-eyebrow); letter-spacing: .18em; color: var(--ink-dim); }
+.bd-nums v { font-size: var(--fs-stat); font-weight: 700; color: var(--ink); }
+
+/* tier chips — the artifact's hard-stepped pixel cell, one per tier */
+.bd-tiers { display: flex; gap: 4px; }
+.bd-tier { flex: 1; min-width: 0; padding: 4px 2px 3px; text-align: center;
+  font-family: var(--font-mono); font-size: var(--fs-eyebrow); color: #0b0d11;
+  box-shadow: 0 0 0 2px #000;
+  background: linear-gradient(180deg,#9d9d9d 0 20%,#b6b6b6 20% 44%,
+              #8e8e8e 44% 70%,#767676 70% 100%); }
+.bd-tier.n0 { color: var(--ink-dim); opacity: .4; }
+.bd-tier.t-graze.on   { background: var(--hit-graze); }
+.bd-tier.t-solid.on   { background: var(--hit-solid); }
+.bd-tier.t-heavy.on   { background: var(--hit-heavy); }
+.bd-tier.t-massive.on { background: var(--hit-massive); color: #fff; }
+
+#bdBig .dmg { font-family: var(--font-pixel); font-size: clamp(22px,5vw,46px);
+  color: var(--hit-massive); text-shadow: 3px 3px 0 #000; }
+#bdBig .meta { margin-top: 8px; font-family: var(--font-mono);
+  font-size: var(--fs-comment); line-height: 1.9; color: var(--steel-light); }
+#bdBig .wpn { color: var(--energy); text-transform: uppercase; letter-spacing: .12em; }
+#bdBig .cap { color: var(--ink-dim); }
+
+/* hit log — every hit across fight time, attacker above or below the line */
+.bd-strip { position: relative; height: var(--strip-h); background: #060709;
+  border: 1px solid var(--hairline); border-radius: 4px; overflow: hidden; }
+.bd-strip::before { content: ''; position: absolute; left: 0; right: 0; top: 50%;
+  height: 1px; background: var(--hairline); }
+.bd-strip i { position: absolute; width: 3px; margin-left: -1.5px; border-radius: 1px; }
+.bd-strip i.up { bottom: 50%; }
+.bd-strip i.down { top: 50%; }
+.bd-strip i.t-graze   { background: var(--hit-graze);   height: 16%; }
+.bd-strip i.t-solid   { background: var(--hit-solid);   height: 28%; }
+.bd-strip i.t-heavy   { background: var(--hit-heavy);   height: 40%; width: 4px; }
+.bd-strip i.t-massive { background: var(--hit-massive); height: 50%; width: 5px;
+  box-shadow: 0 0 10px var(--hit-massive); }
+.bd-strip i.ko { background: var(--accent); box-shadow: 0 0 14px var(--accent); }
+.bd-axis { display: flex; justify-content: space-between; margin-top: 6px;
+  font-family: var(--font-mono); font-size: var(--fs-eyebrow); color: var(--ink-dim); }
+.bd-note { margin-top: 12px; padding-top: 10px; border-top: 1px dashed var(--hairline);
+  font-family: var(--font-mono); font-size: var(--fs-eyebrow);
+  letter-spacing: .14em; color: var(--ink-dim); }
 .hint { color: var(--ink-dim); font-size: var(--fs-comment); letter-spacing: 1px; }
 
 /* CRT filter (toggle "c") */
@@ -389,6 +584,12 @@ body.rainbow .core-fill { background: linear-gradient(90deg,#ff2e63,#ffd23f,#3ff
 
 @media (prefers-reduced-motion: reduce) {
   * { animation-duration: .001ms !important; transition-duration: .001ms !important; }
+  /* the rule above collapses durations, which with fill-mode:forwards would snap
+     the hitmarkers straight to their faded-out end frame — i.e. invisible. Hold
+     them still instead; the JS timers still take them off screen. */
+  .hitmark, #strike.on, #massive.on { animation: none !important; opacity: 1; }
+  #strike.on { transform: none; }
+  #massive.on { transform: translate(-50%,-50%) scale(1); }
 }
 </style>
 
@@ -420,9 +621,22 @@ body.rainbow .core-fill { background: linear-gradient(90deg,#ff2e63,#ffd23f,#3ff
         <div class="comment" id="cmtR"></div>
       </div>
     </div>
-    <div id="hits"></div>
+    <div id="hits">
+      <div class="hh"><span class="lbl">HITS LANDED</span><b id="hitTot">00</b></div>
+      <div class="hs">
+        <span class="s"><i class="dot l"></i><b id="hitNL">0</b><em id="hitWL">—</em></span>
+        <span class="s"><em id="hitWR">—</em><b id="hitNR">0</b><i class="dot r"></i></span>
+      </div>
+      <div class="hl" id="hitLast">LAST —</div>
+    </div>
     <div id="muted">🔇 MUTED — CLICK TO UNMUTE</div>
-    <div id="massive">MASSIVE DAMAGE</div>
+    <div id="strike" aria-hidden="true">
+      <div class="ring"></div>
+      <div class="tick n"></div><div class="tick s"></div>
+      <div class="tick w"></div><div class="tick e"></div>
+      <div id="massive">MASSIVE DAMAGE</div>
+      <div id="strikeby"></div>
+    </div>
   </div>
 
   <div id="flash"></div>
@@ -431,6 +645,7 @@ body.rainbow .core-fill { background: linear-gradient(90deg,#ff2e63,#ffd23f,#3ff
   <div class="screen on" id="title">
     <h1>GAMEOVER</h1>
     <div class="sub">ROBOT COMBAT / VISION-JUDGED</div>
+    <div class="sub rule">ONE HIT = ONE BOT DAMAGED IN ONE MOMENT</div>
     <div class="vs">
       <div class="bot l" id="vsL">BOT A</div>
       <div class="mid">VS</div>
@@ -445,9 +660,43 @@ body.rainbow .core-fill { background: linear-gradient(90deg,#ff2e63,#ffd23f,#3ff
   </div>
 
   <div class="screen" id="over">
-    <h2>GAME OVER</h2>
-    <div class="winner" id="winner"></div>
-    <div id="stats"></div>
+    <div class="ko-line">
+      <h2>GAME OVER</h2>
+      <div class="winner" id="winner"></div>
+    </div>
+    <div id="breakdown">
+      <section class="bd">
+        <div class="bd-head">
+          <div>
+            <div class="bd-num">01 / DAMAGE</div>
+            <div class="bd-title">Who hit whom</div>
+          </div>
+          <div class="bd-desc">One hit = one bot losing armour at one moment.</div>
+        </div>
+        <div class="bd-grid" id="bdGrid"></div>
+        <div class="bd-note" id="bdNote"></div>
+      </section>
+      <section class="bd">
+        <div class="bd-head">
+          <div>
+            <div class="bd-num">02 / BIGGEST HIT</div>
+            <div class="bd-title">Best blow</div>
+          </div>
+        </div>
+        <div id="bdBig"></div>
+      </section>
+      <section class="bd bd-wide">
+        <div class="bd-head">
+          <div>
+            <div class="bd-num">03 / HIT LOG</div>
+            <div class="bd-title">Every hit, in time</div>
+          </div>
+          <div class="bd-desc">Above the line: <b id="bdKeyL"></b> · below: <b id="bdKeyR"></b></div>
+        </div>
+        <div class="bd-strip" id="bdStrip"></div>
+        <div class="bd-axis"><span>0:00</span><span id="bdEnd"></span></div>
+      </section>
+    </div>
     <div class="hint">R — REPLAY &nbsp;·&nbsp; C — CRT</div>
   </div>
 
@@ -461,14 +710,32 @@ const qs = new URLSearchParams(location.search);
 const CLIP = qs.get('clip') || 'madcatter-tombstone';
 const DEMO = qs.get('demo') === '1';
 
-const SHAKE_AT = 15, MASSIVE_AT = 20;
+/* on the backend's damage ladder: glance 4, solid 12, heavy 22, catastrophic 35 —
+   so solid+ shakes, heavy+ shakes hard and reads MASSIVE DAMAGE, glance does neither */
+const SHAKE_AT = 10, MASSIVE_AT = 20;
 const CORES = 5, HP_PER_CORE = 100 / CORES;
 let EMBERS = [];
+
+/* ONE table decides what a blow is worth, and its rungs are the backend's damage
+   ladder — SEVERITY in analyze.py scores glance 4, solid 12, heavy 22 and
+   catastrophic 35, so every delta the model can produce lands squarely in one
+   tier. Keep the two in step: move a rung here and a whole category of hit
+   silently changes colour and size. Escalation is stepped — hitmarker on every
+   hit, shake at solid, crosshair and harder shake at heavy, fireball at KO. */
+const TIERS = [
+  {at: 30, key: 'massive', word: 'MASSIVE DAMAGE', abbr: 'MASSIVE'},
+  {at: 20, key: 'heavy',   word: 'HEAVY HIT',      abbr: 'HEAVY'},
+  {at: 10, key: 'solid',   word: 'SOLID HIT',      abbr: 'SOLID'},
+  {at: 1,  key: 'graze',   word: 'GRAZE',          abbr: 'GRAZE'},
+];
+const tierOf = d => TIERS.find(t => d >= t.at) || TIERS[TIERS.length - 1];
+const BIG = new Set(['heavy', 'massive']);     // earns the full-stage crosshair
 
 let timeline = null, events = [], sources = {},   // comment text -> source label
     applied = -1, started = false, koDone = false,
     virtualClock = false, vStart = 0, useVideo = true, duration = 60,
-    hits = 0, audio = null;
+    audio = null,
+    HITS = [], hitsAt = [];    // the hit list, and its per-event buckets
 
 /* ---------------- pixel cores ----------------
    '#' = outline pixel, 'o' = fillable interior, '.' = empty.
@@ -497,10 +764,25 @@ const IN_COLS = PX_MAP.reduce((a, row) => {
 const IN_X = IN_COLS[0] / PX_COLS * 100;
 const IN_W = (IN_COLS[1] - IN_COLS[0] + 1) / PX_COLS * 100;
 
-function maskURI(ch) {
-  const w = PX_MAP[0].length, h = PX_MAP.length;
+/* hitmarker burst — four stepped blades, same pixel language as the cores */
+const HIT_MAP = [
+  "##.......##",
+  ".##.....##.",
+  "..##...##..",
+  "...##.##...",
+  "....###....",
+  "...........",
+  "....###....",
+  "...##.##...",
+  "..##...##..",
+  ".##.....##.",
+  "##.......##"
+];
+
+function maskURI(map, ch) {
+  const w = map[0].length, h = map.length;
   let rects = '';
-  PX_MAP.forEach((row, y) => {
+  map.forEach((row, y) => {
     for (let x = 0; x < row.length; x++)
       if (row[x] === ch) rects += `<rect x="${x}" y="${y}" width="1" height="1"/>`;
   });
@@ -547,8 +829,9 @@ const coreFrac = (v, i) => Math.max(0, Math.min(1, (v - i * HP_PER_CORE) / HP_PE
 
 function buildCores() {
   const root = document.documentElement;
-  root.style.setProperty('--core-mask', maskURI('o'));
-  root.style.setProperty('--core-edge-mask', maskURI('#'));
+  root.style.setProperty('--core-mask', maskURI(PX_MAP, 'o'));
+  root.style.setProperty('--core-edge-mask', maskURI(PX_MAP, '#'));
+  root.style.setProperty('--hm-mask', maskURI(HIT_MAP, '#'));
   root.style.setProperty('--core-in-x', IN_X + '%');
   ['L', 'R'].forEach(s => {
     $('cores' + s).innerHTML = Array.from({length: CORES}, () =>
@@ -577,6 +860,8 @@ async function boot() {
     return;
   }
   events = (timeline.events || []).slice().sort((a, b) => a.t - b.t);
+  HITS = deriveHits(events);
+  hitsAt = indexHits(HITS, events.length);
   duration = (events.length ? events[events.length - 1].t : 30) + 4;
 
   // source labels for fan comments (contract keeps only the text)
@@ -693,11 +978,15 @@ async function boot() {
   setVs('vsR', nr, 'right');
   setName('nameL', nl, 'left');
   setName('nameR', nr, 'right');
+  showHits(-1, null, false);              // the readout explains itself before t=0
 
   const src = `../clips/${timeline.clip || CLIP + '.mp4'}`;
   const v = $('video');
   v.addEventListener('error', fallbackClock);
   v.addEventListener('loadedmetadata', () => { duration = v.duration || duration; });
+  // the KO now comes from a single flagged frame, so a missed flag would mean no
+  // GAME OVER screen at all — end of clip is the backstop
+  v.addEventListener('ended', () => { if (!koDone) finish(); });
   v.src = src;
   render(events[0] || {left_hp: 100, right_hp: 100});
 }
@@ -736,15 +1025,65 @@ function indexAt(t) {
   return i;
 }
 
+const botName = s => (s === 'L' ? timeline?.bots?.left : timeline?.bots?.right)
+                     || (s === 'L' ? 'BOT A' : 'BOT B');
+
+/* ---------------- what a hit is ----------------
+   ONE HIT = ONE BOT LOSING ARMOUR AT ONE MOMENT, so an exchange that damages
+   both bots is TWO hits. This runs once at load and is the only place that
+   definition lives: the live counter, the hitmarkers and the end-of-fight
+   breakdown all read this list, so they cannot drift apart again.
+
+   Damage, victim and tier are derived from the hp deltas — never read from the
+   JSON, because synthfight and the demo timeline are synthetic and carry no
+   `hit` at all. Model data only ever ENRICHES a record that already exists. */
+function deriveHits(evs) {
+  const out = [];
+  for (let i = 1; i < evs.length; i++) {
+    const ev = evs[i], p = evs[i - 1];
+    const raw = ev.hit && typeof ev.hit === 'object' ? ev.hit : null;
+    const rby = raw ? (raw.by === 'left' ? 'L' : raw.by === 'right' ? 'R' : null) : null;
+    const clean = raw ? raw.clean !== false : true;
+    const drop = {L: p.left_hp - ev.left_hp, R: p.right_hp - ev.right_hp};
+
+    for (const to of ['L', 'R']) {
+      const dmg = drop[to];
+      if (dmg <= 0) continue;
+      const h = {i, t: ev.t, to, dmg, tier: tierOf(dmg),
+                 by: to === 'L' ? 'R' : 'L',      // deterministic: the other bot
+                 weapon: '', clean: true, self: false,
+                 caption: ev.caption || '', ko: !!ev.ko};
+      /* the model describes ONE blow: it explains the victim opposite `by`, or
+         the `by` bot itself when the damage was self-inflicted / incidental */
+      if (rby && (clean ? rby !== to : rby === to)) {
+        h.by = rby;
+        h.clean = clean;
+        h.self = !clean && rby === to;
+        h.weapon = typeof raw.weapon === 'string' ? raw.weapon.slice(0, 24) : '';
+      }
+      out.push(h);
+    }
+  }
+  return out;
+}
+
+/* which hits belong to which event, so fire() never re-derives them */
+function indexHits(list, n) {
+  const at = Array.from({length: n}, () => []);
+  list.forEach(h => at[h.i].push(h));
+  return at;
+}
+
 function tick() {
   requestAnimationFrame(tick);
   if (!started || !events.length) return;
   const t = now(), i = indexAt(t);
 
   if (i < applied) {                    // scrubbed backwards — re-derive, fire nothing
-    applied = i; hits = 0; koDone = false;
+    applied = i; koDone = false;
     $('ko').classList.remove('on'); $('over').classList.remove('on');
-    $('hits').textContent = ''; hideComments(); clearTransients();
+    // recounted from HITS, not zeroed — zeroing is what made it under-report
+    showHits(i, null, false); hideComments(); clearTransients();
     ['L','R'].forEach(s => $('cores' + s).classList.remove('dead'));
     if (i >= 0) { render(events[i]); typeCaption(events[i].caption || ''); }
     else { render({left_hp: 100, right_hp: 100}); $('caption').textContent = ''; }
@@ -756,28 +1095,55 @@ function tick() {
   if (!useVideo && t > duration && !koDone) finish();
 }
 
-/* one-shots only — never called on a backward scrub */
+/* one-shots only — never called on a backward scrub. Reads this event's bucket
+   from HITS rather than doing its own delta math, so the live counter and the
+   breakdown are the same arithmetic by construction. */
 function fire(ev, prev) {
-  const prevL = prev ? prev.left_hp  : 100, prevR = prev ? prev.right_hp : 100;
   render(ev);
-  const dl = prev ? prevL - ev.left_hp  : 0;
-  const dr = prev ? prevR - ev.right_hp : 0;
-  const drop = Math.max(dl, dr);
-  const side = dl >= dr ? 'L' : 'R';
+  const hs = hitsAt[applied] || [];
+  const was = {L: prev ? prev.left_hp : 100, R: prev ? prev.right_hp : 100};
+  const is  = {L: ev.left_hp ?? 100, R: ev.right_hp ?? 100};
 
-  if (dl > 0) { popCores('L', prevL, ev.left_hp);  floatDamage('L', dl); }
-  if (dr > 0) { popCores('R', prevR, ev.right_hp); floatDamage('R', dr); }
+  hs.forEach(h => {
+    popCores(h.to, was[h.to], is[h.to]);
+    floatDamage(h.to, h.dmg);
+    impact(h, was[h.to], is[h.to]);              // on-bar hitmarker, every hit
+  });
 
   if (ev.caption) typeCaption(ev.caption);
-  if (ev.fan_comment) showComment(side, ev.fan_comment);
 
-  if (drop > 0) { hits++; $('hits').textContent = `HITS ${String(hits).padStart(2, '0')}`; }
-  if (drop >= SHAKE_AT) { shake(false); sfx('hit'); }
-  if (drop >= MASSIVE_AT) {
-    const m = $('massive');
-    m.classList.remove('on'); void m.offsetWidth; m.classList.add('on');
+  const top = hs.reduce((a, b) => (!a || b.dmg > a.dmg) ? b : a, null);
+  if (top) {
+    showHits(applied, top, true);
+    sfx('hit');                                  // every hit is audible, even a graze
+    // two-tier shake: solid rattles the stage, heavy+ reuses the KO's harder keyframes
+    if (top.dmg >= SHAKE_AT) shake(top.dmg >= MASSIVE_AT);
+    if (BIG.has(top.tier.key)) crosshair(top);   // full-stage, heavy and up
+    if (top.tier.key === 'massive') spawnEmbers(top.to, 8);
   }
+  if (ev.fan_comment) showComment(top ? top.to : 'L', ev.fan_comment);
   if (ev.ko) koSequence(ev.ko);
+}
+
+/* idempotent — recomputed from HITS, so the backward-scrub path can call it too.
+   `flash` is the only one-shot part. */
+function showHits(i, top, flash) {
+  const upto = HITS.filter(h => h.i <= i);
+  $('hitTot').textContent = String(upto.length).padStart(2, '0');
+  ['L', 'R'].forEach(s => {
+    $('hitN' + s).textContent = upto.filter(h => h.by === s && !h.self).length;
+    $('hitW' + s).textContent = botName(s);
+  });
+
+  const last = top || upto[upto.length - 1] || null;
+  const el = $('hitLast');
+  el.className = 'hl' + (last ? ' t-' + last.tier.key : '');
+  el.innerHTML = last
+    ? `${last.tier.abbr} −${last.dmg} ` +
+      (last.weapon ? `<span class="wpn">${escapeHTML(last.weapon)} </span>` : '') +
+      `→ ${escapeHTML(botName(last.to))}`
+    : 'LAST —';
+  if (flash) { el.classList.remove('flash'); void el.offsetWidth; el.classList.add('flash'); }
 }
 
 /* idempotent — safe to call at any time, any number of times */
@@ -819,14 +1185,41 @@ function shake(hard) {
   st.classList.remove('shake', 'shake-hard'); void st.offsetWidth; st.classList.add(c);
 }
 
+/* heavy blows and up get the full-stage treatment: crosshair over the victim's
+   half, a light punch, the tier word, and who threw it. */
+let strikeTimer = null;
+function crosshair(h) {
+  const el = $('strike'), word = $('massive'), f = $('flash');
+  el.style.setProperty('--strike-x', h.to === 'L' ? '36%' : '64%');
+  el.classList.toggle('t-massive', h.tier.key === 'massive');
+  $('strikeby').textContent = (h.self ? 'SELF / ARENA' : botName(h.by).toUpperCase()) +
+                              (h.weapon ? ' · ' + h.weapon.toUpperCase() : '');
+  word.textContent = h.tier.word;
+  el.classList.remove('on'); word.classList.remove('on'); f.classList.remove('tap');
+  void el.offsetWidth;
+  el.classList.add('on'); word.classList.add('on'); f.classList.add('tap');
+  clearTimeout(strikeTimer);
+  strikeTimer = setTimeout(() => el.classList.remove('on'), lifeMs('--strike-life') + 200);
+}
+
 /* ---------------- transients (floaters + embers) ---------------- */
 function clearTransients() {
-  $('stage').querySelectorAll('.floater, .ember').forEach(el => el.remove());
+  $('stage').querySelectorAll('.floater, .ember, .hitmark').forEach(el => el.remove());
+  $('strike').classList.remove('on'); $('massive').classList.remove('on');
 }
 
 function spawn(el, ms) {
   $('stage').appendChild(el);
   setTimeout(() => el.remove(), ms);
+}
+
+/* A transient's lifetime lives in ONE place — the CSS variable that animates it.
+   Read it rather than hard-coding a second copy in JS, or restyling --hm-life
+   longer would just make the marker vanish mid-animation. Not animationend:
+   prefers-reduced-motion kills the animation, and the event with it. */
+function lifeMs(v) {
+  const s = getComputedStyle(document.documentElement).getPropertyValue(v).trim();
+  return (parseFloat(s) || 0) * (s.endsWith('ms') ? 1 : 1000);
 }
 
 /* place relative to a side's core row, in stage coordinates. Floaters hang off
@@ -836,6 +1229,24 @@ function anchor(s, inner) {
   const st = $('stage').getBoundingClientRect();
   const x = inner ? (s === 'L' ? r.right : r.left) : r.left + r.width / 2;
   return {x: x - st.left, y: r.top - st.top + r.height / 2};
+}
+
+/* centre of the core that just drained — damage eats inward, so the marker
+   lands where the eye already is rather than on the row's midpoint */
+function hitAnchor(s, from, to) {
+  const cores = [...$('cores' + s).querySelectorAll('.core')];
+  const hurt = cores.find((_, i) => coreFrac(from, i) > coreFrac(to, i)) ||
+               cores[cores.length - 1];
+  const r = hurt.getBoundingClientRect(), st = $('stage').getBoundingClientRect();
+  return {x: r.left - st.left + r.width / 2, y: r.top - st.top + r.height / 2};
+}
+
+function impact(h, from, to) {
+  const a = hitAnchor(h.to, from, to), el = document.createElement('div');
+  el.className = 'hitmark t-' + h.tier.key + (h.self ? ' self' : '');
+  el.style.left = a.x + 'px';
+  el.style.top = a.y + 'px';
+  spawn(el, lifeMs('--hm-life') + 80);
 }
 
 function floatDamage(s, dmg) {
@@ -915,26 +1326,73 @@ function finish(loser) {
   const names = {left: timeline.bots?.left || 'BOT A', right: timeline.bots?.right || 'BOT B'};
   const winner = loser ? (loser === 'left' ? names.right : names.left) : 'DRAW';
   $('winner').textContent = loser ? `WINNER: ${winner}` : 'DRAW';
-  $('stats').innerHTML = statsCard(names, last);
+  breakdown();
   $('over').classList.add('on');
   $('ko').classList.remove('on');
   if (useVideo) $('video').pause();
 }
 
-function statsCard(names, last) {
-  let bigL = 0, bigR = 0, hitsL = 0, hitsR = 0;
-  for (let i = 1; i < events.length; i++) {
-    const dl = events[i - 1].left_hp - events[i].left_hp;
-    const dr = events[i - 1].right_hp - events[i].right_hp;
-    if (dl > 0) { hitsR++; bigL = Math.max(bigL, dl); }   // damage TO left = hit BY right
-    if (dr > 0) { hitsL++; bigR = Math.max(bigR, dr); }
-  }
-  const dur = events.length ? events[events.length - 1].t.toFixed(1) : '0.0';
-  return `
-    <div><b>FIGHT TIME</b> ${dur}s</div>
-    <div><b>${escapeHTML(names.left)}</b> — hp ${last.left_hp} · hits landed ${hitsL} · biggest ${bigR}</div>
-    <div><b>${escapeHTML(names.right)}</b> — hp ${last.right_hp} · hits landed ${hitsR} · biggest ${bigL}</div>
-    <div><b>TOTAL EVENTS</b> ${events.length}</div>`;
+/* ---------------- breakdown ----------------
+   Everything here is derived from HITS — the same list the live counter reads —
+   so the end screen can no longer disagree with the HUD. */
+const mmss = t => `${Math.floor(t / 60)}:${String(Math.round(t % 60)).padStart(2, '0')}`;
+
+function tally(s) {
+  const dealt = HITS.filter(h => h.by === s && !h.self);
+  return {
+    n: dealt.length,
+    out: dealt.reduce((a, h) => a + h.dmg, 0),
+    in: HITS.filter(h => h.to === s).reduce((a, h) => a + h.dmg, 0),
+    tiers: TIERS.map(t => dealt.filter(h => h.tier.key === t.key).length),
+  };
+}
+
+function botRow(s) {
+  const b = tally(s);
+  const chips = TIERS.map((t, k) =>
+    `<span class="bd-tier t-${t.key} ${b.tiers[k] ? 'on' : 'n0'}">` +
+    `${b.tiers[k]}&nbsp;${t.abbr}</span>`).join('');
+  return `<div class="bd-bot ${s === 'L' ? 'l' : 'r'}">
+    <div class="who">${escapeHTML(botName(s))}</div>
+    <div class="bd-nums">
+      <div><k>HITS</k><v>${b.n}</v></div>
+      <div><k>DMG DEALT</k><v>${b.out}</v></div>
+      <div><k>DMG TAKEN</k><v>${b.in}</v></div>
+    </div>
+    <div class="bd-tiers">${chips}</div>
+  </div>`;
+}
+
+function breakdown() {
+  $('bdGrid').innerHTML = botRow('L') + botRow('R');
+
+  const end = events.length ? events[events.length - 1].t : 0;
+  const self = HITS.filter(h => h.self).length;
+  $('bdNote').textContent =
+    `FIGHT TIME ${mmss(end)} · ${HITS.length} HITS · ${events.length} EVENTS` +
+    (self ? ` · ${self} SELF-INFLICTED / ARENA` : '');
+
+  const big = HITS.reduce((a, h) => (!a || h.dmg > a.dmg) ? h : a, null);
+  $('bdBig').innerHTML = big ? `
+    <div class="dmg">−${big.dmg}</div>
+    <div class="meta">
+      <div>${escapeHTML(big.self ? 'SELF / ARENA' : botName(big.by))} →
+           ${escapeHTML(botName(big.to))}
+           ${big.weapon ? `<span class="wpn">${escapeHTML(big.weapon)}</span>` : ''}</div>
+      <div>${big.tier.abbr} · ${mmss(big.t)}${big.ko ? ' · KNOCKOUT BLOW' : ''}</div>
+      <div class="cap">${escapeHTML(big.caption)}</div>
+    </div>` : '<div class="meta">NO DAMAGE RECORDED</div>';
+
+  // inset the plot so a hit at t=0 or the KO tick at the far end isn't half
+  // clipped by the strip's own edge
+  const span = end || 1;
+  $('bdStrip').innerHTML = HITS.map(h =>
+    `<i class="t-${h.tier.key} ${h.by === 'L' ? 'up' : 'down'}${h.ko ? ' ko' : ''}" ` +
+    `style="left:${(3 + h.t / span * 94).toFixed(2)}%" ` +
+    `title="${mmss(h.t)} −${h.dmg}"></i>`).join('');
+  $('bdEnd').textContent = mmss(end);
+  $('bdKeyL').textContent = botName('L');
+  $('bdKeyR').textContent = botName('R');
 }
 
 /* ---------------- audio (synthesized, no asset files needed) ---------------- */
@@ -986,9 +1444,9 @@ function start() {
 }
 
 function replay() {
-  started = false; applied = -1; hits = 0; koDone = false;
+  started = false; applied = -1; koDone = false;
   $('over').classList.remove('on'); $('ko').classList.remove('on');
-  $('hits').textContent = ''; hideComments(); clearTransients();
+  showHits(-1, null, false); hideComments(); clearTransients();
   $('caption').textContent = '';
   ['L','R'].forEach(s => $('cores' + s).classList.remove('dead'));
   if (useVideo) $('video').currentTime = 0;
