@@ -12,25 +12,35 @@
       "caption": ""
     },
     {
-      "t": 18.0,
-      "left_hp": 100,
-      "right_hp": 90,
-      "caption": "Skorpios front armour crumpled",
-      "fan_comment": "As much as Skorpios is my goat, Manta is going to kick their ass \ud83d\ude2d"
+      "t": 8.0,
+      "left_hp": 96,
+      "right_hp": 100,
+      "caption": "Skorpios saw sparks Manta",
+      "hit": {
+        "by": "right",
+        "weapon": "overhead saw",
+        "clean": true
+      }
     },
     {
       "t": 24.0,
-      "left_hp": 100,
-      "right_hp": 85,
-      "caption": "Skorpios front armour dented"
+      "left_hp": 96,
+      "right_hp": 78,
+      "caption": "Skorpios drive appears dead",
+      "hit": {
+        "by": "left",
+        "weapon": "drum",
+        "clean": true
+      },
+      "fan_comment": "As much as Skorpios is my goat, Manta is going to kick their ass \ud83d\ude2d"
     },
     {
       "t": 28.0,
-      "left_hp": 100,
-      "right_hp": 0,
-      "caption": "Skorpios knocked out",
-      "ko": "right",
-      "fan_comment": "Skorpios all the way!!!!"
+      "left_hp": 0,
+      "right_hp": 78,
+      "caption": "",
+      "ko": "left",
+      "fan_comment": "Magnitude is the real deal. Watch its fight vs Manta. It will give WD a run for their money"
     }
   ]
 }

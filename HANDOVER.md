@@ -50,29 +50,32 @@ can see. Damage, victim and tier stay derived, never stored.
 
 ## Outstanding — highest value first
 
-### 1. Two clips are still judged by the OLD pipeline
+### 1. `jackpot-copperhead` is still judged by the OLD pipeline
 
-`jackpot-copperhead` and `manta-skorpios` were **deliberately not re-judged** —
-only one clip's worth of API spend was authorised. Their timelines are still
-hp-number output from before the merge, so on those two:
+**`manta-skorpios` is now done** — re-judged with `--ko left`, which mattered more
+than it looked. Its committed timeline had `"ko": "right"`, i.e. the KO on the
+wrong robot, and the crowd card added since compares sentiment to the result, so
+it was about to state a false winner on screen. The re-judge flipped it to
+`ko: left` (Manta 0, Skorpios 78) and added `hit` fields. The run logged
+`! KO flagged on right, but --ko says left`, which is the cross-check earning its
+keep — the model reads that clip's sides backwards exactly as CLAUDE.md warns.
 
-- the winner's bar barely moves (Copperhead pinned at 100 for 140s);
-- there are no `hit` fields, so no weapon labels and no attribution — the HUD
-  falls back to "the other bot", which is correct but plain;
-- deltas are not ladder values, so they land in tiers a bit arbitrarily.
+`jackpot-copperhead` is still pre-merge output: the winner's bar barely moves
+(Copperhead pinned at 100 for 140s), there are no `hit` fields so no weapon
+labels, and deltas are not ladder values so they land in tiers a bit arbitrarily.
+Its `ko` side is correct, so the crowd card is safe on it.
 
 **Lead the demo with `madcatter-tombstone`** (it is already the no-`?clip=`
-default). When you do re-judge the other two:
+default). To re-judge the last one:
 
 ```bash
 nohup .venv/bin/python -u backend/analyze.py jackpot-copperhead.mp4 \
     --backend openai --bots "Copperhead,Jackpot" > /tmp/jc.log 2>&1 &
-nohup .venv/bin/python -u backend/analyze.py manta-skorpios.mp4 \
-    --backend openai --bots "Manta,Skorpios" --ko left > /tmp/ms.log 2>&1 &
 ```
 
-`manta-skorpios` **must** have `--ko left` — see the CLAUDE.md fights table for why.
 Jackpot is the slow one, ~24 batches. Roughly 3 minutes per 14 batches in practice.
+`analyze()` runs the comment join itself, so a re-judge does not need a follow-up
+`--rejoin`.
 
 ### 2. A 30-second caption gap on madcatter-tombstone
 
@@ -92,12 +95,25 @@ Still a neutral red body rather than a wrong mechanism, because nobody confirmed
 what weapon Jackpot runs. Fix the rows in the `ART` table in `frontend/index.html`
 — a 16x12 character grid, no rebuild. Same table is where a new bot gets added.
 
-### 4. Fan comments are thin on two clips
+### 4. Fan comments — fixed, with one thing left
 
-`jackpot-copperhead` has 1, `manta-skorpios` has 2. Discovery searches the whole
-subreddit, so genuine moment-by-moment reactions are rare. Options: a tighter
-scrape query, or raise `POSTS_FOR_COMMENTS` in `scrape_comments.py`. Do **not**
-loosen `is_showable()` / `names_a_rival()` — see the content warning in CLAUDE.md.
+The thin pools are gone. The episode's fight-card thread is now **pinned** per
+clip (`FIGHT_CARD` in `scrape_comments.py`), replies are flattened out of the
+nested `replies` field, and a comment covering all three matchups is routed to
+the right one by `focus_segment()` rather than dropped. `madcatter-tombstone`
+went from *zero* episode comments (14 rows of "Season 7 Rumor Mill" plus an old
+SawBlaze thread) to the real thread, and records now carry author, score and
+reply structure.
+
+What is still thin is genuine **moment-by-moment reaction** — a fight card is
+pre-fight by construction, so `jackpot-copperhead`'s in-fight quotes are all
+predictions shown during the fight. `join_comments()` ranks `phase: "post"` above
+`"pre"` for exactly this reason, but there is nothing post-fight in that pool to
+rank. A post-episode discussion thread pinned alongside the card would close it.
+
+Do **not** loosen `is_showable()` / `names_a_rival()` — see the content warning in
+CLAUDE.md. ~80% filtering on a fight-card scrape is expected, because one card
+covers three fights.
 
 ### 5. `frontend/index.html` is ~1390 lines against a ~700 target
 

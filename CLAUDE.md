@@ -40,6 +40,23 @@ two adjacent events, and the frontend must derive them anyway for the synthetic
 timelines that have no `hit` at all. Storing them twice is how the hit count ended up
 with three different answers in the first place.
 
+`comments/<clip>.json` is the second file the page fetches — a flat array, every
+key past the first three optional so the old three-key files still work:
+
+```json
+{"text": "As much as Skorpios is my goat, Manta is going to kick their ass",
+ "source": "reddit", "url": "https://reddit.com/…/ovwnh4u/",
+ "author": "[redacted]", "score": 13,
+ "id": "ovwnh4u", "parent": "", "post": "1up1lxt", "pinned": true,
+ "phase": "pre", "kind": "prediction", "pick": "manta", "rival": false, "ex": "1a"}
+```
+
+`pick` is a normalised bot **key** (`[^a-z0-9]` stripped), never `left`/`right` —
+sides belong to the timeline and a re-judge can flip them, but a name key
+survives that and absorbs `MaDCaTTer` / `Madcatter` drift. `ex` marks the two
+halves of a reply chain (`1a` parent, `1b` reply). `rival: true` still counts in
+the sentiment tally but is never shown on screen.
+
 Model for all API calls: **`claude-sonnet-5`**.
 
 `analyze.py` also takes `--backend cli` (shells to `claude -p`, uses your Claude
@@ -107,6 +124,9 @@ python backend/scrape_comments.py fight1 "tombstone witch doctor" --mock
 python backend/analyze.py fight1.mp4                               # -> timelines/
 python backend/analyze.py fight1.mp4 --backend cli                 # no API key needed
 python backend/analyze.py fight1.mp4 --bots "Manta,Skorpios"       # pin the card
+
+# a better comments file into an EXISTING timeline — no frames, no model, free
+python backend/analyze.py manta-skorpios --rejoin --bots "Manta,Skorpios"
 
 # era B, any fight video
 python backend/ingest.py "https://www.youtube.com/watch?v=..."
@@ -248,10 +268,31 @@ python3 backend/serve.py     # -> http://localhost:40911/frontend/index.html?cli
   are never re-judged, which makes them the regression test for the fallback path.
   Model data only ever *enriches* a hit record that the hp deltas already produced.
 - **A transient's lifetime lives in its CSS variable, not in a JS timer.** `lifeMs()`
-  reads `--hm-life` / `--strike-life` so the removal timer and the animation can't
-  disagree; hard-coding a second copy in JS is how the hitmarkers first ended up
-  vanishing mid-animation. It is deliberately not `animationend` — reduced motion
-  kills the animation and the event with it.
+  reads `--hm-life` / `--strike-life` / `--comment-life` / `--exchange-gap` so the
+  removal timer and the animation can't disagree; hard-coding a second copy in JS
+  is how the hitmarkers first ended up vanishing mid-animation. It is deliberately
+  not `animationend` — reduced motion kills the animation and the event with it.
+  Every one of those timers must also be cleared in `hideComments()`: a dwell
+  timer left running across a backward scrub fires later and hides a comment shown
+  *after* the scrub, and an orphaned exchange reply lands with no parent on screen.
+- **The comments file is a second, richer source the HUD reads at runtime.** The
+  timeline contract still carries only `fan_comment` **text**; `credits[norm(text)]`
+  in `index.html` looks that string back up in `comments/<clip>.json` to recover
+  the author, the source and the prediction label. That indirection is the whole
+  reason attribution, the pre-fight `#preds` block and the `04 / CROWD` card cost
+  no re-judge — the contract never had to grow a field. It also means a re-scrape
+  that drops a string a timeline still references degrades that one comment to
+  "no author"; run `--rejoin` straight after a scrape.
+- **`loserSide()` is the ONE definition of who lost**, the same way `deriveHits()`
+  is the one definition of a hit — `finish()` and the crowd card must never
+  disagree about the result. It reads the contract's `ko` first (set for a tap-out
+  as much as a knockout, so `jackpot-copperhead` needs no special case despite its
+  `TAP OUT` graphic) and falls back to final hp only when no event carries a
+  finish flag. A genuine tie returns `null` rather than guessing.
+- **Exchanges outrank single fan comments for a beat.** `scheduleExchanges()`
+  prefers hits the backend's comment join left empty but will take an occupied one
+  rather than not play at all; `fire()` gives the exchange precedence, so a
+  displaced `fan_comment` is simply not shown, never shown twice.
 - **Serve from the repo root.** `index.html` reaches up to `../clips/`,
   `../timelines/` and `../comments/`. Serving `frontend/` alone breaks it.
 - **No `?clip=` defaults to `madcatter-tombstone`**, so a bare URL is a working share
@@ -291,17 +332,55 @@ python3 backend/serve.py     # -> http://localhost:40911/frontend/index.html?cli
 - **Scraped comments are NOT safe to show unfiltered.** Reddit threads are the
   real thing: the MaD CaTTer thread is a sustained sexual joke, `[deleted]` bodies
   appear as literal text, and a search for one bot surfaces its *other* fights.
-  Two deterministic gates handle it — `is_showable()` in `scrape_comments.py`
-  (drops explicit language, deleted bodies, junk lengths) and `names_a_rival()` in
-  `analyze.py` (a comment naming a bot that is not in THIS fight is last-resort
-  only, so a SawBlaze quote never lands on a Tombstone hit). Filtering ~45% of a
-  scrape is normal. Never loosen these for a public build.
+  Two deterministic gates handle it, both in `crowd.py` (re-exported from
+  `scrape_comments.py` / `analyze.py`, which is where they used to live) —
+  `is_showable()` drops explicit language, deleted bodies and junk lengths, and
+  `names_a_rival()` keeps a comment naming a bot that is not in THIS fight to
+  last-resort only, so a SawBlaze quote never lands on a Tombstone hit. Filtering
+  ~45% of a discovery scrape is normal; ~80% of a fight-card scrape is also
+  normal, because one card covers three matchups. Never loosen these.
+- **The fight card is the primary source, and it is PINNED.** `FIGHT_CARD` in
+  `scrape_comments.py` maps each Era A clip to its episode's pre-fight thread
+  (all three demo clips are r/battlebots `1up1lxt`, Pro League Episode 2);
+  `--post-url` does the same for Era B. Discovery can only ever find posts
+  written *after* the fight, so predictions are unreachable without this — and
+  discovery is a lottery that already lost: a keyword run for "mad catter
+  tombstone" returned 14 rows of "Season 7 Rumor Mill" and 8 from a two-year-old
+  SawBlaze fight, and nothing from the episode. Discovery stays on as the
+  secondary pool for reactions, wrapped so a timeout can never cost the pinned
+  pull. **A scrape that returns zero rows refuses to overwrite an existing
+  file** — the committed timelines reference these exact strings by text.
+- **One comment covers three fights, so route it, don't drop it.**
+  `focus_segment()` in `crowd.py` picks the longest span of a comment that names
+  only THIS fight's robots — whole comment, else a paragraph, else a run of
+  sentences. Ellindsey's prediction is one paragraph per matchup over 600 chars,
+  so `MAX_LEN=180` dropped it whole; "My money is on Copperhead, Manta, and
+  Madcatter" names six robots, so `names_a_rival()` dropped it whole. Both are
+  the best comments in the thread. This changes the UNIT being filtered, not the
+  gates — and the profanity check still runs on the **whole body first**, so a
+  clean sentence can never escape an unusable comment. Do not reorder that.
+- **Replies are NESTED, not rows.** The comments dataset returns
+  `parent_comment_id` empty on every row and hangs children off a `replies` list
+  with a *different* schema (`reply_id` / `user_replying` / `reply`).
+  `flatten_replies()` expands them, and without it `pair_exchanges()` has nothing
+  to pair — the thread looks completely flat. Bodies are HTML-escaped and carry
+  Reddit spoiler markup, so `clean_text()` runs before the gates.
+- **Prediction labels are cached at SCRAPE time, never at judge time.**
+  `crowd.classify()` asks one model call per 20 comments for `pick` / `phase` /
+  `kind` and writes them into `comments/<slug>.json`. That is why the crowd card
+  costs no re-judge, and why a re-judge never re-pays for the labels. All model
+  output is validated in Python: a `pick` naming the *other* robot for a comment
+  that never mentions it is voided, and every failure path leaves valid defaults.
+  The tally, the percentages and the verdict are plain counting in the HUD.
 - **Two-step comment scrape.** `discover_by=subreddit_url` finds posts, then the
   Reddit-Comments dataset (`gd_lvzdpsdlw09j6t702`) expands the top
   `POSTS_FOR_COMMENTS` of them into real threaded reactions. Post *titles* alone
   read like headlines ("Season 6 Rumor Mill") and make a poor fan comment.
   `GAMEOVER_THREADED=0` falls back to titles. `GET /datasets/list` (undocumented)
-  returns every dataset id on the account.
+  returns every dataset id on the account. The URL-collection step takes **one**
+  url per row — iterating `URL_FIELDS` inside the row loop made one row
+  contribute two entries, so the `[:POSTS_FOR_COMMENTS]` slice only ever covered
+  two distinct threads.
 - **`serve.py` implements HTTP Range itself.** `SimpleHTTPRequestHandler` ignores
   the header and answers 200 with the whole file, so the browser cannot seek and
   `currentTime` snaps back to 0. Vercel serves ranges already; this only ever bit
