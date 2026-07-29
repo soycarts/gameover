@@ -681,17 +681,6 @@ if __name__ == "__main__":
             sys.exit("--ko must be 'left' or 'right'")
     if backend not in ("api", "cli", "openai"):
         sys.exit("--backend must be 'api', 'cli' or 'openai'")
-    # Same flag as ingest.py: re-judging a clip directly would otherwise lose the
-    # card and fall back to "Bot A" / "Bot B".
-    bots = None
-    if "--bots" in argv:
-        i = argv.index("--bots")
-        pair = argv[i + 1] if i + 1 < len(argv) else ""
-        left, _, right = pair.partition(",")
-        if not (left.strip() and right.strip()):
-            sys.exit('--bots needs two names, e.g. --bots "Manta,Skorpios"')
-        bots = {"left": left.strip(), "right": right.strip()}
-        del argv[i:i + 2]
     positional = [a for a in argv if not a.startswith("-")]
     if not positional:
         sys.exit(__doc__)
