@@ -6,6 +6,13 @@
     python backend/analyze.py fight1.mp4 --backend openai   # OPENAI_API_KEY
     python backend/analyze.py fight1.mp4 --bots "Tombstone,Witch Doctor" --ko right
 
+--bots pins the card instead of trusting the model's reading of the broadcast
+graphics, same flag ingest.py takes. Worth using on a re-judge: name detection
+depends on whether a lower-third happens to be legible in the sampled frames, so
+a clip that resolved to "Manta" once can come back as "Bot A" the next time.
+--ko pins the losing side for a clip someone has actually watched; the finish
+frame is often a crowd shot the model has to guess from.
+
 --backend openai swaps the vision judge to an OpenAI model (OPENAI_MODEL, default
 gpt-5.5). Only the model call changes: the prompt, the hp clamp, thinning, KO
 detection and the comment join are identical, so the JSON contract is unaffected.
@@ -47,6 +54,8 @@ SECONDS_PER_FRAME = 2.0      # extract_frames.py runs at 0.5 fps
 BIG_DROP = 20                # heavy+ — the floor for a last-resort fan comment
 COMMENT_DROP = 10            # solid+ — a hit worth reacting to, if a comment matches
 MAX_CAPTION_WORDS = 6
+MAX_WEAPON_WORDS = 3
+SIDES = ("left", "right")
 
 # The model judges severity; Python owns every number. Asking it for absolute hp
 # instead made it nudge the bar down 3-5 points per frame to signal "time passed",
@@ -348,6 +357,10 @@ def thin(observations: list[dict]) -> list[dict]:
     caption beat gives the HUD something to type across a long fight. But a caption
     that just repeats the one before it is dropped: the model narrates a fire for
     ten frames running, and the HUD should not type "right side on fire" ten times.
+
+    Observations are kept by reference, so a "hit" rides along untouched. That is
+    safe because normalize_hit() only attaches one where hp actually dropped, so a
+    caption-only observation can never carry one.
     """
     events, prev = [], None
     for o in observations:
@@ -356,6 +369,30 @@ def thin(observations: list[dict]) -> list[dict]:
             events.append(o)
             prev = o
     return events
+
+
+def normalize_hit(raw, prev: dict, cur: dict) -> dict | None:
+    """Model hit -> contract hit, or None. Deterministic, like the hp clamp.
+
+    Runs AFTER the clamp so it judges the damage the timeline will actually show:
+    hp deltas are the only evidence a blow landed, and a hit with none behind it is
+    dropped. The frontend derives damage, victim and tier from those same deltas —
+    what survives here is only what the model could see and code cannot infer.
+    """
+    if not isinstance(raw, dict):
+        return None
+    dropped = [s for s in SIDES if prev[s] > cur[s]]
+    if not dropped:
+        return None                                   # no damage -> not a hit
+    by = str(raw.get("by", "")).strip().lower()
+    if by not in SIDES:
+        return None                                   # unattributed; frontend defaults
+    clean = raw.get("clean", True) is not False
+    if clean and by in dropped and len(dropped) == 1:
+        by = "right" if by == "left" else "left"      # model named the victim; flip
+    weapon = raw.get("weapon")
+    weapon = " ".join(str(weapon).split()[:MAX_WEAPON_WORDS]).lower()[:24] if weapon else ""
+    return {"by": by, "weapon": weapon or None, "clean": clean}
 
 
 # Scraped threads are about the whole season, so a MaD CaTTer search surfaces the
@@ -444,6 +481,23 @@ def validate(timeline: dict) -> None:
             assert e["t"] >= evs[i - 1]["t"], "events out of order"
             assert e["left_hp"] <= evs[i - 1]["left_hp"], f"left hp increased at {e['t']}"
             assert e["right_hp"] <= evs[i - 1]["right_hp"], f"right hp increased at {e['t']}"
+        # normalize_hit() clamps model noise; these catch bugs in our own code.
+        h = e.get("hit")
+        if h is not None:
+            assert isinstance(h, dict) and set(h) == {"by", "weapon", "clean"}, \
+                f"bad hit shape at {e['t']}"
+            assert h["by"] in SIDES, f"bad hit.by at {e['t']}"
+            assert isinstance(h["clean"], bool), f"bad hit.clean at {e['t']}"
+            w = h["weapon"]
+            assert w is None or (isinstance(w, str) and 0 < len(w) <= 24
+                                 and len(w.split()) <= MAX_WEAPON_WORDS), \
+                f"bad hit.weapon at {e['t']}"
+            assert i, "hit on the baseline event"
+            hurt = [s for s in SIDES if evs[i - 1][f"{s}_hp"] > e[f"{s}_hp"]]
+            assert hurt, f"hit with no damage at {e['t']}"
+            # an incidental blow has to name a bot that actually lost hp, or the
+            # frontend can never match it to a damaged side
+            assert h["clean"] or h["by"] in hurt, f"incidental hit misattributed at {e['t']}"
 
 
 # ------------------------------------------------------------------------ main
@@ -506,7 +560,11 @@ def analyze(clip: str, backend: str = "api", bots: dict | None = None,
             cost = {s: SEVERITY.get(sev[s], 0) for s in ("left", "right")}
             fin = f.get("finish") if f.get("finish") in ("left", "right") else None
             cap = trim_caption(f.get("caption", ""))
-            obs.append({"t": round(t, 1), "cost": cost, "finish": fin, "caption": cap})
+            # The raw hit rides along untouched until hp exist. It cannot be
+            # normalised yet: pay() may still zero this frame's cost, and a hit
+            # with no hp drop behind it is not a hit.
+            obs.append({"t": round(t, 1), "cost": cost, "finish": fin, "caption": cap,
+                        "raw_hit": f.get("hit")})
             if cost["left"] or cost["right"]:
                 recent.append(f"{t:.0f}s left {sev['left']}, right {sev['right']}"
                               + (f" — {cap}" if cap else ""))
@@ -539,19 +597,34 @@ def analyze(clip: str, backend: str = "api", bots: dict | None = None,
     for side in ("left", "right"):
         pay(obs, side, KO_BUDGET if side == loser else LIVE_BUDGET)
 
-    hp, observations = {"left": 100, "right": 100}, []
-    for o in obs:
-        for s in ("left", "right"):
+    # hp at last, and only now can a hit be judged: normalize_hit() drops anything
+    # with no hp drop behind it, so it has to see the damage the timeline will
+    # actually show — after pay() has zeroed the surplus, not before.
+    hp, observations, last = {"left": 100, "right": 100}, [], len(obs) - 1
+    for i, o in enumerate(obs):
+        before = dict(hp)
+        for s in SIDES:
             hp[s] = max(0, hp[s] - o["cost"][s])
-        observations.append({"t": o["t"], "left_hp": hp["left"],
-                             "right_hp": hp["right"], "caption": o["caption"]})
-    if loser:                                   # only the finish reaches zero
-        observations[-1][f"{loser}_hp"] = 0
+        if loser and i == last:                 # only the finish reaches zero, and
+            hp[loser] = 0                       # it lands here so the finishing blow
+                                                # has a real drop to attribute a hit to
+        rec = {"t": o["t"], "left_hp": hp["left"], "right_hp": hp["right"],
+               "caption": o["caption"]}
+        hit = normalize_hit(o.get("raw_hit"), before, hp)
+        if hit:
+            rec["hit"] = hit
+        elif o.get("raw_hit"):
+            print(f"  ~ dropped unusable hit at t={o['t']:.1f}s")
+        observations.append(rec)
 
     events = thin(observations)
     if not events or events[0]["t"] != 0.0:
         events.insert(0, {"t": 0.0, "left_hp": 100, "right_hp": 100, "caption": ""})
     events[0]["caption"] = ""
+    events[0].pop("hit", None)                     # t=0 is a baseline, not a blow
+    # The KO comes from the finish flag (cross-checked against --ko and against
+    # accumulated damage), not from "first hp to hit 0" — under the budget only
+    # the finish ever reaches 0, so the two agree, and the flag is the evidence.
     if loser:
         events[-1]["ko"] = loser
 

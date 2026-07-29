@@ -21,6 +21,7 @@ Two independent halves joined by **one JSON contract**, `timelines/<clip>.json`.
   "events": [
     {"t": 8.0, "left_hp": 92, "right_hp": 71,
      "caption": "Witch Doctor armour panel torn off",
+     "hit": {"by": "left", "weapon": "vertical spinner", "clean": true},
      "fan_comment": "NOT THE ARMOUR AGAIN"},
     {"t": 41.0, "left_hp": 88, "right_hp": 0,
      "caption": "Witch Doctor immobile, drive dead", "ko": "right"}
@@ -29,8 +30,15 @@ Two independent halves joined by **one JSON contract**, `timelines/<clip>.json`.
 ```
 
 Events sorted by `t`; hp integers 0–100 that **never increase**; `caption` max 6
-words; `fan_comment` and `ko` optional. Era B falls back to `Bot A` / `Bot B` when
-names aren't legible in the broadcast graphics.
+words; `fan_comment`, `hit` and `ko` optional. Era B falls back to `Bot A` / `Bot B`
+when names aren't legible in the broadcast graphics.
+
+`hit` carries **only what the model can see**: `by` (the side that LANDED it),
+`weapon` (≤3 words or null) and `clean` (false = wall, hazard, fall, self-inflicted).
+Damage, victim and tier are deliberately **not** stored — they are pure functions of
+two adjacent events, and the frontend must derive them anyway for the synthetic
+timelines that have no `hit` at all. Storing them twice is how the hit count ended up
+with three different answers in the first place.
 
 Model for all API calls: **`claude-sonnet-5`**.
 
@@ -66,6 +74,7 @@ python backend/extract_frames.py fight1.mp4                        # 0.5 fps, 76
 python backend/scrape_comments.py fight1 "tombstone witch doctor" --mock
 python backend/analyze.py fight1.mp4                               # -> timelines/
 python backend/analyze.py fight1.mp4 --backend cli                 # no API key needed
+python backend/analyze.py fight1.mp4 --bots "Manta,Skorpios"       # pin the card
 
 # era B, any fight video
 python backend/ingest.py "https://www.youtube.com/watch?v=..."
@@ -76,13 +85,16 @@ python backend/ingest.py "<url>" --name manta-skorpios \
     --start 187 --duration 31 --bots "Manta,Skorpios"
 ```
 
-The three demo fights all come from one video, `youtube.com/watch?v=rC__2ZOQhc4`:
+The three demo fights all come from one video, `youtube.com/watch?v=rC__2ZOQhc4`.
+**Always re-judge them with `--bots`** — name detection depends on whether a
+lower-third happens to be legible in the sampled frames, and a re-run that came back
+`Manta vs Skorpios` once will happily return `Bot A vs Bot B` the next time:
 
-| clip | `--start` | `--duration` | ends on |
-|---|---|---|---|
-| `jackpot-copperhead`  |  23 | 144 | TAP OUT : 152sec |
-| `manta-skorpios`      | 187 |  31 | KNOCKOUT : 24sec |
-| `madcatter-tombstone` | 271 |  79 | KNOCKOUT : 72sec |
+| clip | `--start` | `--duration` | `--bots` (left,right) | ends on |
+|---|---|---|---|---|
+| `jackpot-copperhead`  |  23 | 144 | `Copperhead,Jackpot` | TAP OUT : 152sec |
+| `manta-skorpios`      | 187 |  31 | `Manta,Skorpios`     | KNOCKOUT : 24sec |
+| `madcatter-tombstone` | 271 |  79 | `MaDCaTTer,Tombstone`| KNOCKOUT : 72sec |
 
 Keys in the page: `any` start · `r` replay · `c` CRT filter · `g` rainbow bars.
 
@@ -162,7 +174,12 @@ python3 backend/serve.py     # -> http://localhost:40911/frontend/index.html?cli
   already said.** Each batch is led by the previous batch's last frame as unjudged
   context (otherwise every 3rd frame has nothing to diff "new damage" against) and
   carries the last two reported hits in the footer. Without that the model narrates one
-  fire as fresh damage on ten consecutive frames.
+  fire as fresh damage on ten consecutive frames. That message is `footer()`, shared by
+  all three backends — it also re-states who the bots are and what they look like
+  (`identity_note()`) and the `hit` rule, because a field explained only in
+  `prompt.txt` gets honoured for a batch or two and then quietly forgotten for the
+  rest of a long clip. There is deliberately no running-hp line: the model never
+  emits hp.
 - **`pay()` overspending is expected, not a bug.** The model over-fires — a fire
   sequence alone can bill 150+ points against a 100-point bar — so `pay()` spends a
   fixed budget (`KO_BUDGET`/`LIVE_BUDGET`) on the most severe moments and zeroes the
@@ -170,6 +187,30 @@ python3 backend/serve.py     # -> http://localhost:40911/frontend/index.html?cli
   3–5 point drip exactly. Budgets are under 100 on purpose: a bot bottoms out around
   hp 30 and the only route to 0 is the model's `finish` flag. Zeroed hits keep their
   captions, so the HUD still has something to type between real hits.
+- **The ladder and the HUD's `TIERS` table are one design in two halves.** `SEVERITY`
+  scores glance 4 / solid 12 / heavy 22 / catastrophic 35, and `TIERS` in `index.html`
+  bands at 1 / 10 / 20 / 30, so each rung lands squarely in one tier. The backend owns
+  *how much* damage, the frontend owns *how it looks*; they meet only at the hp delta.
+  Move a rung on either side without the other and a whole category of hit silently
+  changes colour, size and whether it shakes the screen.
+- **One hit = one bot losing armour at one moment**, so an exchange that damages both
+  bots is TWO hits. This lives in exactly one function, `deriveHits()` in
+  `index.html`, which runs once at load; `fire()`, the `#hits` readout and the
+  end-of-fight breakdown all read the list it returns. Before that there were three
+  separate answers — the live counter said 22 on `madcatter-tombstone`, the end card
+  said 24, and a backward scrub reset it to 0 and never recounted. Do not re-derive
+  hits inline anywhere; if the HUD total and the breakdown ever disagree again,
+  something did.
+- **Damage, victim and tier are derived, never stored.** The timeline's `hit` object
+  carries only what the model can see (`by`, `weapon`, `clean`). `deriveHits()` works
+  with no `hit` field at all — `synthfight` and `demo/fight1.json` are synthetic and
+  are never re-judged, which makes them the regression test for the fallback path.
+  Model data only ever *enriches* a hit record that the hp deltas already produced.
+- **A transient's lifetime lives in its CSS variable, not in a JS timer.** `lifeMs()`
+  reads `--hm-life` / `--strike-life` so the removal timer and the animation can't
+  disagree; hard-coding a second copy in JS is how the hitmarkers first ended up
+  vanishing mid-animation. It is deliberately not `animationend` — reduced motion
+  kills the animation and the event with it.
 - **Serve from the repo root.** `index.html` reaches up to `../clips/`,
   `../timelines/` and `../comments/`. Serving `frontend/` alone breaks it.
 - **No `?clip=` defaults to `madcatter-tombstone`**, so a bare URL is a working share
@@ -241,7 +282,12 @@ python3 backend/serve.py     # -> http://localhost:40911/frontend/index.html?cli
 - **Verifying in a headless browser is misleading.** `requestAnimationFrame` and
   media playback stall when nothing is painting, so state reads between JS calls go
   stale and look like engine bugs. Force a paint (take a screenshot) before trusting
-  a DOM read.
+  a DOM read. Two corollaries that cost real time: `tick()` never advances on its own
+  there, so drive the engine by calling `tick()` after setting `video.currentTime`;
+  and a transient like `.hitmark` is long gone by the time a screenshot lands, so
+  freeze it (`animation: none; opacity: 1`) rather than trying to catch it. Slowing
+  the animation down does not work — it just stretches the fade-*in*, so the capture
+  arrives while the element is still at `opacity: 0`.
 
 ## Restyling
 
@@ -257,3 +303,9 @@ bars, names, hp numbers and fan comments live in **one bottom row** (left stack 
 caption · right stack), and the only top-anchored readouts (`#hits`, `#muted`) hug
 the **right** edge at `--safe-top`. Raise `--safe-top` if a clip's band spans the
 full width; do not move the bars back up to reclaim the space.
+
+The same rule constrains the hitmarkers. On-bar `.hitmark` bursts are anchored to the
+core rows, so they are structurally incapable of reaching that corner. The full-stage
+`#strike` crosshair is not — it is parked at `--strike-top` (54%) and nudged toward
+the victim's half. If a clip's burned-in band runs taller, raise `--strike-top` and
+`--safe-top` together; that is why both are variables.
