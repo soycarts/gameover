@@ -5,6 +5,11 @@
     python backend/analyze.py fight1.mp4 --backend cli      # your Claude subscription
     python backend/analyze.py fight1.mp4 --backend openai   # OPENAI_API_KEY
     python backend/analyze.py fight1.mp4 --bots "Tombstone,Witch Doctor" --ko right
+    python backend/analyze.py fight1 --rejoin                # comment join only
+
+--rejoin re-runs ONLY the fan-comment join against an existing timeline: no
+frames, no model call, no money, about a second. That is how a better
+comments/<clip>.json reaches a committed timeline without re-judging the video.
 
 --bots pins the card instead of trusting the model's reading of the broadcast
 graphics, same flag ingest.py takes. Worth using on a re-judge: name detection
@@ -43,6 +48,11 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import config  # noqa: E402
+# Scraped threads are about the whole season, so a MaD CaTTer search surfaces the
+# SawBlaze fight too. names_a_rival() keeps a comment naming a bot that is not in
+# THIS fight off the HUD; it lives in crowd.py next to the segmentation that
+# decides what it is applied to.
+from crowd import KNOWN_BOTS, names_a_rival  # noqa: E402,F401
 
 ROOT = Path(__file__).resolve().parent.parent
 MODEL = "claude-sonnet-5"
@@ -395,38 +405,6 @@ def normalize_hit(raw, prev: dict, cur: dict) -> dict | None:
     return {"by": by, "weapon": weapon or None, "clean": clean}
 
 
-# Scraped threads are about the whole season, so a MaD CaTTer search surfaces the
-# SawBlaze fight too. Captioning a Tombstone hit with a SawBlaze comment is the
-# kind of thing a BattleBots viewer spots immediately, so a comment naming a bot
-# that is not in THIS fight is used only as a last resort.
-KNOWN_BOTS = {
-    "tombstone", "witch doctor", "sawblaze", "madcatter", "mad catter", "manta",
-    "skorpios", "jackpot", "copperhead", "hydra", "riptide", "end game",
-    "whiplash", "bite force", "minotaur", "hypershock", "black dragon", "glitch",
-    "banshee", "huge", "shatter", "lucky", "uppercut", "gigabyte", "valkyrie",
-    "ripperoni", "malice", "yeti", "bronco", "icewave", "beta", "captain shrederator",
-}
-
-
-def names_a_rival(text: str, card: dict) -> bool:
-    """True if the comment names a known bot that is not in this fight.
-
-    Word-boundary matched, so "Manta," and "Mad Catter's" are caught — an
-    endswith/space check misses trailing punctuation, which is exactly how a
-    Manta comment first slipped onto a Copperhead hit.
-    """
-    low = " ".join(text.lower().split())
-    ours = {n.lower() for n in (card.get("left", ""), card.get("right", "")) if n}
-    for bot in KNOWN_BOTS:
-        # "madcatter" and "mad catter" both count as ours if either name contains it
-        if any(bot in o or o in bot for o in ours):
-            continue
-        # trailing s / possessive: "Mad Catters design", "Tombstone's blade"
-        if re.search(rf"\b{re.escape(bot)}(?:'s|’s|s)?\b", low):
-            return True
-    return False
-
-
 def join_comments(events: list[dict], comments: list[dict],
                   bots: dict | None = None) -> None:
     """Attach fan comments to damage moments. Each comment is used at most once.
@@ -458,8 +436,16 @@ def join_comments(events: list[dict], comments: list[dict],
         for j, c in enumerate(comments):
             if j in used or names_a_rival(c.get("text", ""), bots):
                 continue
+            if c.get("kind") == "meta":      # "When and where to watch?" is never
+                continue                     # a reaction to a hit
             ctext = words(c.get("text", ""))
             score = 2 * len(cap & ctext) + (2 if name and name <= ctext else 0)
+            # A pre-fight prediction landing under a hit at t=52 reads wrong.
+            # Ranked, not filtered: jackpot-copperhead's only usable comment is a
+            # pre-fight one, and an empty HUD is worse than an early quote. Old
+            # records carry no phase, so .get() is None and the score is
+            # bit-identical to before.
+            score += {"post": 3, "pre": -1}.get(c.get("phase"), 0)
             if score > best_score:                 # ties keep the earlier comment
                 best, best_score = j, score
         if best is None and drop >= BIG_DROP:      # fall back to any clean unused one
@@ -659,6 +645,40 @@ def analyze(clip: str, backend: str = "api", bots: dict | None = None,
     return out_path
 
 
+def rejoin(clip: str, bots: dict | None = None) -> Path:
+    """Re-run ONLY the comment join against an existing timeline.
+
+    No frames, no model call, no money, about a second. The comment pool is the
+    only input to join_comments(), and the hp curve, captions, hits and KO are
+    already settled — so a better scrape reaches the committed timelines without
+    paying for a re-judge. A re-judge is real money and 15-30 minutes, and it
+    would re-roll hp numbers that have already been checked by eye.
+
+    Idempotent: the same pool always produces the same result, because every
+    previous fan_comment is dropped first.
+    """
+    name = Path(clip).stem
+    path = ROOT / "timelines" / f"{name}.json"
+    if not path.exists():
+        sys.exit(f"no {path} — run a full judge first")
+    timeline = json.loads(path.read_text())
+    card = bots or timeline.get("bots") or {}
+    for ev in timeline["events"]:
+        ev.pop("fan_comment", None)
+    comments_file = ROOT / "comments" / f"{name}.json"
+    comments = json.loads(comments_file.read_text()) if comments_file.exists() else []
+    if not comments:
+        sys.exit(f"no {comments_file} — nothing to join")
+    join_comments(timeline["events"], comments, card)
+    # Deliberately NOT name_captions(): the captions are already named, and a
+    # second substitution pass could double-substitute.
+    validate(timeline)
+    path.write_text(json.dumps(timeline, indent=2) + "\n")
+    joined = sum(1 for e in timeline["events"] if e.get("fan_comment"))
+    print(f"rejoined {path} — {joined} fan comments across {len(timeline['events'])} events")
+    return path
+
+
 if __name__ == "__main__":
     argv, backend, bots, ko = sys.argv[1:], "api", None, None
     if "--backend" in argv:
@@ -684,4 +704,7 @@ if __name__ == "__main__":
     positional = [a for a in argv if not a.startswith("-")]
     if not positional:
         sys.exit(__doc__)
+    if "--rejoin" in argv:                  # comment pool only; no frames, no spend
+        rejoin(positional[0], bots)
+        sys.exit(0)
     analyze(positional[0], backend=backend, bots=bots, ko=ko)
