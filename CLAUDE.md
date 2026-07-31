@@ -22,7 +22,7 @@ Two independent halves joined by **one JSON contract**, `timelines/<clip>.json`.
     {"t": 8.0, "left_hp": 92, "right_hp": 71,
      "caption": "Witch Doctor armour panel torn off",
      "hit": {"by": "left", "weapon": "vertical spinner", "clean": true,
-             "at": [0.42, 0.48]},
+             "at": [0.42, 0.48], "sev": "heavy"},
      "fan_comment": "NOT THE ARMOUR AGAIN"},
     {"t": 34.0, "left_hp": 88, "right_hp": 12,
      "caption": "Witch Doctor immobile, count begins", "drain": "right"},
@@ -41,12 +41,22 @@ blow**. `deriveHits()` skips it, so a count-out registers zero hits. An event ma
 carry `hit` or `drain`, never both — `validate()` enforces it.
 
 `hit` carries **only what the model can see**: `by` (the side that LANDED it),
-`weapon` (≤3 words or null), `clean` (false = wall, hazard, fall, self-inflicted) and
-**`at`**, an optional `[x, y]` impact point normalised 0–1 from the frame's top-left.
-Damage, victim and tier are deliberately **not** stored — they are pure functions of
-two adjacent events, and the frontend must derive them anyway for the synthetic
-timelines that have no `hit` at all. Storing them twice is how the hit count ended up
-with three different answers in the first place.
+`weapon` (≤3 words or null), `clean` (false = wall, hazard, fall, self-inflicted),
+**`at`**, an optional `[x, y]` impact point normalised 0–1 from the frame's top-left,
+and **`sev`**, the ladder rung the model rated the frame.
+
+Damage and victim are deliberately **not** stored — they are pure functions of two
+adjacent events, and the frontend must derive them anyway for the synthetic timelines
+that have no `hit` at all. Storing them twice is how the hit count ended up with three
+different answers in the first place.
+
+**`sev` is the exception, and it earned it the same way `drain` did.** Tier used to be
+derived too, by banding the hp delta — which worked only while a delta *was* a rung.
+Under `normalise()` a delta is a **share of the bar**, so a heavy in a busy fight is
+worth ~8hp and would band as a graze; the rung is no longer a function of two adjacent
+events, and a fact code cannot infer is a fact that has to be stored. It is optional,
+like `at`: `validate()` takes the key set as a subset, and `tierFor()` falls back to
+`tierOf(dmg)` so every pre-`sev` timeline bands exactly as it always did.
 
 `comments/<clip>.json` is the second file the page fetches — a flat array, every
 key past the first three optional so the old three-key files still work:
@@ -146,6 +156,7 @@ python backend/analyze.py fight1.mp4 --bots "Manta,Skorpios"       # pin the car
 python backend/analyze.py fight1.mp4 --looks "blue wedge|copper forks"  # pin the machines
 python backend/analyze.py fight1.mp4 --regrade      # re-grade each blow's severity
 python backend/analyze.py fight1.mp4 --stop-pass    # re-ask when the LOSER stopped
+python backend/analyze.py fight1.mp4 --no-condition # skip the end-condition call
 python backend/analyze.py fight1.mp4 --verify       # re-ask WHO landed each blow
 
 # the one sampled sound. The shipping take was chosen by ear, so this REFUSES to
@@ -161,6 +172,12 @@ python backend/probe_at.py manta-skorpios --at 2.0 15.5 23.0 --repeat 2
 # both exist because a failure they catch has already shipped once.
 python backend/check_looks.py --bots "Copperhead,Jackpot" --looks "<left>|<right>"
 python backend/check_timelines.py          # run after EVERY merge, before pushing
+
+# the THIRD pre-flight, and the cheapest 20 seconds before any paid run: prove the
+# key actually resolves. A worktree has its own .env, and an EMPTY exported var used
+# to shadow it silently — sha256 e3b0c442 is the hash of the empty string.
+python -c "import sys,hashlib;sys.path.insert(0,'backend');import config;\
+k=config.openai_key() or '';print(hashlib.sha256(k.encode()).hexdigest()[:8],len(k))"
 
 # the Pro League roster and the sprites derived from it — free, no model
 python backend/roster.py                   # -> backend/roster.json (27 bots)
@@ -386,6 +403,15 @@ python3 backend/serve.py     # -> http://localhost:40911/frontend/index.html?cli
 - **Keys come from `.env` or the shell.** `backend/config.py` loads `.env` (real env
   vars win) and accepts either `BRIGHTDATA_API_KEY` or `BRIGHTDATA_KEY` — the two
   spellings already diverged once and silently produced "no key found".
+- **An EMPTY exported variable is not the same as an unset one, and it used to win.**
+  `load_env()` skipped any name already `in os.environ`, so a shell carrying
+  `OPENAI_API_KEY=` — what a half-finished export or a launcher forwarding every name
+  it knows leaves behind — shadowed a perfectly good key in `.env` and 401'd every
+  call. That reads as "the key in `.env` is broken", the same wrong conclusion the
+  worktree trap below produces. It now tests truthiness, matching `get()`, which
+  always treated empty as absent. **Fingerprint before you spend:** `sha256` of the
+  resolved key, first 8 chars — `e3b0c442` is the hash of the empty string, and
+  seeing it is the whole diagnosis. Never print the key itself.
 - **A git worktree has its own `.env`, and `config.ROOT` resolves to the worktree.**
   So rotating the key in the main checkout does nothing for a run started from
   `.claude/worktrees/<name>/` — it keeps using the stale copy and 401s, which reads
@@ -528,6 +554,25 @@ python3 backend/serve.py     # -> http://localhost:40911/frontend/index.html?cli
   five bots. Each bot's own page gives `Type:` — the site's word for the weapon — which
   several entries leave **empty**, so it is sliced between known labels rather than
   lazily matched; a lazy `(.+?)` returned Disarray's weapon as "Job: Software Engineer".
+- **The arena is a third combatant, and the prompt used to talk itself out of it.**
+  `prompt.txt` listed hazards among the things whose state must never be assigned to a
+  competitor and which must "never trigger a caption", while separately offering
+  `killsaws` and `arena wall` as legal `hit.weapon` values — two rules that read as one
+  instruction to ignore hazard damage. Nothing told the model that a bot thrown onto
+  the screws has taken the damage you can see. On `jackpot-copperhead` all three hazard
+  moments scored zero (`onto screws` t=8.5, `lifted by arena screws` t=105.5, `scrapes
+  wall sparks` t=129.5) even though the commentary spells the first one out — *"getting
+  thrown up on THOSE SCREWS AND GETS PUT UP ON THE UPPER DECK"*.
+  The rules are now separate: do not judge a hazard **as a competitor** or caption it
+  as a subject, but damage a hazard does **to** a competitor is real damage on the same
+  ladder. **The contract needed nothing new** — `clean: false` with `by` naming the bot
+  that TOOK it is the existing self/incidental shape, `normalize_hit()` already coerces
+  to the damaged side, and `deriveHits()` already sets `h.self`. Stated in both
+  `prompt.txt` and `footer()`, because a rule living only in the first drifts by the
+  middle of a long clip, which is exactly where hazard throws cluster.
+  **The assist is lost and that is deliberate**: when the other bot did the throwing,
+  `by` is still coerced to the victim, so `showHits()` credits neither. Growing the
+  contract with a `cause` field is not worth it — the screws did the damage.
 - **A fight can contain more than two machines, and the prompt used to deny it.**
   `identity_note()` asserted *"the ONLY two competitors are X and Y"*. That is false for
   a third of the roster — Jackpot fields **Ace**, MaDCaTTer fields **Gassy Cat**, and
@@ -654,19 +699,52 @@ python3 backend/serve.py     # -> http://localhost:40911/frontend/index.html?cli
   `prompt.txt` gets honoured for a batch or two and then quietly forgotten for the
   rest of a long clip. There is deliberately no running-hp line: the model never
   emits hp.
-- **`pay()` overspending is expected, not a bug.** The model over-fires — a fire
-  sequence alone can bill 150+ points against a 100-point bar — so `pay()` spends a
-  fixed budget (`KO_BUDGET`/`LIVE_BUDGET`) on the most severe moments and zeroes the
-  rest. Do **not** "fix" it by scaling every hit down to fit; that reconstructs the
-  3–5 point drip exactly. Budgets are under 100 on purpose: a bot bottoms out around
-  hp 30 and the only route to 0 is the model's `finish` flag. Zeroed hits keep their
-  captions, so the HUD still has something to type between real hits.
+- **Damage NORMALISES per match; it is not spent from a fixed budget.** `pay()` used
+  to spend `KO_BUDGET`/`LIVE_BUDGET` on the most severe moments and zero the rest, and
+  the budget was absolute while a fight's length is not. `jackpot-copperhead` is 140s
+  of events against `manta-skorpios`'s 27s and got the same 55/70: both budgets came
+  out **exhausted to the point** (Copperhead 52/55, Jackpot exactly 70/70) against raw
+  totals of 240 and 164, so ~253 of ~404 points were struck out and **35 captioned
+  moments produced 7 that move a bar** — one scoring moment every 20.1s, against 8.3
+  on madcatter and 9.0 on manta. On screen that is "Jackpot throws Copperhead onto
+  screws" typed over a frozen bar, which reads as a blow that did not register, and it
+  is what a viewer notices first.
+  `normalise()` shares one target across every surviving blow in proportion to its
+  rung — largest-remainder so the parts sum **exactly**, floored at **1hp** so no blow
+  is invisible, and dropping the lowest rungs with a printed warning in the impossible
+  case of more blows than points. The eliminated bot loses `KO_BLOW_TOTAL` (85) to
+  blows and the count bleeds the last 15; the survivor's total is `winner_target()`.
+  **This is the "scaling every hit down to fit" that this file used to forbid, and the
+  old warning was right about the OLD pipeline for one specific reason:** it emitted
+  absolute hp with *no severity rung behind it*, so a 3-point delta could not be
+  banded, coloured or shaken. Here the rung survives as **`hit.sev`**. The delta is now
+  purely *how much bar*; the rung is *how hard*. Getting those two apart is the whole
+  trick — do not put them back together by making the HUD band the delta again.
+- **The surviving bot's bar is half looks, half counting.** `winner_target()` blends
+  `CONDITION[rung]` from `condition_pass()` — one extra call over the closing frames
+  rating each bot pristine / scuffed / damaged / wrecked, `--no-condition` to skip it —
+  with `KO_BLOW_TOTAL × min(1, intense_in(winner) / intense_in(loser))`. Neither half
+  is trustworthy alone: a robot can be gutted underneath and look fine from above, and
+  a count of hard blows is blind to what they achieved. The ratio is **clamped at 1**
+  rather than asserted, because it really can exceed it — on `jackpot-copperhead` the
+  *winner* took more raw damage (240 vs 164) and still won. With no condition reading
+  the intensity half carries the whole thing, so a skipped or failed pass degrades
+  instead of breaking the run.
 - **The ladder and the HUD's `TIERS` table are one design in two halves.** `SEVERITY`
-  scores glance 4 / solid 12 / heavy 22 / catastrophic 35, and `TIERS` in `index.html`
-  bands at 1 / 10 / 20 / 30, so each rung lands squarely in one tier. The backend owns
-  *how much* damage, the frontend owns *how it looks*; they meet only at the hp delta.
-  Move a rung on either side without the other and a whole category of hit silently
-  changes colour, size and whether it shakes the screen.
+  rates glance / solid / heavy / catastrophic and `TIERS` in `index.html` bands the
+  same four. They no longer meet at the hp delta — they meet at **`hit.sev`**, mapped
+  through `TIER_BY_SEV`. The backend owns *how much* damage, the frontend owns *how it
+  looks*. Rename a rung on either side without the other and a whole category of hit
+  silently changes colour, size and whether it shakes the screen.
+  `tierOf(dmg)` survives as the fallback for `synthfight`, `demo/` and any timeline
+  judged before `sev` existed — all of them on the fixed-budget pipeline where a delta
+  really *is* a rung, so the fallback is exact rather than approximate. **Nothing in
+  the HUD may compare a raw hp number to a threshold again.** `SHAKE_AT`/`MASSIVE_AT`
+  were exactly that (`dmg >= 10` / `>= 20`) and are now `SHAKE_TIERS`/`HARD_TIERS`; a
+  heavy sharing 85 points with ten other blows is worth ~8hp and every one of those
+  comparisons would have quietly demoted a long fight's entire vocabulary to GRAZE.
+  BEST BLOW and `scheduleExchanges()` sort by rung with the delta only breaking ties,
+  for the same reason.
 - **One hit = one bot losing armour at one moment**, so an exchange that damages both
   bots is TWO hits. This lives in exactly one function, `deriveHits()` in
   `index.html`, which runs once at load; `fire()`, the `#hits` readout and the
@@ -698,6 +776,18 @@ python3 backend/serve.py     # -> http://localhost:40911/frontend/index.html?cli
   idempotent (`overDone`) because `ended` and the backstop can both fire.
   FIGHT TIME and the timeline strip stay keyed to the last **event**, never to
   `v.duration`, or every clip's fight time stretches across the dead air.
+- **`check_timelines.py` is two-era aware, and a clip in neither era is stale.**
+  A timeline whose hits carry `sev` is **normalised**: every non-count delta must be
+  ≥1, every hit must carry a `sev` in `SEVERITY`, and the eliminated bot's blows must
+  sum to `KO_BLOW_TOTAL` exactly (which is why `normalise()` uses largest-remainder
+  rather than plain rounding). One with no `sev` anywhere is **ladder**: the old
+  fixed-budget pipeline, where every non-count delta lands on a `SEVERITY` rung — and
+  `madcatter-tombstone` and `manta-skorpios` are deliberately still there, so both
+  branches are live and neither is dead code. Neither shape means the original
+  absolute-hp pipeline, which is a sharper `f7f9ecb` detector than the ladder check
+  alone was: deltas off the rungs *with no `sev` to explain them*. It also prints the
+  blow density (one every N seconds) because the failure this era exists to fix has no
+  honest threshold — a fire spreading is a caption and not a blow — so a human reads it.
 - **The count-out is ten seconds where nothing happens**, and on `manta-skorpios` it
   is 12 of 18 events, all with empty captions. `deriveCount()` turns the run of
   consecutive `drain` events into a referee count in the loser's own status line
@@ -727,6 +817,26 @@ python3 backend/serve.py     # -> http://localhost:40911/frontend/index.html?cli
   `hitAnchor()` anchors to the health core that drained, which is what makes it
   structurally incapable of reaching that corner, and it is the only marker a
   synthetic or pre-`at` timeline can draw.
+- **`.hitmark.arena` is coloured by SIDE; the on-bar `.hitmark` is coloured by TIER.**
+  That is not an inconsistency, it is the same rule applied to two different contexts:
+  out on the video nothing else says who landed the blow, so colour has to carry it
+  (from `h.by`, the identical value the scrubber and end-card ticks split on); down on
+  the bar the panel already carries a name and a coloured bar, so colour is free to
+  carry the tier. Size carries the tier in both.
+  For its whole life `.hitmark.arena` had **no CSS rule at all** — the class was a bare
+  hook, so the on-video mark rendered identically to the on-bar one: `--hm-life` 420ms
+  with ~139ms at full opacity, tier-orange, over moving footage. Six of those across
+  `jackpot-copperhead`'s 149 seconds is not a subtle marker, it is an invisible one.
+  It now has `--arena-scale` (1.45×) and `--arena-life` (900ms, holding full opacity
+  for over half of it). `--hit-self` grey still wins over the side colour, because a
+  hazard is neither bot's work.
+- **`#strike` and `.hitmark` must agree about the same blow.** `#strike` had no `.self`
+  rule, so an incidental hit painted the bar burst grey and the crosshair heavy-orange
+  simultaneously. And `SELF / ARENA` was one label for two different things the
+  contract cannot distinguish — `clean: false` with `by` on the victim means both "the
+  screws did it" and "the bot cooked itself". `blameFor()` reads the blame off the
+  weapon string, which is the one field that does know, and says `ARENA` when the
+  weapon names one.
 - **`--regrade` re-grades blows; it cannot invent or delete them.** The first pass
   answers "did anything happen" and "how bad was it" at once, across a whole fight,
   with a strong if-unsure-none prior — reliably good at the first, weak at the second.
