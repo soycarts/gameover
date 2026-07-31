@@ -96,7 +96,7 @@ key past the first three optional so the old three-key files still work:
 ```json
 {"text": "As much as Skorpios is my goat, Manta is going to kick their ass",
  "source": "reddit", "url": "https://reddit.com/…/ovwnh4u/",
- "author": "[redacted]", "score": 13,
+ "by": "92686393864a", "score": 15,
  "id": "ovwnh4u", "parent": "", "post": "1up1lxt", "pinned": true,
  "phase": "pre", "kind": "prediction", "pick": "manta", "rival": false, "ex": "1a"}
 ```
@@ -975,11 +975,11 @@ python3 backend/serve.py     # -> http://localhost:40911/frontend/index.html?cli
 - **The comments file is a second, richer source the HUD reads at runtime.** The
   timeline contract still carries only `fan_comment` **text**; `credits[norm(text)]`
   in `index.html` looks that string back up in `comments/<clip>.json` to recover
-  the author, the source and the prediction label. That indirection is the whole
-  reason attribution, the pre-fight `#preds` block and the `04 / CROWD` card cost
+  the source, the prediction label and the opaque `by` token. That indirection is
+  the whole reason the pre-fight `#preds` block and the `04 / CROWD` card cost
   no re-judge — the contract never had to grow a field. It also means a re-scrape
   that drops a string a timeline still references degrades that one comment to
-  "no author"; run `--rejoin` straight after a scrape. `check_timelines.py` asserts
+  an unresolved lookup; run `--rejoin` straight after a scrape. `check_timelines.py` asserts
   every `fan_comment` still resolves, so that degradation is now caught rather than
   noticed in a demo.
 - **One side can legitimately have NO showable quote, and the grid has to cope.**
