@@ -483,6 +483,7 @@ body.over .perfect { display: none; }
 #title h1 { font-family: var(--font-pixel); font-size: var(--fs-title); margin: 0;
   color: var(--accent); text-shadow: 6px 6px 0 var(--accent-2); letter-spacing: 4px; }
 #title .sub { color: var(--ink-dim); font-size: var(--fs-comment); letter-spacing: 3px; }
+#title .sub i { font-style: normal; white-space: nowrap; }
 /* the counting rule, stated once so the HUD readout needs no explaining */
 #title .rule { color: var(--accent); opacity: .75; margin-top: -14px; }
 #coin { font-family: var(--font-pixel); font-size: var(--fs-comment); color: var(--ink);
@@ -901,8 +902,12 @@ body.rainbow .core-fill { background: linear-gradient(90deg,#ff2e63,#ffd23f,#3ff
 
   <div class="screen on staging" id="title">
     <h1>GAMEOVER</h1>
-    <div class="sub">ROBOT COMBAT / VISION-JUDGED</div>
-    <div class="sub rule">ONE HIT = ONE BOT DAMAGED IN ONE MOMENT</div>
+    <!-- each item is nowrap so a narrow screen breaks at a separator, never inside
+         a phrase or on one of the hyphens — at 375px this line wrapped "SOCIAL" /
+         "CHATTER" onto two lines -->
+    <div class="sub"><i>BATTLEBOTS COMBAT</i> / <i>NEXT-GEN OVERLAY</i></div>
+    <div class="sub rule"><i>HIT-BY-HIT BREAKDOWN</i> · <i>FAN PREDICTIONS</i> ·
+      <i>SOCIAL CHATTER</i></div>
     <div class="vs">
       <div class="bot l" id="vsL">BOT A</div>
       <div class="mid">VS</div>
