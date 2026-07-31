@@ -54,7 +54,8 @@ reads it — so blocking dotfiles is what keeps that from being a leak.
 pip install -r backend/requirements.txt
 
 # put your clip at clips/fight1.mp4
-python backend/extract_frames.py fight1.mp4                        # 0.5 fps, 768px
+python backend/extract_frames.py fight1.mp4                        # 2 fps, 768px
+python backend/transcribe.py fight1 --bots "Tombstone,Witch Doctor"  # commentary
 python backend/scrape_comments.py fight1 "tombstone witch doctor" --mock
 python backend/analyze.py fight1.mp4                               # -> timelines/fight1.json
 ```
@@ -99,16 +100,26 @@ URL to open. The title screen also has a URL box that shows you this exact comma
     {"t": 0.0, "left_hp": 100, "right_hp": 100, "caption": ""},
     {"t": 8.0, "left_hp": 92, "right_hp": 71,
      "caption": "Witch Doctor armour panel torn off",
+     "hit": {"by": "left", "weapon": "vertical spinner", "clean": true,
+             "at": [0.42, 0.48]},
      "fan_comment": "NOT THE ARMOUR AGAIN"},
+    {"t": 34.0, "left_hp": 88, "right_hp": 12,
+     "caption": "Witch Doctor immobile, count begins", "drain": "right"},
     {"t": 41.0, "left_hp": 88, "right_hp": 0,
-     "caption": "Witch Doctor immobile, drive dead", "ko": "right"}
+     "caption": "Witch Doctor counted out", "drain": "right", "ko": "right"}
   ]
 }
 ```
 
 Events sorted by `t`; hp are integers 0–100 that never increase; `caption` is max
-6 words; `fan_comment` and `ko` are optional. Era B falls back to `Bot A` / `Bot B`
-when names aren't legible in the broadcast graphics.
+6 words; `fan_comment`, `hit`, `drain` and `ko` are optional. Era B falls back to
+`Bot A` / `Bot B` when names aren't legible in the broadcast graphics.
+
+`drain` marks an hp drop that is a knockout **count**, not a blow, so a count-out
+registers zero hits. `hit` carries only what the model can see — who landed it, the
+weapon, whether it was clean, and optionally `at`, the impact point normalised 0–1
+from the frame's top-left. Damage, victim and tier are derived from the hp deltas by
+the frontend, never stored.
 
 The model only ever judges frames. Thinning, hp clamping, KO detection and the
 comment join are deterministic Python in [analyze.py](backend/analyze.py), so the

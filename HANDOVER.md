@@ -48,31 +48,96 @@ can see. Damage, victim and tier stay derived, never stored.
   HTTP Range and the filtered Reddit comments all survived the merge intact
   (audited file by file against each branch).
 
+- **The clips now play through to the BattleBots card.** `koSequence()` no longer
+  pauses on the K.O. stamp; it plays over the live celebration and GAME OVER waits
+  for the video to run out. `manta-skorpios` and `jackpot-copperhead` were re-cut
+  longer to reach the card (`madcatter-tombstone` has none — it is last in the
+  compilation and runs into a YouTube outro). **The re-cut needed no re-judge**:
+  `-ss` is independent of `-t`, so the clips are byte-identical at the front and
+  every timeline timestamp still lines up — verified by single-frame MD5s.
+- **The count-out reads as a count.** `COUNT 1`…`COUNT 10` in the loser's status
+  line, derived from the `drain` run, filling the ten seconds that used to be
+  twelve events with empty captions.
+
+- **Manta's third hit is back.** The count window zeroes every loser-side cost from
+  its start, so *"Manta launches Skorpios airborne"* at t=15.5 scored nothing and
+  landed as a caption over a frozen bar. `immobile_from()` now breaks its backward
+  walk when the loser TAKES damage, not only when it lands a blow, bounded by
+  `MIN_COUNT_SECONDS`. Re-judged: the count starts at t=16.0 instead of t=14.0 (11s,
+  against the broadcast's own ~10s) and **Manta finishes 3 hits / 66 dealt** against
+  Skorpios' 2 / 16. Verified end to end in a browser.
+- **Playback controls.** A hover-revealed bar (play/pause, ∓10s, a scrubber marked
+  with every hit and the KO, a clock, mute) and an Esc pause menu with
+  RESUME / REPLAY / HOME. `replay()` was split into `reset()` + `start()` so HOME
+  reuses the proven teardown. Works on the virtual clock too, so `?demo=1` keeps the
+  same controls.
+- **Seeking is safe.** A forward jump used to fire every crossed event in one frame.
+  See the catch-up rule and the `userPaused` watchdog note in CLAUDE.md — both were
+  latent bugs the scrub bar merely exposed.
+- **The summary screen says one thing once**: `DAMAGE` / `BEST BLOW` / `HIT LOG`, no
+  numbered eyebrows, and the KO is a full-height gold line rather than a tick that
+  read as a left-side hit.
+- **A long caption no longer resizes the HUD.** It was squeezing the health cores
+  from 69px to 27px and rewrapping the fan comments; the caption now keeps its
+  previous line faded above the current one.
+
 ## Outstanding — highest value first
 
-### 1. Two clips are still judged by the OLD pipeline
+### 0. `transcribe.cut()` places every caption ~1s early
 
-`jackpot-copperhead` and `manta-skorpios` were **deliberately not re-judged** —
-only one clip's worth of API spend was authorised. Their timelines are still
-hp-number output from before the merge, so on those two:
+Found while re-cutting, deliberately **not** fixed in the same run. `-ss` before
+`-i` with `-c copy` snaps the cut back to a keyframe, so clip `t=0` is 185.977s on
+`manta-skorpios`, not the 187 in `source.json` — and `cut()` maps captions with
+`s["start"] - start`. Every manta caption is therefore **1.02s** early (madcatter
+0.81s, jackpot 0.10s). It partly cancels, because commentators lag the action by
+about a second and `window()` already leads 1.0s / lags 1.5s, but it is a real
+error in what the judge is shown.
+
+Fix it **on its own**. Changing it shifts what the model sees, so folding it into a
+run that also changes the prompt makes every result unattributable. The keyframe
+time is `ffprobe -select_streams v:0 -show_entries packet=pts_time,flags` on the
+raw source, or measure it as `start + (file_duration - requested_duration)`.
+
+### 1. One clip is still judged by the OLD pipeline
+
+`manta-skorpios` is current (2 fps, commentary, `--regrade`, `--stop-pass`, and the
+count-start fix — 3 hits for Manta, count from t=16.0).
+`madcatter-tombstone` predates `--regrade` and `--stop-pass` and has never had the
+count-start fix applied; it is ~14 min to bring level, and worth doing before the
+demo since it is the no-`?clip=` default.
+`jackpot-copperhead` has **not** been re-judged at all — only limited API spend was
+authorised. Its timeline is still hp-number output from before the merge, so on it:
 
 - the winner's bar barely moves (Copperhead pinned at 100 for 140s);
 - there are no `hit` fields, so no weapon labels and no attribution — the HUD
   falls back to "the other bot", which is correct but plain;
 - deltas are not ladder values, so they land in tiers a bit arbitrarily.
 
-**Lead the demo with `madcatter-tombstone`** (it is already the no-`?clip=`
-default). When you do re-judge the other two:
+**Lead the demo with `manta-skorpios`** — it is the only clip judged by the current
+pipeline end to end. When you do re-judge the other two:
 
 ```bash
-nohup .venv/bin/python -u backend/analyze.py jackpot-copperhead.mp4 \
-    --backend openai --bots "Copperhead,Jackpot" > /tmp/jc.log 2>&1 &
-nohup .venv/bin/python -u backend/analyze.py manta-skorpios.mp4 \
-    --backend openai --bots "Manta,Skorpios" --ko left > /tmp/ms.log 2>&1 &
+nohup /Users/carter/dev/gameover/.venv/bin/python -u backend/analyze.py jackpot-copperhead.mp4 \
+    --backend openai --bots "Copperhead,Jackpot" --regrade --stop-pass > /tmp/jc.log 2>&1 &
 ```
 
-`manta-skorpios` **must** have `--ko left` — see the CLAUDE.md fights table for why.
-Jackpot is the slow one, ~24 batches. Roughly 3 minutes per 14 batches in practice.
+Extract at 2 fps first (`extract_frames.py <clip>.mp4 --fps 2`) and transcribe
+(`transcribe.py <clip> --bots "..."`), or it judges on stale 0.5 fps frames with no
+commentary. Jackpot's frames are also still cut to the OLD shorter clip — it was
+re-cut to 149.4s and never re-extracted. It is the slow one: ~299 frames at 2 fps.
+
+**Back the timeline up before any re-judge.** `analyze()` refuses to overwrite only
+when a *batch failed*; a clean run that comes back worse still lands on the good file.
+
+**Not a bug: `~ dropped unusable hit at t=5.5s` on manta.** "Manta drum sparks
+Skorpios wedge" sits exactly `MERGE_WINDOW` (1.0s) from the solid at t=6.5 and the
+comparison is inclusive, so `merge_blows()` folds them into one blow with a
+follow-through. That is the function doing its job — the caption survives, the second
+hp drop does not. Do not chase it.
+
+**`--ko` names the LOSER.** This file previously said `manta-skorpios` "must" have
+`--ko left`, which is backwards — Skorpios loses, so it is `--ko right`. The
+commentary settles it: "Dream is already over for Skorpios ... in just 24 seconds".
 
 ### 2. A 30-second caption gap on madcatter-tombstone
 
@@ -105,10 +170,10 @@ CLAUDE.md wants the core near 700. Cheapest trims are the `.bd-tier` pixel chips
 (→ a plain `2 HEAVY · 5 SOLID` text line) and `#strikeby` (fold the weapon into
 `#massive`). Not urgent; noted so it does not creep further unnoticed.
 
-### 6. `ingest.py` cannot pass `--ko`
+### 6. ~~`ingest.py` cannot pass `--ko`~~ — done
 
-Its `analyze()` call still forwards only `bots`. Era B has no way to set the KO
-side. Fine while nobody has watched those clips, but it is a one-line gap.
+It forwards `ko`, `looks`, `regrade` and `stop_pass` now, so era B can set every
+judging flag era A uses.
 
 ## Traps that cost time
 

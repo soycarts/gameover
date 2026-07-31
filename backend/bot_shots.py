@@ -1,6 +1,10 @@
 #!/usr/bin/env python3
-"""bot_shots.py <clip> [--bots "Left,Right"] [--frame N] — cut each bot out of the
-footage into bots/<clip>-left.png and bots/<clip>-right.png.
+"""bot_shots.py <clip> [--bots "Left,Right"] [--frame N | --at SEC] — cut each bot
+out of the footage into bots/<clip>-left.png and bots/<clip>-right.png.
+
+--frame is a frame INDEX, so what it points at moves when the sampling rate does:
+--frame 10 was t=18s at 0.5 fps and is t=4.5s at 2 fps. Prefer --at SECONDS, which
+resolves through frames/<clip>/meta.json and means the same moment at any rate.
 
     python backend/bot_shots.py madcatter-tombstone --bots "MaDCaTTer,Tombstone"
 
@@ -22,6 +26,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import analyze  # noqa: E402  (reuses the model clients and parse_json)
+import extract_frames  # noqa: E402  (the frame gap, read back from meta.json)
 
 ROOT = Path(__file__).resolve().parent.parent
 SHOT_W = 96                  # px wide before the page scales it — keeps it chunky
@@ -122,14 +127,20 @@ def crop(src: Path, dst: Path, box: list, size: tuple[int, int]) -> bool:
 
 
 def shots(clip: str, bots: dict | None = None, frame_no: int = 1,
-          backend: str = "openai") -> None:
+          backend: str = "openai", at: float | None = None) -> None:
     name = Path(clip).stem
     frames = sorted((ROOT / "frames" / name).glob("*.jpg"))
     if not frames:
         sys.exit(f"no frames for {name} — run extract_frames.py first")
-    src = frames[min(frame_no - 1, len(frames) - 1)]
+    spf = extract_frames.seconds_per_frame(name)
+    if at is not None:
+        frame_no = round(at / spf) + 1
+    src = frames[min(max(frame_no, 1) - 1, len(frames) - 1)]
     size = frame_size(src)
-    print(f"boxing bots on {src.name} ({size[0]}x{size[1]})")
+    # print the resolved time, not just the filename — at 2 fps the index alone
+    # no longer tells you which moment you are looking at
+    print(f"boxing bots on {src.name} (t={(frame_no - 1) * spf:.1f}s, "
+          f"{size[0]}x{size[1]})")
 
     out = ask_boxes(src, backend)
 
@@ -165,6 +176,7 @@ if __name__ == "__main__":
 
     backend = take("--backend", "openai")
     frame_no = int(take("--frame", "1"))
+    at = take("--at")
     pair = take("--bots")
     bots = None
     if pair:
@@ -173,4 +185,5 @@ if __name__ == "__main__":
     positional = [a for a in argv if not a.startswith("-")]
     if not positional:
         sys.exit(__doc__)
-    shots(positional[0], bots=bots, frame_no=frame_no, backend=backend)
+    shots(positional[0], bots=bots, frame_no=frame_no, backend=backend,
+          at=float(at) if at is not None else None)

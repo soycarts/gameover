@@ -9,18 +9,21 @@ Output STRICT JSON only, no prose, no markdown fences, in this exact shape:
            "left_look": "short appearance note", "right_look": "short appearance note"},
   "frames": [
     {"t": 12.0, "left": "none", "right": "solid",
-     "caption": "Tombstone armour panel torn off", "finish": null,
-     "hit": {"by": "left", "weapon": "vertical spinner", "clean": true}}
+     "caption": "Tombstone armour panel torn off",
+     "immobile": null, "finish": null, "replay": false,
+     "hit": {"by": "left", "weapon": "vertical spinner", "clean": true,
+             "at": [0.47, 0.22]}}
   ]
 }
 
 Damage words — exactly one per bot per frame:
   none          nothing new; the bot looks how it did in the previous frame
   glance        cosmetic: sparks, scuffing, small debris, a shove that did nothing
-  solid         one clean weapon hit: panel torn off, wheel bent, bot thrown or
-                flipped, new smoke
-  heavy         fight-changing: weapon or drive stops, a large part comes off,
-                the bot catches fire, it is thrown across the arena
+  solid         one clean weapon hit: a panel torn off, a wheel or fork bent,
+                new smoke, a shove that lifts one side off the floor
+  heavy         fight-changing: the bot is LAUNCHED — fully clear of the floor,
+                tumbling, or landing on its back, side or upside down — or its
+                weapon or drive stops, a large part comes off, or it catches fire
   catastrophic  the bot is wrecked: split open, weapon gone, not moving under
                 its own power
 
@@ -40,12 +43,23 @@ Rules:
   is still missing, a bot that is still upside down: that is "none". If such a
   condition has visibly WORSENED since the frame before — the fire spreading, the
   panel tearing further — that is at most "glance", never higher.
-- Most individual frames are "none" for both bots. A whole fight has a handful of
-  real hits, not one per frame. If you are unsure whether something is new, it is
-  "none". This is about single frames, not about the fight: rate BOTH bots every
-  frame, and across a whole fight both bots take real damage. A fight in which one
-  bot is "none" from start to finish is almost always a mis-read — the winner of a
-  hard match still takes scuffs, hits and lost parts.
+  This rule governs the DAMAGE WORDS only. "immobile" below is a state and is meant
+  to repeat: a bot that has stopped is reported as immobile on every frame it stays
+  stopped, however many that is.
+- The frames you are given are consecutive moments from one continuous burst of
+  the fight, not unrelated stills. A single blow often appears in several of them
+  in a row: the impact, then the debris, then the recoil. Rate it ONCE, on the
+  FIRST frame where you can see it, and "none" on the frames that only show its
+  aftermath. Reporting the same blow three times is worse than missing it.
+- Real damage is rare in TIME, not in frame count. A whole fight has a handful of
+  real blows however many frames you are shown, so the closer together the frames,
+  the higher the proportion of them that are "none". If you are unsure whether
+  something is new, it is "none".
+- Rate BOTH bots on every frame. In a real match both machines take real damage —
+  the winner of a hard fight still loses parts, takes scuffs and gets thrown. A run
+  of frames in which one bot is never anything but "none" is far more often a
+  mis-read than a clean sweep, so whenever you have rated a stretch entirely
+  one-sided, look again at what the other bot landed before you answer.
 - Judge ONLY the two competing robots. The arena also contains people and
   machinery that are NOT competitors: the referee and crew in striped shirts,
   the driver booths, arena hazards (killsaws, screws, pulverisers, the shelf),
@@ -66,9 +80,57 @@ Rules:
   damage was incidental: thrown into a wall, an arena hazard, a fall, or a bot
   hurting itself. For self-inflicted damage set "by" to the bot that hurt ITSELF
   and "clean" to false.
+- "hit.at" is WHERE the blow landed in THIS frame: [x, y] as fractions of the frame's
+  width and height measured from the TOP-LEFT corner, 0 to 1, two decimals. Point at
+  the contact itself — the spray of sparks, the two machines meeting — not at the
+  middle of either bot. Use null when the damage is not at one identifiable point, or
+  when the frame does not show the moment of contact. Never guess a point to fill the
+  field: a wrong point is worse than none.
 - Never invent a hit to explain damage you cannot attribute. Omit "hit" and the
   judge will credit the other bot by default.
-- "finish": the side ("left" or "right") whose fight is over in this frame —
-  counted out, tapped out, a KNOCKOUT or TAP OUT graphic on screen, or dead and
-  not moving. Otherwise null. Never call a finish early; nearly every frame is null.
+- You may be given LIVE COMMENTARY lines with timestamps. Commentators are the best
+  source for WHICH bot is which and for WHAT just happened — they say the names out
+  loud and they call the blows as they land. They are NOT a source of damage. They
+  exaggerate, they hype moments where nothing happened, they discuss earlier fights,
+  the crowd and the pits, and they react about a second AFTER the blow. Never rate a
+  frame above "none" because of something that was said. Rate what you can see.
+- When the commentary names a bot landing or taking a hit and the frames agree that
+  damage occurred, use it to fix the attribution ("hit.by") and to name the bot in
+  the caption. When it names a bot at a moment when only one machine is on screen,
+  that is strong evidence for "left_look" / "right_look".
+- A commentary line is about ONE moment — the frame it sits on. Do not carry it
+  forward to justify damage on later frames. The same line reaching several of the
+  frames below is a timing artifact, not several separate blows.
+- A WEAPON BELONGS TO THE BOT CARRYING IT. Damage done by a bot's own drum, blade,
+  bar, hammer or flipper is damage that bot DEALT, never damage it took. If a line
+  of commentary appears to say a bot was hurt by its own weapon, the transcription
+  is garbled — these are auto-captions and they mishear constantly. Read it as that
+  bot LANDING the blow, and trust the frames over the words.
+- "immobile": when a machine is NOT MOVING UNDER ITS OWN POWER in this frame — not
+  driving, not turning, weapon stopped or coasting down; it only moves when the other
+  bot shoves it — DESCRIBE THAT MACHINE in a few words: colour, shape, weapon,
+  livery, exactly the way you fill in left_look / right_look. For example
+  "copper forked wedge, teal vertical blade". Otherwise null.
+  Do NOT answer "left" or "right" here. Which of the two machines you are looking at
+  is the hardest call in the clip, and describing what you see is the one answer that
+  can be checked afterwards against what the bots are known to look like.
+  This one field is an EXCEPTION to the "never report the same thing twice" rule
+  above. It is a STATE, not a blow: report it on EVERY frame it is true, for as long
+  as it stays true. A bot that stopped ten frames ago is still "immobile" now.
+  Use null when you CANNOT SEE either machine — a crowd shot, a driver booth, a
+  referee. Not seeing a bot is no evidence at all, and is never a reason to say it is
+  moving. Describe it only when you can actually see the machine.
+- "finish": the side ("left" or "right") whose fight is OFFICIALLY over in this frame.
+  This means the broadcast says so: a KNOCKOUT or TAP OUT banner burned across the top
+  of the frame, the referee's count finishing, or the teams celebrating the result.
+  It does NOT mean the bot merely stopped moving — that is "immobile", it happens many
+  seconds earlier, and confusing the two ends the fight at the wrong moment. Otherwise
+  null. Never call a finish early; nearly every frame is null.
+  A finish frame still gets a caption saying how the fight ended, even when both
+  bots rate "none" — otherwise the HUD lands on GAME OVER with nothing written.
+- "replay": true when this frame is a REPLAY rather than the live fight — slow motion,
+  a replay wipe or graphic, an angle the fight was not being shot from, or the match
+  clock missing from the top-left corner where it otherwise always sits. Otherwise
+  false. Rate the frame normally; the flag is what matters. A replay shows a blow that
+  already happened, so counting its damage again would score the same hit twice.
 - "bots": names only if legible in the broadcast graphics, otherwise null.

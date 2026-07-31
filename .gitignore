@@ -5,6 +5,12 @@ clips/*
 !clips/jackpot-copperhead.mp4
 !clips/manta-skorpios.mp4
 !clips/madcatter-tombstone.mp4
+# What each clip was cut from. Tiny, and without it transcribe.py cannot slice the
+# source video's captions to this clip's window ever again.
+!clips/*.source.json
+# Derived from the clips and regenerable, like frames/. The commentary is also a
+# spoiler file: it names the winner, so it has no business on the public site.
+transcripts/
 frames/
 # A worktree has no frames/, so symlinking the main checkout's is handy — and a
 # symlink is a file, which `frames/` does not match.

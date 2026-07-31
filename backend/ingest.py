@@ -25,6 +25,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 import analyze  # noqa: E402
 import config  # noqa: E402
 import extract_frames  # noqa: E402
+import transcribe  # noqa: E402
 import scrape_comments  # noqa: E402
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -62,11 +63,12 @@ def probe_title(url: str) -> str:
     return json.loads(out.stdout).get("title", "fight")
 
 
-def download(url: str, name: str, start: float, duration: float, source: str) -> Path:
+def download(url: str, name: str, start: float, duration: float, source: str,
+             recut: bool = False) -> Path:
     clips = ROOT / "clips"
     clips.mkdir(exist_ok=True)
     final = clips / f"{name}.mp4"
-    if final.exists():
+    if final.exists() and not recut:
         print(f"{final.name} already cut")
         return final
 
@@ -128,6 +130,21 @@ def main() -> None:
     ap.add_argument("--query", help="comment search text (default: bot names, else title)")
     ap.add_argument("--backend", default="api", choices=("api", "cli", "openai"),
                     help="which vision judge analyze.py should use (default api)")
+    ap.add_argument("--fps", type=float, default=extract_frames.FPS, metavar="N",
+                    help=f"frame sampling rate (default {extract_frames.FPS})")
+    ap.add_argument("--ko", choices=("left", "right"),
+                    help="pin the LOSING side for a clip you have watched")
+    ap.add_argument("--looks", metavar='"left desc|right desc"',
+                    help="pin what each machine LOOKS like — --bots pins only the names")
+    ap.add_argument("--no-audio", action="store_true",
+                    help="skip the commentary transcript")
+    ap.add_argument("--regrade", action="store_true",
+                    help="second pass re-grading each blow's severity")
+    ap.add_argument("--stop-pass", action="store_true",
+                    help="second pass asking when the LOSER stopped moving")
+    ap.add_argument("--recut", action="store_true",
+                    help="re-cut an existing clip to a new --duration and stop "
+                         "(no frames, no judging, no API spend)")
     args = ap.parse_args()
 
     bots = None
@@ -142,15 +159,51 @@ def main() -> None:
     query = args.query or (f"{bots['left']} {bots['right']}" if bots else title)
     print(f"» {title}  ->  {name}")
 
-    download(args.url, name, args.start, args.duration, slug(title))
-    extract_frames.extract(f"{name}.mp4")
+    download(args.url, name, args.start, args.duration, slug(title), args.recut)
+    source_json = ROOT / "clips" / f"{name}.source.json"
+
+    # --recut only lengthens the TAIL. -ss is applied before -i and is independent
+    # of -t, so a longer cut is byte-identical at the front — every timestamp in an
+    # existing timeline still lines up, which is the whole point of stopping here.
+    # Re-extracting frames or re-judging would spend money to re-describe a
+    # celebration nobody is judging.
+    if args.recut:
+        source_json.write_text(json.dumps(
+            {"url": args.url, "start": args.start, "duration": args.duration},
+            indent=2) + "\n")
+        print(f"re-cut only — frames, transcript and timeline left alone. "
+              f"{source_json.name} updated.")
+        return
+
+    extract_frames.extract(f"{name}.mp4", fps=args.fps)
+
+    # What the clip was cut from, so transcribe.py can slice the source video's
+    # captions to this window later without re-deriving the offset by hand.
+    source_json.write_text(json.dumps(
+        {"url": args.url, "start": args.start, "duration": args.duration},
+        indent=2) + "\n")
+    if not args.no_audio:
+        try:
+            transcribe.transcribe(f"{name}.mp4", bots=bots)
+        except Exception as e:            # commentary is a bonus, never a blocker
+            print(f"  ! transcription failed, judging on frames alone: "
+                  f"{str(e)[:200]}", file=sys.stderr)
 
     comments = fetch_comments(query)
     (ROOT / "comments").mkdir(exist_ok=True)
     (ROOT / "comments" / f"{name}.json").write_text(json.dumps(comments, indent=2) + "\n")
     print(f"{len(comments)} comments for {query!r}")
 
-    analyze.analyze(f"{name}.mp4", backend=args.backend, bots=bots)
+    looks = None
+    if args.looks:
+        left, _, right = args.looks.partition("|")
+        if not (left.strip() and right.strip()):
+            sys.exit('--looks needs two descriptions, e.g. --looks "blue wedge|red bar"')
+        looks = {"left": left.strip(), "right": right.strip()}
+
+    analyze.analyze(f"{name}.mp4", backend=args.backend, bots=bots,
+                    ko=args.ko, audio=not args.no_audio, looks=looks,
+                    regrade=args.regrade, stop=args.stop_pass)
 
     print("\n  serve from the repo root:  python3 backend/serve.py")
     print(f"  then open:  http://localhost:{PORT}/frontend/index.html?clip={name}\n")

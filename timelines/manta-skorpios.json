@@ -12,25 +12,174 @@
       "caption": ""
     },
     {
-      "t": 18.0,
+      "t": 2.0,
       "left_hp": 100,
-      "right_hp": 90,
-      "caption": "Skorpios front armour crumpled",
+      "right_hp": 78,
+      "caption": "Manta launches Skorpios",
+      "hit": {
+        "by": "left",
+        "weapon": "drum spinner",
+        "clean": true,
+        "at": [
+          0.42,
+          0.51
+        ]
+      },
       "fan_comment": "As much as Skorpios is my goat, Manta is going to kick their ass \ud83d\ude2d"
     },
     {
-      "t": 24.0,
+      "t": 5.5,
       "left_hp": 100,
-      "right_hp": 85,
-      "caption": "Skorpios front armour dented"
+      "right_hp": 78,
+      "caption": "Manta drum sparks Skorpios"
     },
     {
-      "t": 28.0,
+      "t": 6.5,
       "left_hp": 100,
+      "right_hp": 56,
+      "caption": "Manta lifts Skorpios nose",
+      "hit": {
+        "by": "left",
+        "weapon": "drum spinner",
+        "clean": true,
+        "at": [
+          0.54,
+          0.55
+        ]
+      },
+      "fan_comment": "Skorpios all the way!!!!"
+    },
+    {
+      "t": 7.5,
+      "left_hp": 88,
+      "right_hp": 56,
+      "caption": "Skorpios lifts Manta's side",
+      "hit": {
+        "by": "right",
+        "weapon": "forked wedge",
+        "clean": true,
+        "at": [
+          0.55,
+          0.55
+        ]
+      },
+      "fan_comment": "Just a causal reminder that the only robot to ever beat Manta in a fight is Hexy-D (and really Manta lost that fight because of it's own ESC blew up)."
+    },
+    {
+      "t": 14.5,
+      "left_hp": 84,
+      "right_hp": 56,
+      "caption": "Skorpios lifts Manta's side",
+      "hit": {
+        "by": "right",
+        "weapon": "forked wedge",
+        "clean": true,
+        "at": [
+          0.43,
+          0.66
+        ]
+      }
+    },
+    {
+      "t": 15.5,
+      "left_hp": 84,
+      "right_hp": 34,
+      "caption": "Manta launches Skorpios",
+      "hit": {
+        "by": "left",
+        "weapon": "drum spinner",
+        "clean": true,
+        "at": [
+          0.49,
+          0.64
+        ]
+      },
+      "fan_comment": "I'm excited to see manta"
+    },
+    {
+      "t": 16.0,
+      "left_hp": 84,
+      "right_hp": 31,
+      "caption": "Skorpios immobile, count begins",
+      "drain": "right"
+    },
+    {
+      "t": 17.0,
+      "left_hp": 84,
+      "right_hp": 28,
+      "caption": "",
+      "drain": "right"
+    },
+    {
+      "t": 18.0,
+      "left_hp": 84,
+      "right_hp": 25,
+      "caption": "",
+      "drain": "right"
+    },
+    {
+      "t": 19.0,
+      "left_hp": 84,
+      "right_hp": 22,
+      "caption": "",
+      "drain": "right"
+    },
+    {
+      "t": 20.0,
+      "left_hp": 84,
+      "right_hp": 19,
+      "caption": "",
+      "drain": "right"
+    },
+    {
+      "t": 21.0,
+      "left_hp": 84,
+      "right_hp": 16,
+      "caption": "",
+      "drain": "right"
+    },
+    {
+      "t": 22.0,
+      "left_hp": 84,
+      "right_hp": 13,
+      "caption": "",
+      "drain": "right"
+    },
+    {
+      "t": 23.0,
+      "left_hp": 84,
+      "right_hp": 10,
+      "caption": "",
+      "drain": "right"
+    },
+    {
+      "t": 24.0,
+      "left_hp": 84,
+      "right_hp": 7,
+      "caption": "",
+      "drain": "right"
+    },
+    {
+      "t": 25.0,
+      "left_hp": 84,
+      "right_hp": 4,
+      "caption": "",
+      "drain": "right"
+    },
+    {
+      "t": 26.0,
+      "left_hp": 84,
+      "right_hp": 2,
+      "caption": "",
+      "drain": "right"
+    },
+    {
+      "t": 27.0,
+      "left_hp": 84,
       "right_hp": 0,
       "caption": "Skorpios knocked out",
-      "ko": "right",
-      "fan_comment": "Skorpios all the way!!!!"
+      "drain": "right",
+      "ko": "right"
     }
   ]
 }

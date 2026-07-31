@@ -3,6 +3,12 @@
 .venv/
 frames/
 clips/.raw/
+# Stale and wrong — the -left crop for manta-skorpios actually contains Skorpios,
+# and nothing loads them: the hand-drawn ART sprites win the portrait cascade.
+bots/
+# .vercelignore REPLACES .gitignore for CLI uploads, so being gitignored is not
+# enough to keep the transcripts off the public site — and they name the winner.
+transcripts/
 comments/.titles-backup/
 backend/
 CLAUDE.md

@@ -66,7 +66,7 @@
   --sigil-size:    clamp(14px, 2.1vw, 26px);   /* weapon icon beside each name */
   --fs-stamp:      clamp(26px, 7vw, 92px);
   --fs-hits-tot:   clamp(12px, 1.7vw, 20px);   /* the running hit total */
-  --fs-eyebrow:    clamp(8px, .95vw, 11px);    /* breakdown: "01 / DAMAGE" */
+  --fs-eyebrow:    clamp(8px, .95vw, 11px);    /* breakdown stat labels, axis, note */
   --fs-card-title: clamp(13px, 1.7vw, 19px);
   --fs-stat:       clamp(15px, 2.2vw, 26px);
 
@@ -93,11 +93,20 @@
   /* the crosshair parks below the broadcaster's band — push it down together
      with --safe-top if a clip's burned-in graphics run taller */
   --strike-top:    54%;
+  /* When a hit carries a real impact point (hit.at) the marker goes THERE
+     instead, so these fence it into the readable middle of the frame. The top
+     floor is the load-bearing one: an impact high in the frame would otherwise
+     land right on the burned-in "KNOCKOUT : 24sec" banner. Raise them with
+     --safe-top and --strike-top, never on their own. */
+  --mark-min-top:  30%;
+  --mark-max-top:  78%;
+  --mark-inset:    10%;
 
   /* breakdown layout */
   --bd-radius:     10px;
   --bd-gap:        clamp(10px, 1.6vw, 20px);
   --strip-h:       clamp(46px, 8vh, 74px);
+  --pbar-h:        clamp(38px, 5vh, 46px);    /* .bars lifts by this while shown */
 
   /* motion */
   --tween:         400ms;      /* health drain tween (spec) */
@@ -184,7 +193,10 @@ html, body { margin: 0; height: 100%; background: var(--bg); color: var(--ink);
 .cores { display: flex; gap: var(--core-gap); }
 .side.right .cores { flex-direction: row-reverse; }
 
-.core { position: relative; width: var(--core-size); aspect-ratio: 11 / 9;
+/* flex: 0 0 auto — a core is a fixed size, never a share of the row. Without it a
+   narrowed .side shrinks all five and aspect-ratio takes the height with them. */
+.core { position: relative; flex: 0 0 auto;
+  width: var(--core-size); aspect-ratio: 11 / 9;
   filter: drop-shadow(0 0 8px var(--glow, #3dff9e66));
   transition: filter 300ms; }
 .core.spent { filter: none; }
@@ -247,18 +259,33 @@ html, body { margin: 0; height: 100%; background: var(--bg); color: var(--ink);
 .comment .src { display: block; margin-top: 6px; color: var(--ink-dim);
   font-size: .82em; overflow-wrap: anywhere; }
 
-/* caption — centre column of the bottom row */
-#caption { flex: 1 1 auto; min-width: 0; text-align: center;
+/* caption — centre column of the bottom row.
+   flex-basis MUST stay 0, not auto. With `auto` the caption's base size is its own
+   max-content width, so a long line pushes the row into negative free space and the
+   two .side columns — flex-shrink 1, min-width 0 — get squeezed below --bar-w,
+   shrinking the health cores and rewrapping the fan comments. With basis 0 the
+   caption can never contribute overflow; it wraps inside whatever is left. Where
+   there IS free space the two are arithmetically identical, so the short-caption
+   look is unchanged. */
+#caption { flex: 1 1 0; min-width: 0; text-align: center;
   overflow-wrap: break-word; padding-bottom: 4px;
   font-family: var(--font-pixel); font-size: var(--fs-caption);
   line-height: 1.7; text-shadow: 3px 3px 0 #000, 0 0 18px #000; }
+/* the line before this one, kept legible — events land ~1s apart and a caption that
+   is replaced the moment it finishes typing is never actually read */
+#caption .prev { opacity: .38; font-size: .82em; margin-bottom: 2px;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#caption .prev:empty { display: none; }
 /* too narrow for three columns — caption takes its own line above the bars */
 @media (max-width: 620px) {
   .bars { flex-wrap: wrap; }
   #caption { order: -2; flex: 1 0 100%; padding-bottom: 10px; }
 }
-#caption::after { content: '_'; opacity: .8; animation: blink 700ms steps(1) infinite; }
-#caption.done::after { content: ''; }
+/* the cursor belongs to the line being typed, not to the block — on #caption it
+   would render after the previous line too */
+#caption .cur::after { content: '_'; opacity: .8;
+  animation: blink 700ms steps(1) infinite; }
+#caption.done .cur::after { content: ''; }
 
 /* hit counter — it has to explain itself: what is being counted, who landed
    them, and what the last one was. Stays top-RIGHT and narrow; the top-left of
@@ -298,7 +325,8 @@ html, body { margin: 0; height: 100%; background: var(--bg); color: var(--ink);
 /* full-stage crosshair — heavy blows and up. Wraps #massive so the tier word
    keeps its original animation instead of gaining a second one. Nudged toward
    the bot that got hit, and parked below the broadcaster's band. */
-#strike { position: absolute; left: var(--strike-x, 50%); top: var(--strike-top);
+#strike { position: absolute; left: var(--strike-x, 50%);
+  top: var(--strike-y, var(--strike-top));
   width: var(--strike-size); height: var(--strike-size);
   margin: calc(var(--strike-size) / -2) 0 0 calc(var(--strike-size) / -2);
   pointer-events: none; opacity: 0; z-index: 9; color: var(--hit-heavy); }
@@ -406,11 +434,11 @@ html, body { margin: 0; height: 100%; background: var(--bg); color: var(--ink);
 /* fight select — one button per clip, current fight highlighted */
 #picker { pointer-events: auto; display: flex; flex-wrap: wrap; justify-content: center;
   gap: clamp(6px, 1.2vw, 14px); max-width: min(86vw, 760px); }
-#picker button { font-family: var(--font-pixel); font-size: var(--fs-comment);
+#picker button, #pmenu button { font-family: var(--font-pixel); font-size: var(--fs-comment);
   letter-spacing: .08em; text-transform: uppercase; color: var(--ink-dim); background: #000;
   border: 2px solid var(--panel-edge); padding: 10px 14px; cursor: pointer;
   transition: color 120ms, border-color 120ms; }
-#picker button:hover { color: var(--ink); border-color: var(--steel); }
+#picker button:hover, #pmenu button:hover { color: var(--ink); border-color: var(--steel); }
 #picker button[aria-current='true'] { color: var(--accent); border-color: var(--accent);
   text-shadow: 2px 2px 0 var(--accent-2); cursor: default; }
 
@@ -511,9 +539,7 @@ html, body { margin: 0; height: 100%; background: var(--bg); color: var(--ink);
 .bd-head { display: flex; justify-content: space-between; align-items: flex-start;
   gap: 12px; padding-bottom: 10px; margin-bottom: 14px;
   border-bottom: 1px dashed var(--hairline); }
-.bd-num { font-family: var(--font-mono); font-size: var(--fs-eyebrow);
-  letter-spacing: .22em; color: var(--ok); }
-.bd-title { font-family: var(--font-display); font-weight: 700; margin-top: 5px;
+.bd-title { font-family: var(--font-display); font-weight: 700;
   font-size: var(--fs-card-title); color: var(--ink); text-transform: uppercase; }
 .bd-desc { max-width: 24ch; text-align: right; line-height: 1.5;
   font-size: var(--fs-comment); color: var(--ink-dim); }
@@ -563,13 +589,71 @@ html, body { margin: 0; height: 100%; background: var(--bg); color: var(--ink);
 .bd-strip i.t-heavy   { background: var(--hit-heavy);   height: 40%; width: 4px; }
 .bd-strip i.t-massive { background: var(--hit-massive); height: 50%; width: 5px;
   box-shadow: 0 0 10px var(--hit-massive); }
-.bd-strip i.ko { background: var(--accent); box-shadow: 0 0 14px var(--accent); }
+/* The count-out is not a blow and must not read as one. A mark confined to either
+   half is claimed by that half's bot ("above the line: Manta"), and the previous
+   one — .t-massive with no .up/.down — fell back to static position, i.e. the top
+   half at the tallest tick size, in a gold that is the same hex as --hit-graze.
+   Full height is what carries the distinction; the colour cannot. */
+.bd-strip i.ko-mark { top: 0; height: 100%; width: 2px; margin-left: -1px;
+  border-radius: 0; background: var(--accent); box-shadow: 0 0 14px var(--accent); }
+.bd-strip i.ko-mark::after { content: 'KO'; position: absolute; top: 2px; right: 5px;
+  font-family: var(--font-mono); font-size: var(--fs-eyebrow); line-height: 1;
+  letter-spacing: .1em; color: var(--accent); }
 .bd-axis { display: flex; justify-content: space-between; margin-top: 6px;
   font-family: var(--font-mono); font-size: var(--fs-eyebrow); color: var(--ink-dim); }
 .bd-note { margin-top: 12px; padding-top: 10px; border-top: 1px dashed var(--hairline);
   font-family: var(--font-mono); font-size: var(--fs-eyebrow);
   letter-spacing: .14em; color: var(--ink-dim); }
 .hint { color: var(--ink-dim); font-size: var(--fs-comment); letter-spacing: 1px; }
+
+/* ---------- playback controls ----------
+   z-index 4: above the video, BELOW .screen (5), so the title card, GAME OVER and
+   the pause menu all cover it without a single extra rule. Revealed by body.pbar,
+   which also lifts .bars clear of it — a permanent --safe-bottom would move the HUD
+   even while the bar is hidden. */
+#pbar { position: absolute; z-index: 4; opacity: 0; pointer-events: none;
+  left: var(--hud-pad); right: var(--hud-pad); bottom: calc(var(--hud-pad) * .5);
+  height: var(--pbar-h); display: flex; align-items: center; gap: 10px;
+  padding: 0 12px; background: var(--panel); border: 2px solid var(--panel-edge);
+  backdrop-filter: blur(4px); transition: opacity 180ms; }
+body.pbar #pbar { opacity: 1; pointer-events: auto; }
+body.pbar .bars { bottom: calc(var(--hud-pad) + var(--pbar-h)); }
+.bars { transition: bottom 180ms; }
+
+#pbar button { flex: 0 0 auto; font-family: var(--font-pixel);
+  font-size: var(--fs-comment); color: var(--ink-dim); background: #000;
+  border: 2px solid var(--panel-edge); padding: 6px 8px; cursor: pointer;
+  line-height: 1; transition: color 120ms, border-color 120ms; }
+#pbar button:hover { color: var(--ink); border-color: var(--steel); }
+#pbTime { flex: 0 0 auto; font-family: var(--font-mono); font-size: var(--fs-eyebrow);
+  letter-spacing: .1em; color: var(--ink-dim); white-space: nowrap; }
+
+/* the track is hand-rolled rather than <input type=range> so the hit ticks can live
+   inside it and the whole thing can be styled without vendor pseudo-elements */
+#pbTrack { position: relative; flex: 1 1 0; min-width: 0; height: 100%;
+  cursor: pointer; touch-action: none; }
+#pbTrack::before { content: ''; position: absolute; left: 0; right: 0; top: 50%;
+  height: 4px; margin-top: -2px; background: #000;
+  box-shadow: inset 0 0 0 1px var(--hairline); }
+#pbFill { position: absolute; left: 0; top: 50%; height: 4px; margin-top: -2px;
+  width: 0; background: var(--accent); }
+#pbKnob { position: absolute; top: 50%; width: 4px; height: 16px; margin: -8px 0 0 -2px;
+  background: var(--ink); box-shadow: 0 0 6px #000; }
+/* same tier colours as the end-card hit log, so a mark means the same thing in both */
+#pbTicks i { position: absolute; top: 50%; width: 3px; height: 14px; margin: -7px 0 0 -1.5px; }
+#pbTicks i.t-graze   { background: var(--hit-graze); }
+#pbTicks i.t-solid   { background: var(--hit-solid); }
+#pbTicks i.t-heavy   { background: var(--hit-heavy); }
+#pbTicks i.t-massive { background: var(--hit-massive); box-shadow: 0 0 6px var(--hit-massive); }
+#pbTicks i.ko { width: 2px; height: 100%; margin: 0 0 0 -1px; top: 0;
+  background: var(--accent); box-shadow: 0 0 8px var(--accent); }
+
+/* pause menu — .screen gives it the scrim, the z-index and the .on toggle */
+#pause h2 { font-family: var(--font-pixel); font-size: clamp(18px,4vw,44px);
+  margin: 0; color: var(--accent); text-shadow: 4px 4px 0 var(--accent-2);
+  letter-spacing: 4px; }
+#pmenu { pointer-events: auto; display: flex; flex-wrap: wrap;
+  justify-content: center; gap: clamp(6px, 1.2vw, 14px); }
 
 /* CRT filter (toggle "c") */
 #crt { position: absolute; inset: 0; pointer-events: none; z-index: 8; display: none;
@@ -609,7 +693,7 @@ body.rainbow .core-fill { background: linear-gradient(90deg,#ff2e63,#ffd23f,#3ff
         <div class="status" id="stL">SYSTEMS NOMINAL</div>
         <div class="comment" id="cmtL"></div>
       </div>
-      <div id="caption"></div>
+      <div id="caption"><div class="prev" id="capPrev"></div><div class="cur" id="capCur"></div></div>
       <div class="side right" id="sideR">
         <div class="name" id="nameR">—</div>
         <div class="cores" id="coresR"></div>
@@ -668,10 +752,8 @@ body.rainbow .core-fill { background: linear-gradient(90deg,#ff2e63,#ffd23f,#3ff
       <section class="bd">
         <div class="bd-head">
           <div>
-            <div class="bd-num">01 / DAMAGE</div>
-            <div class="bd-title">Who hit whom</div>
+            <div class="bd-title">Damage</div>
           </div>
-          <div class="bd-desc">One hit = one bot losing armour at one moment.</div>
         </div>
         <div class="bd-grid" id="bdGrid"></div>
         <div class="bd-note" id="bdNote"></div>
@@ -679,7 +761,6 @@ body.rainbow .core-fill { background: linear-gradient(90deg,#ff2e63,#ffd23f,#3ff
       <section class="bd">
         <div class="bd-head">
           <div>
-            <div class="bd-num">02 / BIGGEST HIT</div>
             <div class="bd-title">Best blow</div>
           </div>
         </div>
@@ -688,16 +769,42 @@ body.rainbow .core-fill { background: linear-gradient(90deg,#ff2e63,#ffd23f,#3ff
       <section class="bd bd-wide">
         <div class="bd-head">
           <div>
-            <div class="bd-num">03 / HIT LOG</div>
-            <div class="bd-title">Every hit, in time</div>
+            <div class="bd-title">Hit log</div>
           </div>
-          <div class="bd-desc">Above the line: <b id="bdKeyL"></b> · below: <b id="bdKeyR"></b></div>
+          <!-- #bdKeyL/#bdKeyR are written by breakdown(), which runs BEFORE the screen
+               is shown — deleting them throws and GAME OVER never appears at all -->
+          <div class="bd-desc">Above the line: <b id="bdKeyL"></b> · below: <b id="bdKeyR"></b>
+            · gold: the knockout</div>
         </div>
         <div class="bd-strip" id="bdStrip"></div>
         <div class="bd-axis"><span>0:00</span><span id="bdEnd"></span></div>
       </section>
     </div>
     <div class="hint">R — REPLAY &nbsp;·&nbsp; C — CRT</div>
+  </div>
+
+  <div class="screen" id="pause">
+    <h2>PAUSED</h2>
+    <div id="pmenu">
+      <button data-act="resume">Resume</button>
+      <button data-act="replay">Replay</button>
+      <button data-act="home">Home</button>
+    </div>
+    <div class="hint">ESC — RESUME &nbsp;·&nbsp; SPACE — PLAY/PAUSE &nbsp;·&nbsp; ← → — 10s</div>
+  </div>
+
+  <div id="pbar" aria-label="playback controls">
+    <button id="pbPlay" title="Play / pause (space)">&#9654;</button>
+    <button id="pbBack" title="Back 10 seconds (left arrow)">&laquo;10</button>
+    <button id="pbFwd" title="Forward 10 seconds (right arrow)">10&raquo;</button>
+    <div id="pbTrack" role="slider" aria-label="seek" aria-valuemin="0"
+         aria-valuenow="0" aria-valuetext="0:00">
+      <div id="pbTicks" aria-hidden="true"></div>
+      <div id="pbFill" aria-hidden="true"></div>
+      <div id="pbKnob" aria-hidden="true"></div>
+    </div>
+    <div id="pbTime">0:00 / 0:00</div>
+    <button id="pbMute" title="Mute">&#128266;</button>
   </div>
 
   <div id="crt"></div>
@@ -732,10 +839,13 @@ const tierOf = d => TIERS.find(t => d >= t.at) || TIERS[TIERS.length - 1];
 const BIG = new Set(['heavy', 'massive']);     // earns the full-stage crosshair
 
 let timeline = null, events = [], sources = {},   // comment text -> source label
-    applied = -1, started = false, koDone = false,
+    applied = -1, started = false, koDone = false, overDone = false,
     virtualClock = false, vStart = 0, useVideo = true, duration = 60,
+    userPaused = false,        // a deliberate pause, not a blocked one — watchdog()
+    vHold = 0,                 // wall-clock instant the VIRTUAL clock was frozen at
     audio = null,
-    HITS = [], hitsAt = [];    // the hit list, and its per-event buckets
+    HITS = [], hitsAt = [],    // the hit list, and its per-event buckets
+    COUNTS = [];               // referee count per event, 0 when none is running
 
 /* ---------------- pixel cores ----------------
    '#' = outline pixel, 'o' = fillable interior, '.' = empty.
@@ -860,8 +970,10 @@ async function boot() {
     return;
   }
   events = (timeline.events || []).slice().sort((a, b) => a.t - b.t);
+  events.forEach((ev, i) => { ev._i = i; });   // render() looks its count up by index
   HITS = deriveHits(events);
   hitsAt = indexHits(HITS, events.length);
+  COUNTS = deriveCount(events);
   duration = (events.length ? events[events.length - 1].t : 30) + 4;
 
   // source labels for fan comments (contract keeps only the text)
@@ -983,7 +1095,12 @@ async function boot() {
   const src = `../clips/${timeline.clip || CLIP + '.mp4'}`;
   const v = $('video');
   v.addEventListener('error', fallbackClock);
-  v.addEventListener('loadedmetadata', () => { duration = v.duration || duration; });
+  v.addEventListener('loadedmetadata', () => {
+    duration = v.duration || duration;
+    pbBuildTicks(); pbFrame();      // ticks are placed against the video's own length
+  });
+  // the control bar reads real media state rather than tracking its own copy
+  ['play', 'pause', 'volumechange'].forEach(ev => v.addEventListener(ev, pbSync));
   // the KO now comes from a single flagged frame, so a missed flag would mean no
   // GAME OVER screen at all — end of clip is the backstop
   v.addEventListener('ended', () => { if (!koDone) finish(); });
@@ -1000,24 +1117,37 @@ function fallbackClock() {
 
 /* Autoplay policies can leave the video paused WITHOUT rejecting play(), which
    would freeze the whole HUD at t=0. Watch the clock; retry muted, then give up
-   to the virtual clock so the fight always runs. */
+   to the virtual clock so the fight always runs.
+
+   `userPaused` is what tells a deliberate pause from a blocked one. Without it,
+   pausing inside the first 1.2s gets the video muted and force-played, and holding
+   the pause ~2.1s defects to the virtual clock — painting DEMO ARENA over live
+   footage while the video sits still. Same symptom, opposite cause. */
 function watchdog() {
   const v = $('video'), t0 = v.currentTime;
   const stalled = () => $('video').currentTime <= t0 + 0.05;
   setTimeout(() => {
-    if (!started || !useVideo || !stalled()) return;
+    if (!started || !useVideo || userPaused || !stalled()) return;
     v.muted = true;
     $('muted').classList.add('on');
     v.play().catch(() => {});
-    setTimeout(() => { if (started && useVideo && stalled()) fallbackClock(); }, 900);
+    setTimeout(() => {
+      if (started && useVideo && !userPaused && stalled()) fallbackClock();
+    }, 900);
   }, 1200);
 }
 
 /* ---------------- engine ---------------- */
+/* vHold freezes the virtual clock in place rather than stopping it, so ?demo=1 and
+   any missing-clip run get the same pause and scrub as the video path. Demo mode
+   exercises none of the video sync, so leaving it uncontrollable would silently
+   lose the controls on the one path that runs without an API key. */
 function now() {
   if (useVideo) return $('video').currentTime;
-  return virtualClock ? (performance.now() - vStart) / 1000 : 0;
+  if (!virtualClock) return 0;
+  return ((vHold || performance.now()) - vStart) / 1000;
 }
+function vSeek(t) { vStart = (vHold || performance.now()) - t * 1000; }
 
 function indexAt(t) {
   let i = -1;
@@ -1045,13 +1175,18 @@ function deriveHits(evs) {
     const rby = raw ? (raw.by === 'left' ? 'L' : raw.by === 'right' ? 'R' : null) : null;
     const clean = raw ? raw.clean !== false : true;
     const drop = {L: p.left_hp - ev.left_hp, R: p.right_hp - ev.right_hp};
+    /* a knockout count-out bleeds the loser's bar without anyone hitting it, so
+       that side's drop here is NOT a blow. Without this the count reads as a hit
+       credited to the other bot — which is how a 68-point phantom won BEST BLOW
+       on a fight whose largest real blow was 12. */
+    const drained = ev.drain === 'left' ? 'L' : ev.drain === 'right' ? 'R' : null;
 
     for (const to of ['L', 'R']) {
       const dmg = drop[to];
-      if (dmg <= 0) continue;
+      if (dmg <= 0 || to === drained) continue;
       const h = {i, t: ev.t, to, dmg, tier: tierOf(dmg),
                  by: to === 'L' ? 'R' : 'L',      // deterministic: the other bot
-                 weapon: '', clean: true, self: false,
+                 weapon: '', clean: true, self: false, at: null,
                  caption: ev.caption || '', ko: !!ev.ko};
       /* the model describes ONE blow: it explains the victim opposite `by`, or
          the `by` bot itself when the damage was self-inflicted / incidental */
@@ -1060,10 +1195,31 @@ function deriveHits(evs) {
         h.clean = clean;
         h.self = !clean && rby === to;
         h.weapon = typeof raw.weapon === 'string' ? raw.weapon.slice(0, 24) : '';
+        // `at` belongs to the blow the model described, not to whichever side
+        // happens to have lost hp — same reason `weapon` is set in here
+        h.at = Array.isArray(raw.at) && raw.at.length === 2 ? raw.at : null;
       }
       out.push(h);
     }
   }
+  return out;
+}
+
+/* The count-out is 10+ seconds in which the bar drains and nothing else happens —
+   on manta-skorpios that is 12 of 18 events, all with an empty caption, and the
+   longer tail makes it longer still. The referee is counting, so show the count:
+   derived from the run of consecutive `drain` events, in the loser's own status
+   line, which is already in the bottom row and so already clear of the
+   broadcaster's band. Capped at 10 because a referee count is ten seconds. */
+const COUNT_TO = 10;
+function deriveCount(evs) {
+  const out = Array(evs.length).fill(0);
+  let from = null;
+  evs.forEach((ev, i) => {
+    if (!ev.drain) { from = null; return; }
+    if (from === null) from = ev.t;
+    out[i] = Math.min(COUNT_TO, 1 + Math.round(ev.t - from));
+  });
   return out;
 }
 
@@ -1074,20 +1230,37 @@ function indexHits(list, n) {
   return at;
 }
 
+/* Re-derive the whole HUD at event `i` and fire nothing. Used for any JUMP in the
+   timeline — a scrub in either direction, or a stalled tab catching up. */
+function reseat(i) {
+  applied = i; koDone = false; overDone = false;
+  clearTimeout(koTimer);
+  clearInterval(outTimer); clearTimeout(outTimer);
+  $('video').removeEventListener('ended', outEnded);
+  $('ko').classList.remove('on'); $('over').classList.remove('on');
+  // recounted from HITS, not zeroed — zeroing is what made it under-report
+  showHits(i, null, false); hideComments(); clearTransients();
+  ['L','R'].forEach(s => $('cores' + s).classList.remove('dead'));
+  if (i >= 0) { render(events[i]); showCaptionAt(i); }
+  else { render({left_hp: 100, right_hp: 100}); clearCaption(); }
+  // a forward jump can land past the knockout. Restore the end state without
+  // replaying the fireball, or seeking to the tail means GAME OVER never arrives.
+  const k = events.findIndex(e => e.ko);
+  if (k >= 0 && i >= k) koSequence(events[k].ko, true);
+}
+
 function tick() {
   requestAnimationFrame(tick);
   if (!started || !events.length) return;
   const t = now(), i = indexAt(t);
+  if (document.body.classList.contains('pbar')) pbFrame();
 
-  if (i < applied) {                    // scrubbed backwards — re-derive, fire nothing
-    applied = i; koDone = false;
-    $('ko').classList.remove('on'); $('over').classList.remove('on');
-    // recounted from HITS, not zeroed — zeroing is what made it under-report
-    showHits(i, null, false); hideComments(); clearTransients();
-    ['L','R'].forEach(s => $('cores' + s).classList.remove('dead'));
-    if (i >= 0) { render(events[i]); typeCaption(events[i].caption || ''); }
-    else { render({left_hp: 100, right_hp: 100}); $('caption').textContent = ''; }
-  } else while (i > applied) {           // fire each crossed event exactly once
+  /* A JUMP is anything but a single step forward. Firing each crossed event would
+     stack N sounds, N shakes and N captions into one frame and schedule the KO
+     blast for a moment already gone. Events are >=0.5s apart and frames ~16ms, so
+     advancing by more than one only ever means a seek or a stall — re-derive both. */
+  if (i < applied || i - applied > 1) reseat(i);
+  else while (i > applied) {             // fire each crossed event exactly once
     applied++;
     fire(events[applied], applied > 0 ? events[applied - 1] : null);
   }
@@ -1121,7 +1294,13 @@ function fire(ev, prev) {
     if (BIG.has(top.tier.key)) crosshair(top);   // full-stage, heavy and up
     if (top.tier.key === 'massive') spawnEmbers(top.to, 8);
   }
-  if (ev.fan_comment) showComment(top ? top.to : 'L', ev.fan_comment);
+  /* the side is normally the bot that just got hit. A KO event has no hit any more
+     (the count-out is not a blow), so fall back to the bot being counted out rather
+     than to 'L' — otherwise every right-side KO comment lands over the winner. */
+  const side = top ? top.to
+             : (ev.ko || ev.drain) === 'right' ? 'R'
+             : (ev.ko || ev.drain) === 'left' ? 'L' : 'L';
+  if (ev.fan_comment) showComment(side, ev.fan_comment);
   if (ev.ko) koSequence(ev.ko);
 }
 
@@ -1150,6 +1329,9 @@ function showHits(i, top, flash) {
 function render(ev) {
   setSide('L', ev.left_hp ?? 100);
   setSide('R', ev.right_hp ?? 100);
+  // after setSide, which writes statusFor(hp) — so a scrub off the count heals it
+  const n = ev._i != null ? COUNTS[ev._i] : 0;
+  if (n) $('st' + (ev.drain === 'left' ? 'L' : 'R')).textContent = 'COUNT ' + n;
 }
 
 function setSide(s, hp) {
@@ -1187,10 +1369,42 @@ function shake(hard) {
 
 /* heavy blows and up get the full-stage treatment: crosshair over the victim's
    half, a light punch, the tier word, and who threw it. */
+/* #video is object-fit: cover, so the frame is scaled to the LARGER of the two
+   ratios and centre-cropped: the model's normalised point is in FRAME space, and
+   the stage is a window onto part of that frame. This is the only place in the
+   page where the two coordinate systems meet — nothing else reads videoWidth.
+   Returns percentages of the stage, fenced into the readable middle so a marker
+   can never land on the broadcaster's burned-in band or off the visible crop. */
+function frameToStage(at) {
+  // this runs inside fire(); anything malformed must fall back, never throw —
+  // an exception here would take the whole HUD down mid-fight
+  if (!Array.isArray(at) || !Number.isFinite(+at[0]) || !Number.isFinite(+at[1]))
+    return null;
+  const v = $('video');
+  if (!useVideo || !v.videoWidth || !v.videoHeight) return null;
+  const st = $('stage').getBoundingClientRect();
+  if (!st.width || !st.height) return null;
+  const s = Math.max(st.width / v.videoWidth, st.height / v.videoHeight);
+  const x = ((st.width - v.videoWidth * s) / 2 + at[0] * v.videoWidth * s) / st.width;
+  const y = ((st.height - v.videoHeight * s) / 2 + at[1] * v.videoHeight * s) / st.height;
+  const css = n => getComputedStyle(document.documentElement).getPropertyValue(n);
+  const pc = n => parseFloat(css(n)) || 0;
+  const lo = pc('--mark-inset'), hi = 100 - lo;
+  return {x: Math.min(hi, Math.max(lo, x * 100)) + '%',
+          y: Math.min(pc('--mark-max-top'),
+                      Math.max(pc('--mark-min-top'), y * 100)) + '%'};
+}
+
 let strikeTimer = null;
 function crosshair(h) {
   const el = $('strike'), word = $('massive'), f = $('flash');
-  el.style.setProperty('--strike-x', h.to === 'L' ? '36%' : '64%');
+  const p = h.at ? frameToStage(h.at) : null;
+  /* No `at` — a timeline judged before the field existed, synthfight, demo, or a
+     model that honestly answered null — falls back to the old fixed halves, and
+     leaves --strike-y unset so the CSS drops through to --strike-top. */
+  el.style.setProperty('--strike-x', p ? p.x : (h.to === 'L' ? '36%' : '64%'));
+  if (p) el.style.setProperty('--strike-y', p.y);
+  else el.style.removeProperty('--strike-y');
   el.classList.toggle('t-massive', h.tier.key === 'massive');
   $('strikeby').textContent = (h.self ? 'SELF / ARENA' : botName(h.by).toUpperCase()) +
                               (h.weapon ? ' · ' + h.weapon.toUpperCase() : '');
@@ -1247,6 +1461,23 @@ function impact(h, from, to) {
   el.style.left = a.x + 'px';
   el.style.top = a.y + 'px';
   spawn(el, lifeMs('--hm-life') + 80);
+  arenaMark(h);
+}
+
+/* A second marker, out on the arena where the blow actually landed. Deliberately
+   NOT a replacement for the on-bar one above: that marker is anchored to the
+   health core that drained, which is what makes it structurally incapable of
+   reaching the broadcaster's corner, and it is the only marker a synthetic or
+   pre-`at` timeline can draw. This one is an addition, and it only ever appears
+   when the model gave a real point that frameToStage() could place. */
+function arenaMark(h) {
+  const p = h.at ? frameToStage(h.at) : null;
+  if (!p) return;
+  const el = document.createElement('div');
+  el.className = 'hitmark arena t-' + h.tier.key + (h.self ? ' self' : '');
+  el.style.left = p.x;
+  el.style.top = p.y;
+  spawn(el, lifeMs('--hm-life') + 80);
 }
 
 function floatDamage(s, dmg) {
@@ -1275,17 +1506,50 @@ function spawnEmbers(s, count) {
   }
 }
 
-/* typing caption */
-let typeTimer = null;
+/* typing caption. #caption holds two children — never write textContent on it
+   directly or the structure is destroyed; go through clearCaption(). */
+let typeTimer = null, capNow = '';
+function clearCaption() {
+  clearInterval(typeTimer);
+  capNow = '';
+  $('capPrev').textContent = '';
+  $('capCur').textContent = '';
+  $('caption').classList.remove('done');
+}
+/* Land both lines at event `i` without typing, for a scrub. Walks BACK to the last
+   two events that actually said something: live playback only types on a non-empty
+   caption (fire()), and a count-out is ten seconds of blank ones — typing '' here
+   would blank the line and demote a real caption to the faded slot. */
+function showCaptionAt(i) {
+  const said = [];
+  for (let k = i; k >= 0 && said.length < 2; k--)
+    if (events[k].caption) said.push(events[k].caption);
+  clearCaption();
+  if (said[1]) $('capPrev').textContent = said[1];
+  if (said[0]) {
+    capNow = said[0];
+    $('capCur').textContent = said[0];
+    $('caption').classList.add('done');     // a scrubbed-to line is not mid-type
+  }
+}
 function typeCaption(text) {
   clearInterval(typeTimer);
-  const el = $('caption');
-  el.textContent = ''; el.classList.remove('done');
+  /* the OUTGOING line's full text, not what is on screen — clearInterval above can
+     abandon typing mid-word, and demoting a half-typed line looks like a bug */
+  $('capPrev').textContent = capNow;
+  capNow = text;
+  const el = $('capCur');
+  el.textContent = ''; $('caption').classList.remove('done');
   let i = 0;
+  /* At 2 fps the backend can land events 1s apart, and a 30-character caption at
+     a flat 34ms/char takes longer than that to type — the next event clears it
+     mid-word and nothing is ever readable. Cap the whole caption at ~0.7s; short
+     ones still type at 34ms, so the feel is unchanged where it already fit. */
+  const step = Math.max(12, Math.min(34, 700 / Math.max(1, text.length)));
   typeTimer = setInterval(() => {
     el.textContent = text.slice(0, ++i);
-    if (i >= text.length) { clearInterval(typeTimer); el.classList.add('done'); }
-  }, 34);
+    if (i >= text.length) { clearInterval(typeTimer); $('caption').classList.add('done'); }
+  }, step);
 }
 
 function hideComments() { ['L','R'].forEach(s => $('cmt' + s).classList.remove('on')); }
@@ -1300,26 +1564,73 @@ function showComment(side, text) {
 }
 const escapeHTML = s => s.replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 
-/* ---------------- KO / game over ---------------- */
-function koSequence(loser) {
+/* ---------------- KO / game over ----------------
+   `quiet` lands the end state with no blast: a seek past the KO has to arrive at
+   the same place as playing through it, but the fireball belongs to the moment it
+   was crossed, not to wherever the scrub bar was let go. */
+let koTimer = null;
+function koSequence(loser, quiet) {
   if (koDone) return;
   koDone = true;
   const s = loser === 'left' ? 'L' : 'R';
-  const v = $('video');
-  if (useVideo) v.pause();
-  sfx('ko');
-  setTimeout(() => {                        // 1s freeze-frame, then blast + stamp
-    $('flash').classList.remove('on'); void $('flash').offsetWidth;
-    $('flash').classList.add('on');
+  const land = () => {
     $('ko').classList.add('on');
     $('cores' + s).classList.add('dead');
-    spawnEmbers(s, 22);
-    shake(true);
-    setTimeout(() => finish(loser), 1800);
-  }, 1000);
+    if (!quiet) {
+      $('flash').classList.remove('on'); void $('flash').offsetWidth;
+      $('flash').classList.add('on');
+      spawnEmbers(s, 22);
+      shake(true);
+    }
+    playOut(loser);
+  };
+  if (quiet) return land();
+  sfx('ko');
+  // the handle is kept so a scrub back inside this beat can cancel it — without
+  // that the blast still lands, from a position now before the knockout
+  clearTimeout(koTimer);
+  koTimer = setTimeout(land, 1000);       // a beat to land on, then blast + stamp
+}
+
+/* The KO event is the referee's call, not the end of the broadcast — the count
+   finishes seconds before the celebration and the BattleBots card. Pausing on the
+   stamp threw away the rest of the clip (5s on manta-skorpios), so the stamp now
+   plays OVER the live footage and the fight card waits for the video to run out.
+
+   The backstop watches the CLOCK, not the wall. 'ended' can silently never fire,
+   but a wall-clock deadline is worse: it assumes video time tracks real time, so
+   one buffering stall cuts the celebration off mid-shot — which is the whole
+   thing this change exists to stop. Finishing only once currentTime has genuinely
+   stopped advancing covers both failures and neither false-positives. */
+let outTimer = null;
+/* named and module-level so it can be REMOVED. Scrubbing back past the KO re-arms
+   playOut(), and an anonymous {once:true} listener from the previous pass would
+   survive holding a stale `loser` from a fight state that no longer applies. */
+let outEnded = () => {};
+function playOut(loser) {
+  if (!useVideo) { outTimer = setTimeout(() => finish(loser), 1800); return; }
+  const v = $('video');
+  const done = () => finish(loser);
+  v.removeEventListener('ended', outEnded);
+  outEnded = done;
+  v.addEventListener('ended', outEnded, {once: true});
+  let last = -1, still = 0;
+  clearInterval(outTimer);
+  outTimer = setInterval(() => {
+    if (overDone) return clearInterval(outTimer);
+    const end = v.duration && v.currentTime >= v.duration - 0.35;
+    // a PAUSED video is not a stalled one — a backgrounded tab pauses playback,
+    // and counting that would drop the viewer back on GAME OVER when they return
+    still = (v.currentTime === last && !v.seeking && !v.paused) ? still + 1 : 0;
+    last = v.currentTime;
+    // at the end but 'ended' never came, or wedged solid for 10s of buffering
+    if (end || still >= 40) { clearInterval(outTimer); done(); }
+  }, 250);
 }
 
 function finish(loser) {
+  if (overDone) return;                     // 'ended' and the fallback timer race
+  overDone = true;
   const last = events[events.length - 1] || {left_hp: 100, right_hp: 100};
   if (!loser) loser = last.left_hp === last.right_hp ? null
                     : (last.left_hp < last.right_hp ? 'left' : 'right');
@@ -1329,6 +1640,9 @@ function finish(loser) {
   breakdown();
   $('over').classList.add('on');
   $('ko').classList.remove('on');
+  $('pause').classList.remove('on');
+  document.body.classList.remove('pbar');    // the fight card owns the screen now
+  clearTimeout(pbTimer);
   if (useVideo) $('video').pause();
 }
 
@@ -1368,9 +1682,13 @@ function breakdown() {
 
   const end = events.length ? events[events.length - 1].t : 0;
   const self = HITS.filter(h => h.self).length;
+  /* the count-out drains the loser's bar without any blow behind it, so DMG TAKEN
+     no longer sums to 100 for them. Say so, or the gap reads as a bug. */
+  const counted = events.some(e => e.drain);
   $('bdNote').textContent =
     `FIGHT TIME ${mmss(end)} · ${HITS.length} HITS · ${events.length} EVENTS` +
-    (self ? ` · ${self} SELF-INFLICTED / ARENA` : '');
+    (self ? ` · ${self} SELF-INFLICTED / ARENA` : '') +
+    (counted ? ' · FINISHED BY COUNT-OUT' : '');
 
   const big = HITS.reduce((a, h) => (!a || h.dmg > a.dmg) ? h : a, null);
   $('bdBig').innerHTML = big ? `
@@ -1386,10 +1704,21 @@ function breakdown() {
   // inset the plot so a hit at t=0 or the KO tick at the far end isn't half
   // clipped by the strip's own edge
   const span = end || 1;
+  const at = t => (3 + t / span * 94).toFixed(2);
+  /* The KO is always placed from the EVENT, and always as its own full-height mark.
+     It used to ride in on a hit's `ko` flag and only fall back to the event when no
+     hit had one — so on the clips where a hit does carry it (jackpot-copperhead,
+     synthfight) the knockout rendered as a half-height tick on one bot's side of
+     the line, which reads as "that bot landed a big hit here". A tick's colour is
+     how hard the blow was; the gold line is when the fight ended. Two facts, two
+     marks. */
+  const koEv = events.find(e => e.ko);
   $('bdStrip').innerHTML = HITS.map(h =>
-    `<i class="t-${h.tier.key} ${h.by === 'L' ? 'up' : 'down'}${h.ko ? ' ko' : ''}" ` +
-    `style="left:${(3 + h.t / span * 94).toFixed(2)}%" ` +
-    `title="${mmss(h.t)} −${h.dmg}"></i>`).join('');
+    `<i class="t-${h.tier.key} ${h.by === 'L' ? 'up' : 'down'}" ` +
+    `style="left:${at(h.t)}%" ` +
+    `title="${mmss(h.t)} −${h.dmg}"></i>`).join('')
+    + (koEv ? `<i class="ko-mark" style="left:${at(koEv.t)}%" ` +
+              `title="${mmss(koEv.t)} KNOCKOUT"></i>` : '');
   $('bdEnd').textContent = mmss(end);
   $('bdKeyL').textContent = botName('L');
   $('bdKeyR').textContent = botName('R');
@@ -1438,25 +1767,182 @@ function start() {
     if (!v.currentSrc) fallbackClock();
     watchdog();
   }
-  if (!useVideo) { virtualClock = true; vStart = performance.now(); }
+  if (!useVideo) { virtualClock = true; vStart = performance.now(); vHold = 0; }
   setTimeout(() => sfx('fight'), 250);
   typeCaption('FIGHT!');
+  pbBuildTicks(); pbSync(); pbFrame();
 }
 
-function replay() {
-  started = false; applied = -1; koDone = false;
+/* Everything replay() ever did except the trailing start(), so REPLAY and HOME are
+   the same teardown and cannot drift apart. */
+function reset() {
+  started = false; applied = -1; koDone = false; overDone = false;
+  userPaused = false; virtualClock = false; vHold = 0;
+  clearTimeout(koTimer);
+  clearInterval(outTimer); clearTimeout(outTimer);
+  $('video').removeEventListener('ended', outEnded);
   $('over').classList.remove('on'); $('ko').classList.remove('on');
+  $('pause').classList.remove('on');
+  document.body.classList.remove('pbar');
   showHits(-1, null, false); hideComments(); clearTransients();
-  $('caption').textContent = '';
+  clearCaption();
   ['L','R'].forEach(s => $('cores' + s).classList.remove('dead'));
-  if (useVideo) $('video').currentTime = 0;
+  if (useVideo) { $('video').pause(); $('video').currentTime = 0; }
   render(events[0] || {left_hp: 100, right_hp: 100});
-  start();
+  pbSync();
 }
+function replay() { reset(); start(); }
+/* in-page rather than location.search — a reload would re-fetch the clip, and the
+   picker is already the one place that navigates */
+function home() {
+  reset();
+  $('hud').classList.remove('on');
+  $('title').classList.add('on');
+}
+
+/* ---------------- playback ----------------
+   One API over both clocks so every control below is written once. The video path
+   is authoritative about its own state; the virtual clock is frozen by holding the
+   wall-clock instant it stopped at (see now()). */
+const pbSpan   = () => (useVideo ? ($('video').duration || duration) : duration) || 1;
+const pbPaused = () => (useVideo ? $('video').paused : !!vHold);
+function pbSeek(t) {
+  t = Math.max(0, Math.min(pbSpan() - 0.01, t));
+  if (useVideo) $('video').currentTime = t; else vSeek(t);
+  pbFrame();
+}
+function pbSetPaused(p) {
+  userPaused = p;
+  if (useVideo) {
+    if (p) $('video').pause(); else $('video').play().catch(() => {});
+  } else if (p) {
+    if (!vHold) vHold = performance.now();
+  } else if (vHold) { vStart += performance.now() - vHold; vHold = 0; }
+  pbSync();
+  pbShow();
+}
+
+/* glyphs and the mute chip — driven by real media state, never by a flag we would
+   have to remember to update. finish() pauses the video on its own. */
+function pbSync() {
+  const p = pbPaused();
+  $('pbPlay').innerHTML = p ? '&#9654;' : '&#10074;&#10074;';
+  $('pbPlay').title = (p ? 'Play' : 'Pause') + ' (space)';
+  const m = useVideo && $('video').muted;
+  $('pbMute').innerHTML = m ? '&#128263;' : '&#128266;';
+  $('pbMute').title = m ? 'Unmute' : 'Mute';
+  $('muted').classList.toggle('on', !!m);
+  if (p) pbShow();
+}
+function pbFrame() {
+  // the virtual clock has no natural end, so it can run past `duration` — clamp for
+  // display or the readout reads 1:22 / 0:34
+  const s = pbSpan(), t = Math.max(0, Math.min(s, now())), pct = t / s * 100;
+  $('pbFill').style.width = pct + '%';
+  $('pbKnob').style.left = pct + '%';
+  $('pbTime').textContent = `${mmss(t)} / ${mmss(s)}`;
+  const tr = $('pbTrack');
+  tr.setAttribute('aria-valuemax', s.toFixed(1));
+  tr.setAttribute('aria-valuenow', t.toFixed(1));
+  tr.setAttribute('aria-valuetext', mmss(t));
+}
+/* the same marks as the end card's hit log, so the scrubber says where the fight
+   actually happens rather than being a bare slider */
+function pbBuildTicks() {
+  const s = pbSpan();
+  const koEv = events.find(e => e.ko);
+  $('pbTicks').innerHTML = HITS.map(h =>
+    `<i class="t-${h.tier.key}" style="left:${(h.t / s * 100).toFixed(2)}%" ` +
+    `title="${mmss(h.t)} −${h.dmg}"></i>`).join('')
+    + (koEv ? `<i class="ko" style="left:${(koEv.t / s * 100).toFixed(2)}%" ` +
+              `title="${mmss(koEv.t)} KNOCKOUT"></i>` : '');
+}
+
+let pbTimer = null, pbOver = false;
+function pbShow() {
+  if (!started || overDone) return;
+  document.body.classList.add('pbar');
+  clearTimeout(pbTimer);
+  // never fade out from under the pointer, and never while paused — a paused video
+  // with no visible controls is a dead end
+  if (!pbOver && !pbPaused()) pbTimer = setTimeout(pbHide, 2500);
+}
+function pbHide() {
+  if (pbOver || pbPaused()) return;
+  document.body.classList.remove('pbar');
+}
+
+$('stage').addEventListener('mousemove', pbShow);
+$('pbar').addEventListener('mouseenter', () => { pbOver = true; clearTimeout(pbTimer); });
+$('pbar').addEventListener('mouseleave', () => { pbOver = false; pbShow(); });
+$('pbPlay').addEventListener('click', e => { e.stopPropagation(); pbSetPaused(!pbPaused()); });
+$('pbBack').addEventListener('click', e => { e.stopPropagation(); pbSeek(now() - 10); });
+$('pbFwd') .addEventListener('click', e => { e.stopPropagation(); pbSeek(now() + 10); });
+$('pbMute').addEventListener('click', e => {
+  e.stopPropagation();
+  if (useVideo) { $('video').muted = !$('video').muted; pbSync(); }
+});
+
+/* pointer capture so a drag that leaves the track still scrubs. Resume-after-drag
+   is explicit because finish() pauses the video: scrubbing back off GAME OVER
+   would otherwise leave the fight frozen. */
+let pbDrag = false, pbWasPlaying = false;
+const pbAt = e => {
+  const r = $('pbTrack').getBoundingClientRect();
+  return Math.max(0, Math.min(1, (e.clientX - r.left) / (r.width || 1))) * pbSpan();
+};
+$('pbTrack').addEventListener('pointerdown', e => {
+  e.stopPropagation();
+  pbDrag = true;
+  pbWasPlaying = !pbPaused();
+  $('pbTrack').setPointerCapture(e.pointerId);
+  if (pbWasPlaying) pbSetPaused(true);   // seeking a playing video fights the drag
+  pbSeek(pbAt(e));
+});
+$('pbTrack').addEventListener('pointermove', e => { if (pbDrag) pbSeek(pbAt(e)); });
+$('pbTrack').addEventListener('pointerup', e => {
+  if (!pbDrag) return;
+  pbDrag = false;
+  $('pbTrack').releasePointerCapture(e.pointerId);
+  if (pbWasPlaying) pbSetPaused(false);
+  pbShow();
+});
+
+/* ---------------- pause menu ---------------- */
+function pauseMenu(on) {
+  if (on && (!started || overDone)) return;
+  $('pause').classList.toggle('on', on);
+  pbSetPaused(on);
+}
+$('pmenu').addEventListener('click', e => {
+  const act = e.target.dataset && e.target.dataset.act;
+  if (!act) return;
+  // the window click handler starts the fight whenever !started, and HOME sets
+  // exactly that — without this the dismissing click restarts the fight instantly
+  e.stopPropagation();
+  $('pause').classList.remove('on');
+  if (act === 'resume') pbSetPaused(false);
+  if (act === 'replay') replay();
+  if (act === 'home')   home();
+  e.target.blur();     // a focused button swallows every key shortcut afterwards
+});
 
 addEventListener('keydown', e => {
+  /* Escape is handled ABOVE the BUTTON guard on purpose: once a pause-menu button
+     has focus that guard would swallow the key that closes the menu. */
+  if (e.key === 'Escape') {
+    if (!started || overDone) return;
+    e.preventDefault();
+    pauseMenu(!$('pause').classList.contains('on'));
+    return;
+  }
   // a focused picker button owns Enter/Space, or it would navigate AND start
   if (e.target.tagName === 'INPUT' || e.target.tagName === 'BUTTON') return;
+  if (started && !overDone) {
+    if (e.key === ' ')          { e.preventDefault(); pbSetPaused(!pbPaused()); return; }
+    if (e.key === 'ArrowLeft')  { e.preventDefault(); pbSeek(now() - 10); pbShow(); return; }
+    if (e.key === 'ArrowRight') { e.preventDefault(); pbSeek(now() + 10); pbShow(); return; }
+  }
   const k = e.key.toLowerCase();
   if (k === 'c') { $('crt').classList.toggle('on'); return; }
   if (k === 'g') { document.body.classList.toggle('rainbow'); return; }
@@ -1468,7 +1954,7 @@ addEventListener('click', e => { if (e.target.tagName !== 'INPUT' && !started) s
 $('muted').addEventListener('click', e => {
   e.stopPropagation();
   $('video').muted = false;
-  $('muted').classList.remove('on');
+  pbSync();
 });
 
 /* fight select — FIGHTS is the only place a clip is named, so adding one is a
