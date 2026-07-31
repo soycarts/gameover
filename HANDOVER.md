@@ -93,13 +93,19 @@ can see. Damage, victim and tier stay derived, never stored.
 - **Hit ticks read as bot identity** — blue/orange on both strips, tier as height.
 - **Space starts the fight**, not any key. `h` goes home from the fight card.
 - **PERFECT.** A bot that finishes on zero damage taken gets an arcade badge beside its
-  HUD panel at the K.O. and on the fight card, with a generated announcer line
-  (`sfx/perfect.mp3`, the repo's only audio asset — see `backend/say.py`). It fires on
+  HUD panel at the K.O. and on the fight card, with a spoken announcer line
+  (`sfx/perfect.mp3`, the repo's only audio asset — a take chosen by ear, which is why
+  `backend/say.py` will not overwrite it without `--force`). It fires on
   `manta-skorpios` only; on the other three both bots take damage, which is what makes
-  the shutout worth marking.
-- **The title card no longer jitters between fights** — measured, the VS panel is now
-  the same height with and without its sprite. Fixing it also uncovered that `#preds`
-  could never be hidden at all, so every clip painted an empty CROWD CALL header.
+  the shutout worth marking. The HUD badge stands down while the fight card is up
+  (`body.over`) so PERFECT is only ever on screen once, and comes back on a rewind.
+- **The GAME OVER exits sit above the breakdown**, not below four stacked panels.
+- **The title card is held until it is complete, then shown in one paint.** Reserving
+  heights was not enough: measured with the fetches lagged, `#preds` goes 0 → 195px and
+  re-centres the whole card, and whether it appears at all is unknowable until the
+  comments file lands. `.screen.staging` holds it at `visibility: hidden`; `showTitle()`
+  reveals it. Fixing the earlier round also uncovered that `#preds` could never be
+  hidden at all, so every clip painted an empty CROWD CALL header.
 - **Three false hits on Manta are gone.** Two were reported by eye (t=7.5 "Skorpios
   forks lift Manta" and t=14.5 "Skorpios nudges stuck Manta" — the frames show
   Skorpios settling after being lifted, and both machines apart and still); a third
