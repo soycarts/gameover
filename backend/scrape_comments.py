@@ -439,6 +439,31 @@ def flag(name: str, default: str = "") -> str:
     return default
 
 
+def relabel(path: Path, card: dict, backend: str) -> list[dict]:
+    """Re-run the prediction labels over a pool already on disk. No scrape.
+
+    classify() only ever ran inside scrape(), so improving a label meant paying
+    Bright Data again and risking the pool — and re-scraping the same pinned
+    thread is a lottery that can quietly return a WORSE set, which the
+    zero-rows guard does not catch because it only fires on nothing at all.
+
+    Only `pick`, `phase` and `kind` move. `text` is untouched, so no timeline's
+    fan_comment can be orphaned by this and no --rejoin is needed afterwards.
+    It IS non-deterministic — the model may label a comment it skipped last time,
+    or skip one it labelled — and it re-runs pair_exchanges(), so the `ex` pairs
+    can shuffle. Diff the file before committing.
+    """
+    if not path.exists():
+        sys.exit(f"no {path.name} to re-classify — scrape it first")
+    comments = json.loads(path.read_text())
+    before = sum(1 for c in comments if c.get("pick"))
+    crowd.classify(comments, card, backend)
+    crowd.pair_exchanges(comments)
+    after = sum(1 for c in comments if c.get("pick"))
+    print(f"  re-classified {len(comments)} comments: {before} -> {after} picks")
+    return comments
+
+
 def main() -> None:
     flagged = {f"--{n}" for n in ("bots", "post-url", "backend")}
     args, skip = [], False
@@ -463,13 +488,16 @@ def main() -> None:
     pinned = [u.strip() for u in flag("--post-url").split(",") if u.strip()] \
         or ([FIGHT_CARD[clipname]] if clipname in FIGHT_CARD else [])
 
-    if "--mock" in sys.argv:
+    out = ROOT / "comments" / f"{clipname}.json"
+    out.parent.mkdir(exist_ok=True)
+
+    if "--reclassify" in sys.argv:
+        comments = relabel(out, card, flag("--backend", "auto"))
+    elif "--mock" in sys.argv:
         comments = mock(query, card)
     else:
         comments = scrape(query, card, pinned, flag("--backend", "auto"),
                           "--dump-keys" in sys.argv)
-    out = ROOT / "comments" / f"{clipname}.json"
-    out.parent.mkdir(exist_ok=True)
     # A timed-out job is not a reason to destroy a working pool. The committed
     # timelines reference these exact strings by text, so an empty file silently
     # strips every fan comment and every author off a fight that had them.

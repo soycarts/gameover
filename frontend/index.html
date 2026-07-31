@@ -539,6 +539,14 @@ body.over .perfect { display: none; }
 .pq blockquote:empty { display: none; }
 .pq blockquote:last-child { border-left: 0; border-right: 3px solid var(--panel-edge);
   text-align: right; }
+/* One side can have no showable quote — madcatter-tombstone's only Tombstone
+   pick is `rival: true`, which the tally counts but never shows. Hiding the empty
+   blockquote is not enough on a 1fr 1fr grid: it leaves one quote against a blank
+   half, and the whole point of the crowd card is one take BESIDE the opposing
+   one. Going full-width says "only one side spoke" instead of looking broken. */
+.pq.solo { grid-template-columns: 1fr; }
+.pq.solo blockquote:last-child { border-left: 3px solid var(--panel-edge);
+  border-right: 0; text-align: left; }
 .pq cite { display: block; margin-top: 6px; font-style: normal;
   color: var(--ink-dim); overflow-wrap: anywhere; }
 /* a title card already carrying h1 + 2 subs + VS + coin + picker + url box has
@@ -2148,6 +2156,7 @@ function renderPredictions() {
   $('pbL').style.width = cc.p.L + '%';
   $('pbR').style.width = cc.p.R + '%';
   $('pqs').innerHTML = quoteHTML(cc.quote.L) + quoteHTML(cc.quote.R);
+  $('pqs').classList.toggle('solo', !cc.quote.L !== !cc.quote.R);
   $('preds').hidden = false;
 }
 
@@ -2174,6 +2183,8 @@ function crowdCard() {
   // that got it right rather than quietly dropped
   const order = won ? [won, won === 'L' ? 'R' : 'L'] : ['L', 'R'];
   $('cwQuotes').innerHTML = order.map(s => quoteHTML(cc.quote[s])).join('');
+  // exactly one side quotable -> full width, not a quote beside a blank half
+  $('cwQuotes').classList.toggle('solo', !cc.quote.L !== !cc.quote.R);
   $('bdCrowd').hidden = false;
 }
 

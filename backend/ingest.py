@@ -218,8 +218,6 @@ def main() -> None:
     ap.add_argument("--post-url", metavar="URL",
                     help="pin the episode's fight-card thread (comma-separated for several) "
                          "— pre-fight predictions, which no post-hoc search can find")
-    ap.add_argument("--ko", choices=("left", "right"),
-                    help="pin the losing side for a clip you have actually watched")
     ap.add_argument("--backend", default="api", choices=("api", "cli", "openai"),
                     help="which vision judge analyze.py should use (default api)")
     ap.add_argument("--fps", type=float, default=extract_frames.FPS, metavar="N",

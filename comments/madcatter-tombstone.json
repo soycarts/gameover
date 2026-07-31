@@ -58,7 +58,7 @@
     "rival": false,
     "pinned": true,
     "pick": "madcatter",
-    "kind": "banter",
+    "kind": "prediction",
     "phase": "pre"
   },
   {
@@ -208,7 +208,7 @@
     "rival": false,
     "pinned": true,
     "pick": "",
-    "kind": "banter",
+    "kind": "prediction",
     "phase": "pre"
   },
   {
