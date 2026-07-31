@@ -819,6 +819,12 @@ body.controls .bars { bottom: calc(var(--hud-pad) + var(--pbar-h)); }
   letter-spacing: 4px; }
 #pmenu, #omenu { pointer-events: auto; display: flex; flex-wrap: wrap;
   justify-content: center; gap: clamp(6px, 1.2vw, 14px); }
+/* the keycap on a menu button. pointer-events: none so a click on the cap is a
+   click on the button — menuClick() reads data-act off the target */
+#pmenu .k, #omenu .k { pointer-events: none; font-style: normal; font-size: .8em;
+  margin-left: .9em; padding: 2px 5px; color: var(--steel);
+  border: 1px solid var(--panel-edge); }
+#pmenu button:hover .k, #omenu button:hover .k { color: var(--ink); border-color: var(--steel); }
 
 /* CRT filter (toggle "c") */
 #crt { position: absolute; inset: 0; pointer-events: none; z-index: 8; display: none;
@@ -927,12 +933,13 @@ body.rainbow .core-fill { background: linear-gradient(90deg,#ff2e63,#ffd23f,#3ff
          on a laptop the last of them is already below the fold, so exits parked
          underneath it could only be reached by scrolling past everything -->
     <div id="omenu">
-      <button data-act="rewind">Back to fight</button>
-      <button data-act="replay">Replay</button>
-      <button data-act="home">Home</button>
+      <button data-act="rewind">Back to fight<i class="k">esc</i></button>
+      <button data-act="replay">Replay<i class="k">r</i></button>
+      <button data-act="home">Home<i class="k">h</i></button>
     </div>
-    <div class="hint">ESC — BACK TO THE FIGHT &nbsp;·&nbsp; R — REPLAY &nbsp;·&nbsp; H — HOME
-      &nbsp;·&nbsp; C — CRT</div>
+    <!-- same split as the pause menu: a key with a button is printed on it, and
+         only the keys with no button here are left to the hint -->
+    <div class="hint">C — CRT</div>
     <div id="breakdown">
       <section class="bd">
         <div class="bd-head">
@@ -981,12 +988,13 @@ body.rainbow .core-fill { background: linear-gradient(90deg,#ff2e63,#ffd23f,#3ff
   <div class="screen" id="pause">
     <h2>PAUSED</h2>
     <div id="pmenu">
-      <button data-act="resume">Resume</button>
-      <button data-act="replay">Replay</button>
-      <button data-act="home">Home</button>
+      <button data-act="resume">Resume<i class="k">esc</i></button>
+      <button data-act="replay">Replay<i class="k">r</i></button>
+      <button data-act="home">Home<i class="k">h</i></button>
     </div>
-    <div class="hint">ESC — RESUME &nbsp;·&nbsp; SPACE — PLAY/PAUSE &nbsp;·&nbsp; ← → — 10s
-      &nbsp;·&nbsp; R — REPLAY &nbsp;·&nbsp; H — HOME</div>
+    <!-- the keys that HAVE a button are printed on it; only the transport keys,
+         which have none up here, are left to the hint -->
+    <div class="hint">SPACE — PLAY/PAUSE &nbsp;·&nbsp; ← → — 10s</div>
   </div>
 
   <div id="pbar" aria-label="playback controls">
@@ -2364,9 +2372,13 @@ function pbHide() {
 $('stage').addEventListener('mousemove', pbShow);
 $('pbar').addEventListener('mouseenter', () => { pbOver = true; clearTimeout(pbTimer); });
 $('pbar').addEventListener('mouseleave', () => { pbOver = false; pbShow(); });
-$('pbPlay').addEventListener('click', e => { e.stopPropagation(); pbSetPaused(!pbPaused()); });
-$('pbBack').addEventListener('click', e => { e.stopPropagation(); pbSeek(now() - 10); });
-$('pbFwd') .addEventListener('click', e => { e.stopPropagation(); pbSeek(now() + 10); });
+/* blur() for the same reason the picker and the menus do it: the keydown handler
+   guards on BUTTON, so a control-bar button left focused swallows r, h and every
+   other shortcut for the rest of the fight — including from inside the pause menu,
+   which Escape can still open because Escape is handled above that guard. */
+$('pbPlay').addEventListener('click', e => { e.stopPropagation(); pbSetPaused(!pbPaused()); e.currentTarget.blur(); });
+$('pbBack').addEventListener('click', e => { e.stopPropagation(); pbSeek(now() - 10); e.currentTarget.blur(); });
+$('pbFwd') .addEventListener('click', e => { e.stopPropagation(); pbSeek(now() + 10); e.currentTarget.blur(); });
 $('pbMute').addEventListener('click', e => {
   e.stopPropagation();
   if (useVideo) { $('video').muted = !$('video').muted; pbSync(); }
