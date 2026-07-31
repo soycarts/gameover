@@ -23,6 +23,7 @@ cut of the same image.
 Hand-tuning belongs in index.html's ART table, which wins over anything here.
 Editing sprites.js directly works until the next regeneration silently reverts it.
 """
+import base64
 import json
 import subprocess
 import sys
@@ -36,8 +37,16 @@ OUT = ROOT / "frontend" / "sprites.js"
 WORK_W = 420          # what ffmpeg hands us; big enough to area-average from
 VS = (48, 36)         # the VS card
 HUD = (16, 12)        # the name-row sigil
-ALPHA_ON = 0.42       # a cell is solid when this much of it is opaque
+ALPHA_ON = 0.34       # a cell is solid when this much of it is opaque; low enough
+                      # to keep Skorpios's thin arm linkage from breaking into speckle
 COLOURS = 7           # palette entries per bot, before transparency
+MIN_SEP = 62          # ... and how far apart they must be, in RGB distance
+# The HUD's --bg is #07080b, which is very nearly black — so a machine that is
+# actually black (Tombstone, Skorpios, Cobalt) renders as a hole in the screen.
+# Every palette entry is lifted to at least this luma. It is the same reason
+# arcade sprites have never drawn black as #000: on a black screen it is not a
+# colour, it is absence. Raise --bg and this can come down.
+LUMA_FLOOR = 54
 CHARS = "abcdefghijklmnop"
 
 
@@ -105,10 +114,20 @@ def sample(buf, w: int, box, gw: int, gh: int) -> list:
 def palette(cells, k: int) -> list:
     """The bot's own dominant colours, not a fixed global ramp.
 
-    Colours are counted in coarse bins and the busiest kept, so Copperhead's brass
-    and MaDCaTTer's cyan eyes both survive instead of being flattened into a
-    shared grey. A global palette was the obvious first idea and it turns every
-    machine into the same machine.
+    Colours are counted in coarse bins so Copperhead's brass and MaDCaTTer's cyan
+    eyes survive instead of being flattened into a shared grey. A global palette
+    was the obvious first idea and it turns every machine into the same machine.
+
+    Taking the k busiest bins was the second idea and it is nearly as bad: on
+    Jackpot it returned five near-identical dark reds and exactly one green, for a
+    robot whose whole chassis is green — a big region of one hue splits across
+    several adjacent bins and crowds every other colour off the list.
+
+    So entries are accepted busiest-first but only when they are at least MIN_SEP
+    away from everything already chosen. That spends the palette on the hues the
+    machine actually has rather than on shades of its largest one. If the
+    separation cannot be met the remaining slots are simply not used — a machine
+    that really is one colour gets a short palette, which is correct.
     """
     bins = {}
     for c in cells:
@@ -117,8 +136,29 @@ def palette(cells, k: int) -> list:
         key = (c[0] // 26, c[1] // 26, c[2] // 26)
         acc = bins.setdefault(key, [0, 0, 0, 0])
         acc[0] += c[0]; acc[1] += c[1]; acc[2] += c[2]; acc[3] += 1
-    top = sorted(bins.values(), key=lambda a: -a[3])[:k]
-    return [(a[0] // a[3], a[1] // a[3], a[2] // a[3]) for a in top]
+    ranked = [(a[0] // a[3], a[1] // a[3], a[2] // a[3])
+              for a in sorted(bins.values(), key=lambda a: -a[3])]
+    out: list = []
+    for c in ranked:
+        if len(out) >= k:
+            break
+        if all(sum((c[i] - p[i]) ** 2 for i in range(3)) >= MIN_SEP ** 2 for p in out):
+            out.append(c)
+    return [lift(c) for c in out]
+
+
+def lift(c: tuple) -> tuple:
+    """Raise a colour to LUMA_FLOOR, keeping its hue.
+
+    Added rather than scaled, because scaling cannot lift pure black at all —
+    Tombstone's body is very close to it — and a machine that vanishes into the
+    background is worse than one rendered a shade lighter than the photo.
+    """
+    luma = 0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2]
+    if luma >= LUMA_FLOOR:
+        return c
+    add = int(LUMA_FLOOR - luma)
+    return tuple(min(255, v + add) for v in c)
 
 
 def render(cells, gw: int, gh: int, pal: list) -> list[str]:
@@ -197,6 +237,53 @@ def write(sprites: dict) -> None:
     print(f"wrote {len(sprites)} sprites -> {OUT} ({OUT.stat().st_size // 1024}kB)")
 
 
+CHECK = ROOT / "frontend" / "_spritecheck.html"
+
+
+def check_page(sprites: dict) -> None:
+    """Every sprite beside its source photo, on the real --bg, at both real sizes.
+
+    Auto-derived pixel art can be numerically fine and still look like a smudge,
+    and the two failures found this way were both invisible in the numbers: a
+    palette of five near-identical reds, and every dark machine vanishing into a
+    #07080b background. Gitignored — it embeds the photos as data URIs and is a
+    few MB.
+    """
+    bots = roster.load()
+    rows = []
+    for key, s in sprites.items():
+        thumb = subprocess.run(
+            ["ffmpeg", "-v", "error", "-i", str(roster.PHOTOS / f"{key}.png"),
+             "-vf", "scale=160:-1", "-f", "image2pipe", "-vcodec", "png", "-"],
+            check=True, stdout=subprocess.PIPE).stdout
+        img = base64.b64encode(thumb).decode()
+        cells = "".join(
+            f"<td>{svg_of(s['pal'], s[k], px)}</td>"
+            for k, px in (("vs", 148), ("vs", 72), ("hud", 26), ("hud", 60)))
+        rows.append(f"<tr><td><b>{bots[key]['name']}</b><br><small>"
+                    f"{bots[key]['weapon'] or '?'}</small></td>"
+                    f"<td><img src='data:image/png;base64,{img}' "
+                    f"style='height:74px;background:#2a2e35'></td>{cells}</tr>")
+    CHECK.write_text(
+        "<style>body{background:#07080b;color:#ddd;font:13px system-ui;margin:0}"
+        "table{border-collapse:collapse;width:100%}td{padding:5px;"
+        "border-bottom:1px solid #1c1f26;vertical-align:middle}"
+        "th{font:11px system-ui;color:#6f7987;text-align:left;padding:5px}</style>"
+        "<table><tr><th>bot</th><th>official photo</th><th>48x36 @148px (VS)</th>"
+        "<th>@72px</th><th>16x12 @26px (HUD)</th><th>@60px</th></tr>"
+        + "".join(rows) + "</table>")
+    print(f"wrote {CHECK} — open it at "
+          f"http://localhost:40911/frontend/_spritecheck.html")
+
+
+def svg_of(pal: dict, rows: list[str], px: int) -> str:
+    w, h = len(rows[0]), len(rows)
+    r = "".join(f'<rect x="{x}" y="{y}" width="1" height="1" fill="{pal[c]}"/>'
+                for y, row in enumerate(rows) for x, c in enumerate(row) if c != ".")
+    return (f'<svg viewBox="0 0 {w} {h}" width="{px}" height="{px * h // w}" '
+            f'style="image-rendering:pixelated">{r}</svg>')
+
+
 if __name__ == "__main__":
     args = [a for a in sys.argv[1:] if not a.startswith("-")]
     if args:
@@ -204,4 +291,7 @@ if __name__ == "__main__":
         print("\n".join(s["vs"]))
         print(json.dumps(s["pal"], indent=1))
     else:
-        write(build())
+        got = build()
+        write(got)
+        if "--check" in sys.argv:
+            check_page(got)

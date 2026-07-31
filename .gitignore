@@ -29,3 +29,4 @@ __pycache__/
 .env*
 .claude/
 comments/.titles-backup/
+frontend/_spritecheck.html

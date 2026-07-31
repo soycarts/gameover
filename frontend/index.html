@@ -4,6 +4,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@600;800;900&family=JetBrains+Mono:wght@400;500;700&family=Press+Start+2P&display=swap" rel="stylesheet">
+<script src="sprites.js"></script>
 
 <style>
 /* ===================================================================
@@ -1230,41 +1231,34 @@ async function boot() {
     manta: 'disc',
     jackpot: 'wedge',        // hybrid — left neutral rather than guessed
   };
-  /* ---- hand-drawn bot sprites ---------------------------------------------
-     One 16x12 character grid per bot, '.' = transparent. Edit a row and the
-     sprite changes; there is nothing to rebuild and no asset to ship. Palettes
-     use each machine's real livery so the portrait matches the arena.
-     A bot with no sprite here falls back to its weapon sigil, which is what
-     era B gets for a URL nobody has drawn. */
-  const ART = {
-    tombstone: { pal: { k:'#15171c', w:'#31353d', r:'#e0242e', s:'#aeb6c2' }, rows: [
-      '................', '................', '...kkkkkkkkkk...', '..kkkkkkkkkkkk..',
-      '.wkkkkkkkkkkkkw.', 'wwkkkkkksskkkkww', 'wwkkkkkksskkkkww', '.wkkkkkkkkkkkkw.',
-      '..kkkkkkkkkkkk..', 'rrrrrrrrrrrrrrrr', 'rrrrrrrrrrrrrrrr', '................'] },
-    madcatter: { pal: { p:'#6d3fb5', k:'#1b1a22', y:'#ffd23f', w:'#31353d' }, rows: [
-      '..p..........p..', '..pp........pp..', '...pppppppppp...', '..pppppppppppp..',
-      '.ppyyppppppyypp.', '.pppppppppppppp.', 'wwppppppppppppww', 'wwppppppppppppww',
-      '..pppppppppppp..', '...kkkkkkkkkk...', '....yyyyyyyy....', '................'] },
-    manta:      { pal: { b:'#1d5fd0', y:'#f2c018', k:'#14161b', w:'#31353d' }, rows: [
-      '................', '................', '....bbbbbbbb....', '..bbbbbbbbbbbb..',
-      '.bbbbbbbbbbbbbb.', 'wwbbbbbbbbbbbbww', 'wwbbbbbbbbbbbbww', '.bbbbbbbbbbbbbb.',
-      '..yyyyyyyyyyyy..', '..yyyyyyyyyyyy..', '...kkkkkkkkkk...', '................'] },
-    skorpios:   { pal: { k:'#23262c', s:'#c9ced6', b:'#2f9bd6', o:'#e07b28' }, rows: [
-      '..........ss....', '.........ss.....', '...kkkkkkss.....', '..kkkkkkkkss....',
-      '.kkkkkkkkkkkk...', 'bkkkkkkkkkkkkb..', 'bbkkkkkkkkkkbb..', '.kkkkkkkkkkkk...',
-      '..kkkkkkkkkk....', '..oooooooooo....', '................', '................'] },
-    copperhead: { pal: { c:'#b5651d', k:'#1a1c21', s:'#c9ced6', w:'#31353d' }, rows: [
-      '................', '................', '................', '.....cccccc.....',
-      '...cccccccccc...', '..cccccccccccc..', 'wwccccccccccccww', 'wwccccccccccccww',
-      '.kkkkkkkkkkkkkk.', 'ssssssssssssssss', '................', '................'] },
-    jackpot:    { pal: { r:'#d0202a', y:'#ffd23f', k:'#17191e', w:'#31353d' }, rows: [
-      '................', '................', '....rrrrrrrr....', '..rrrrrrrrrrrr..',
-      '.rryyrrrrrryyrr.', 'wwrrrrrrrrrrrrww', 'wwrrrrrrrrrrrrww', '.rrrrrrrrrrrrrr.',
-      '..rrrrrrrrrrrr..', '...kkkkkkkkkk...', '..yyyyyyyyyyyy..', '................'] },
-  };
-  const artFor = name => {
-    const k = (name || '').toLowerCase().replace(/[^a-z]/g, '');
-    return ART[k] || null;
+  /* ---- bot sprites ---------------------------------------------------------
+     GENERATED, in frontend/sprites.js, by backend/make_sprites.py from the
+     official Pro League studio photos. Two grids per bot: 48x36 for the VS card
+     and 16x12 for the HUD name row, because .vsart renders at up to 148px (~3px
+     a cell, reads as pixel art) and .sigil at 14-26px, where a 48-wide grid is
+     half a pixel a cell and turns to mush.
+
+     The hand-drawn sprites that used to live here were drawn from memory and
+     several were simply wrong: jackpot was red and yellow when the machine is a
+     green chassis with a red vertical disc, and madcatter was purple when it is
+     a red-and-blue cat face. Anything in ART below OVERRIDES the generated
+     sprite, so this is where a hand-tuned fix goes — editing sprites.js works
+     until the next regeneration silently reverts it.
+
+     A bot in neither falls back to its weapon sigil, which is what era B gets
+     for a machine outside the Pro League roster. */
+  const ART = {};
+
+  /* `size` is 'vs' (48x36) or 'hud' (16x12). Hand-tuned ART wins and has one
+     grid used at both sizes — a hand fix is a deliberate act and should not be
+     silently half-applied. The key normalisation matches bot_key()/botKey()
+     exactly; it is inlined rather than calling botKey() because setName() runs
+     during boot, well before that const is initialised. */
+  const artFor = (name, size) => {
+    const k = (name || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+    if (ART[k]) return ART[k];
+    const gen = window.SPRITES && window.SPRITES[k];
+    return gen ? { pal: gen.pal, rows: gen[size] || gen.hud } : null;
   };
   const spriteSVG = (art, cls) => {
     let px = '';
@@ -1272,7 +1266,10 @@ async function boot() {
       const col = art.pal[ch];
       if (col) px += `<rect x="${x}" y="${y}" width="1" height="1" fill="${col}"/>`;
     }));
-    return `<svg class="${cls}" viewBox="0 0 16 12" aria-hidden="true">${px}</svg>`;
+    // viewBox from the rows themselves: the two sizes share this function, and a
+    // hard-coded 16x12 silently crops a 48x36 sprite to its top-left corner.
+    const w = art.rows[0].length, h = art.rows.length;
+    return `<svg class="${cls}" viewBox="0 0 ${w} ${h}" aria-hidden="true">${px}</svg>`;
   };
 
   const SIGILS = {           // 16x16 pixel silhouettes, currentColor
@@ -1296,7 +1293,7 @@ async function boot() {
   const setName = (id, name, side) => {
     const safe = name.replace(/[<&]/g, '');
     const el = $(id);
-    const art = artFor(name);
+    const art = artFor(name, 'hud');
     el.innerHTML = (art ? spriteSVG(art, 'sigil') : sigil(name))
                  + `<span>${safe}</span>`;
     if (art || DEMO) return;
@@ -1309,10 +1306,10 @@ async function boot() {
   };
 
   /* The VS card is the first thing anyone sees, and it has room the bottom row
-     does not — so the same sprite runs large there. */
+     does not — so it gets the 48x36 cut where the name row gets the 16x12. */
   const setVs = (id, name, side) => {
     const el = $(id);
-    const art = artFor(name);
+    const art = artFor(name, 'vs');
     const big = art ? spriteSVG(art, 'vsart')
                     : `<img class="vsart shot" src="../bots/${CLIP}-${side}.png"
                             alt="" onerror="this.remove()">`;
