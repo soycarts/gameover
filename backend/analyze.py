@@ -11,6 +11,12 @@
 frames, no model call, no money, about a second. That is how a better
 comments/<clip>.json reaches a committed timeline without re-judging the video.
 
+--renorm re-shares the SURVIVOR's bar over an existing timeline in ~1 call. Every
+blow's rung is stored as hit.sev, so the weights normalise() shared out are exactly
+recoverable and only the condition reading has to be re-asked. The winner's total is
+half a judgement call by construction, so it is the number most likely to want a
+second opinion, and this is how you get one without paying for 76 calls again.
+
 --bots pins the card instead of trusting the model's reading of the broadcast
 graphics, same flag ingest.py takes. Worth using on a re-judge: name detection
 depends on whether a lower-third happens to be legible in the sampled frames, so
@@ -119,7 +125,13 @@ KO_BLOW_TOTAL = 85           # hp the eliminated bot loses to BLOWS ...
 # ... and the referee count bleeds the remaining 15 to 0, one step a second. The
 # split is why a knockout still reads as a count and not as a finishing blow.
 CONDITION = {"pristine": 5, "scuffed": 22, "damaged": 45, "wrecked": 70}
-CONDITION_FRAMES = 6         # closing frames condition_pass() reads — one call
+CONDITION_FRAMES = 8         # frames condition_pass() reads — one call
+# ... sampled back over this many seconds from the FINISH, not from the end of
+# the file. The clips deliberately run past the KO to the broadcast interstitial
+# card, so the literal last frames contain no robots at all: reading stamped[-6:]
+# on jackpot-copperhead got "No competitors visible" and cost the winner's bar its
+# visual half. Wide enough to survive a crowd shot or two inside the window.
+CONDITION_WINDOW = 20.0
 WINNER_FLOOR, WINNER_CEIL = 8, KO_BLOW_TOTAL   # the survivor never bottoms out
 FINISH_WINDOW = 0.7          # a finish flag in the first 70% of a clip is a misread
 MERGE_WINDOW = 1.0           # one blow's follow-through, in seconds
@@ -806,7 +818,7 @@ def stop_pass(dispatch, prompt: str, stamped: list, obs: list[dict], loser: str,
 
 
 def condition_pass(dispatch, prompt: str, stamped: list, names: dict, state: dict,
-                   spf: float) -> dict[str, str]:
+                   spf: float, end_t: float | None = None) -> dict[str, str]:
     """Ask how beaten up each bot LOOKS at the end. Returns {side: rung}.
 
     Half of the surviving bot's damage total (see winner_target()). The other
@@ -826,7 +838,14 @@ def condition_pass(dispatch, prompt: str, stamped: list, names: dict, state: dic
     Deaf (`talk=[]`) for relook()'s reason — commentators exaggerate condition
     more than anything else in a fight, and this is a visual question.
     """
-    frames = stamped[-CONDITION_FRAMES:]
+    # Sampled back from the FINISH across CONDITION_WINDOW, evenly, rather than
+    # taking the tail of the file — see the constant. Spread rather than adjacent
+    # so one crowd shot or booth cutaway cannot blind the whole pass.
+    end_t = obs_end(stamped) if end_t is None else end_t
+    lo = max(stamped[0][0], end_t - CONDITION_WINDOW)
+    pool = [f for f in stamped if lo <= f[0] <= end_t] or stamped[-CONDITION_FRAMES:]
+    step = max(1, len(pool) // CONDITION_FRAMES)
+    frames = pool[::step][-CONDITION_FRAMES:]
     if not frames:
         return {}
     left, right = names.get("left") or "the left bot", names.get("right") or "the right bot"
@@ -851,6 +870,118 @@ def condition_pass(dispatch, prompt: str, stamped: list, names: dict, state: dic
     if out.get("why"):
         print(f"  \"{str(out['why'])[:60]}\"")
     return cond
+
+
+def obs_end(stamped: list) -> float:
+    return stamped[-1][0] if stamped else 0.0
+
+
+def make_backend(backend: str):
+    """(prompt, dispatch) for a backend. Pick it ONCE — repass() runs the same
+    batches a second time and renorm() runs outside analyze() entirely, and two
+    copies of this ternary is how one of them drifts."""
+    prompt = (ROOT / "backend" / "prompt.txt").read_text()
+    api = {"cli": lambda: None, "openai": openai_client, "api": client}[backend]()
+    print(f"backend: {backend} " + {"cli": "(claude -p, uses your subscription)",
+                                    "openai": f"({OPENAI_MODEL}, OpenAI API key)",
+                                    "api": f"({MODEL}, Anthropic API key)"}[backend])
+
+    def dispatch(sys_prompt, batch, ctx, recent, names, state, talk, spf) -> dict:
+        if backend == "cli":
+            return ask_cli(sys_prompt, batch, ctx, recent, names, state, talk, spf)
+        if backend == "openai":
+            return ask_openai(api, sys_prompt, batch, ctx, recent, names, state,
+                              talk, spf)
+        return ask(api, sys_prompt, batch, ctx, recent, names, state, talk, spf)
+
+    return prompt, dispatch
+
+
+def seed_state(looks: dict | None) -> dict:
+    """The appearance anchor --looks seeds. Shared by analyze() and renorm()."""
+    state = {"left_look": "", "right_look": "", "pinned": bool(looks),
+             "others": {}}
+    if looks:
+        state.update({f"{k}_look": v for k, v in looks.items() if k in SIDES})
+    return state
+
+
+def renorm(clip: str, backend: str, bots: dict | None, looks: dict | None,
+           condition: bool = True) -> Path:
+    """Re-share the SURVIVOR's bar over an existing timeline. ~1 model call.
+
+    The winner's total is the one number in the pipeline most likely to want a
+    second opinion — it is half a judgement call by construction — and re-judging
+    a 149s clip to change it is 76 calls and 20 minutes. It does not have to be:
+    `hit.sev` stores every blow's rung, so SEVERITY[sev] recovers the exact weight
+    normalise() shared out, and re-running it against a new target reproduces what
+    the original run would have written. Deterministic; the only model call is the
+    condition reading, and --no-condition makes even that free.
+
+    Touches the SURVIVOR only. The eliminated bot's blows are pinned to
+    KO_BLOW_TOTAL by the fight itself and its count-out is already scheduled, so
+    re-deriving that half would be re-deciding something nothing new has been
+    learned about.
+
+    This exists because it was needed: the first normalised run of
+    jackpot-copperhead read its condition off the last six frames, which are the
+    broadcast interstitial with no robots in them, so the blind half carried the
+    whole thing and put the WINNER on 15hp.
+    """
+    path = ROOT / "timelines" / f"{clip}.json"
+    tl = json.loads(path.read_text())
+    ev = tl["events"]
+    loser = next((e["ko"] for e in ev if e.get("ko")), None)
+    if not loser:
+        sys.exit(f"{clip}: no ko event — nothing pins the loser, so nothing to re-share")
+    win = other_side(loser)
+
+    # Rebuild the weights normalise() saw. A blow is an hp drop that is not the
+    # count-out; its rung is on the hit it produced. BOTH sides, not just the
+    # survivor's — winner_target() reads the loser's hard-blow count as the
+    # denominator of its ratio, and leaving it empty silently pins that ratio at
+    # its clamp, which is the one value that looks plausible while meaning nothing.
+    obs = [{"cost": {"left": 0, "right": 0}} for _ in ev]
+    blows = 0
+    for i, (a, b) in enumerate(zip(ev, ev[1:]), 1):
+        for s in SIDES:
+            if a[f"{s}_hp"] <= b[f"{s}_hp"] or b.get("drain") == s:
+                continue
+            sev = (b.get("hit") or {}).get("sev")
+            if sev not in SEVERITY:
+                sys.exit(f"{clip}: blow at t={b['t']} carries no `sev` — this "
+                         f"timeline predates the rung and cannot be re-shared "
+                         f"without re-judging")
+            obs[i]["cost"][s] = SEVERITY[sev]
+            blows += s == win
+    if not blows:
+        sys.exit(f"{clip}: the survivor took no blows — nothing to re-share")
+
+    names = bots or tl.get("bots") or {}
+    cond = {}
+    if condition:
+        paths = sorted((ROOT / "frames" / clip).glob("*.jpg"))
+        if not paths:
+            sys.exit(f"no frames in frames/{clip} — the condition reading needs "
+                     f"them; --no-condition falls back to the intensity half alone")
+        spf = extract_frames.seconds_per_frame(clip)
+        stamped = [(round(i * spf, 1), p) for i, p in enumerate(paths)]
+        prompt, dispatch = make_backend(backend)
+        cond = condition_pass(dispatch, prompt, stamped, names, seed_state(looks),
+                              spf, end_t=ev[-1]["t"])
+
+    target = winner_target(obs, win, loser, cond)
+    normalise(obs, win, target)
+
+    hp = 100
+    for i, e in enumerate(ev):
+        hp -= obs[i]["cost"][win]
+        e[f"{win}_hp"] = hp
+    validate(tl)                     # before the write, not after
+    path.write_text(json.dumps(tl, indent=2) + "\n")
+    print(f"re-shared {blows} blow(s) on {names.get(win) or win} to {target}hp "
+          f"— finishes on {hp} — {path}")
+    return path
 
 
 def other_side(s: str) -> str:
@@ -1524,21 +1655,7 @@ def analyze(clip: str, backend: str = "api", bots: dict | None = None,
     print(f"commentary: {len(talk_all)} segments" if talk_all else
           "commentary: none — judging on frames alone")
 
-    prompt = (ROOT / "backend" / "prompt.txt").read_text()
-    api = {"cli": lambda: None, "openai": openai_client, "api": client}[backend]()
-    print(f"backend: {backend} " + {"cli": "(claude -p, uses your subscription)",
-                                    "openai": f"({OPENAI_MODEL}, OpenAI API key)",
-                                    "api": f"({MODEL}, Anthropic API key)"}[backend])
-
-    def dispatch(sys_prompt, batch, ctx, recent, names, state, talk, spf) -> dict:
-        """Pick the backend once. repass() runs the same batches a second time,
-        and two copies of this ternary is how one of them drifts."""
-        if backend == "cli":
-            return ask_cli(sys_prompt, batch, ctx, recent, names, state, talk, spf)
-        if backend == "openai":
-            return ask_openai(api, sys_prompt, batch, ctx, recent, names, state,
-                              talk, spf)
-        return ask(api, sys_prompt, batch, ctx, recent, names, state, talk, spf)
+    prompt, dispatch = make_backend(backend)
 
     # Rounded once, at the source. The label, footer() and the by_t lookup all
     # round to one decimal, so quantising here makes that round-trip exact by
@@ -1557,9 +1674,7 @@ def analyze(clip: str, backend: str = "api", bots: dict | None = None,
     # every later batch and every repass, and nothing downstream can detect that it
     # was wrong. Seeding is the entire fix; the latch already refuses to overwrite a
     # non-empty value, so a human description can never be replaced by a guess.
-    state = {"left_look": "", "right_look": "", "pinned": bool(looks)}
-    if looks:
-        state.update({f"{k}_look": v for k, v in looks.items() if k in SIDES})
+    state = seed_state(looks)
     names = {"left": None, "right": None}
     if bots:                       # a caller who knows the card anchors identity
         names.update({k: v for k, v in bots.items() if k in ("left", "right")})
@@ -1976,6 +2091,10 @@ if __name__ == "__main__":
         sys.exit(__doc__)
     if "--rejoin" in argv:                  # comment pool only; no frames, no spend
         rejoin(positional[0], bots)
+        sys.exit(0)
+    if "--renorm" in argv:                  # survivor's bar only; ~1 call, no re-judge
+        renorm(Path(positional[0]).stem, backend, bots, looks,
+               condition="--no-condition" not in argv)
         sys.exit(0)
     analyze(positional[0], backend=backend, bots=bots, ko=ko,
             audio="--no-audio" not in argv, partial="--partial" in argv,
