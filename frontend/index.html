@@ -754,10 +754,17 @@ body.controls .bars { bottom: calc(var(--hud-pad) + var(--pbar-h)); }
   border: 2px solid var(--panel-edge); padding: 6px 8px; cursor: pointer;
   line-height: 1; text-align: center;
   transition: color 120ms, border-color 120ms; }
-/* the two labels that change width in place — sized to the longer word so the
-   whole row does not shuffle every time playback is toggled */
-#pbPlay { min-width: 5.4em; }
-#pbMute { min-width: 5.6em; }
+/* The two labels that change width in place — sized to the longer word so the
+   whole row does not shuffle every time playback is toggled.
+   `ch` and not `em`: box-sizing is border-box, so the reservation has to cover
+   the button's fixed 8px padding and 2px border as well as the glyphs, and those
+   do NOT scale with font-size. An em reservation therefore under-measures at every
+   size — at the clamp floor `5.4em` is 43.2px against a 60px PAUSE, so the button
+   grew 8px on every toggle and shoved the scrubber, clock and mute button along
+   with it. 5ch is exactly five glyph advances in whichever font actually rendered
+   (Press Start 2P is monospace, and so is the Courier New fallback), + 20px of
+   chrome. PLAY/PAUSE and SOUND/MUTED are both at most five characters. */
+#pbPlay, #pbMute { min-width: calc(5ch + 20px); }
 #pbar button:hover { color: var(--ink); border-color: var(--steel); }
 #pbTime { flex: 0 0 auto; font-family: var(--font-mono); font-size: var(--fs-eyebrow);
   letter-spacing: .1em; color: var(--ink-dim); white-space: nowrap; }
