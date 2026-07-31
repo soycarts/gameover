@@ -234,6 +234,8 @@ def main() -> None:
                     help="second pass re-grading each blow's severity")
     ap.add_argument("--stop-pass", action="store_true",
                     help="second pass asking when the LOSER stopped moving")
+    ap.add_argument("--verify", action="store_true",
+                    help="second pass re-checking WHO landed each scored blow")
     ap.add_argument("--recut", action="store_true",
                     help="re-cut an existing clip to a new --duration and stop "
                          "(no frames, no judging, no API spend)")
@@ -245,6 +247,15 @@ def main() -> None:
         if not (left.strip() and right.strip()):
             sys.exit('--bots needs two names, e.g. --bots "Jackpot,Copperhead"')
         bots = {"left": left.strip(), "right": right.strip()}
+
+    # parsed up here, not next to the analyze() call: transcribe() needs it too, to
+    # know which machine carries which weapon when it drops garbled cues
+    looks = None
+    if args.looks:
+        left, _, right = args.looks.partition("|")
+        if not (left.strip() and right.strip()):
+            sys.exit('--looks needs two descriptions, e.g. --looks "blue wedge|red bar"')
+        looks = {"left": left.strip(), "right": right.strip()}
 
     title = probe_title(args.url)
     name = args.name or slug(title)
@@ -276,7 +287,7 @@ def main() -> None:
     source_json.write_text(json.dumps(record, indent=2) + "\n")
     if not args.no_audio:
         try:
-            transcribe.transcribe(f"{name}.mp4", bots=bots)
+            transcribe.transcribe(f"{name}.mp4", bots=bots, looks=looks)
         except Exception as e:            # commentary is a bonus, never a blocker
             print(f"  ! transcription failed, judging on frames alone: "
                   f"{str(e)[:200]}", file=sys.stderr)
@@ -288,16 +299,10 @@ def main() -> None:
     (ROOT / "comments" / f"{name}.json").write_text(json.dumps(comments, indent=2) + "\n")
     print(f"{len(comments)} comments for {query!r}")
 
-    looks = None
-    if args.looks:
-        left, _, right = args.looks.partition("|")
-        if not (left.strip() and right.strip()):
-            sys.exit('--looks needs two descriptions, e.g. --looks "blue wedge|red bar"')
-        looks = {"left": left.strip(), "right": right.strip()}
-
     analyze.analyze(f"{name}.mp4", backend=args.backend, bots=bots,
                     ko=args.ko, audio=not args.no_audio, looks=looks,
-                    regrade=args.regrade, stop=args.stop_pass)
+                    regrade=args.regrade, stop=args.stop_pass,
+                    verify_pass=args.verify)
 
     print("\n  serve from the repo root:  python3 backend/serve.py")
     print(f"  then open:  http://localhost:{PORT}/frontend/index.html?clip={name}\n")

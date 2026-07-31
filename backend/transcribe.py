@@ -246,9 +246,75 @@ def fix_names(segs: list[dict], names: list[str]) -> int:
     return fixed
 
 
+# --------------------------------------------------------------------- garbles
+# Weapon nouns worth owning. Kept small on purpose: a word only earns a place
+# here if a bot can plausibly be described as CARRYING it.
+WEAPON_WORDS = {"drum", "spinner", "blade", "bar", "hammer", "flipper", "saw",
+                "saws", "fork", "forks", "disc", "axe", "crusher", "wedge",
+                "lifter", "clamp", "beater"}
+# "<bot> ... got/was/gets hit" and friends. Deliberately narrow: it has to be
+# the PASSIVE form, because the active one ("Manta hit that") is correct English
+# and correct attribution.
+HURT_RE = (r"\b{name}\b[^.?!]{{0,24}}?\b(?:got|gets|getting|was|is|been|being)"
+           r"\s+(?:\w+\s+){{0,2}}?"
+           r"(?:hit|hurt|caught|smashed|nailed|clobbered|rocked|walloped)\b")
+
+
+def weapon_owners(looks: dict | None) -> dict:
+    """weapon word -> the side whose machine carries it, from the pinned --looks.
+
+    Words in BOTH descriptions are discounted to nothing, exactly as
+    match_look() does: both machines here are a "wedge", so keeping it would
+    make every wedge line ambiguous and the rule would never fire safely.
+    """
+    if not looks:
+        return {}
+    bags = {s: set(re.findall(r"[a-z]+", (looks.get(s) or "").lower())) & WEAPON_WORDS
+            for s in ("left", "right")}
+    shared = bags["left"] & bags["right"]
+    return {w: s for s in ("left", "right") for w in bags[s] - shared}
+
+
+def drop_own_weapon_garbles(segs: list[dict], bots: dict | None,
+                            looks: dict | None) -> int:
+    """Drop cues claiming a bot was damaged by a weapon that bot carries.
+
+    These are auto-captions and they mishear constantly. The one that has now
+    cost two runs is "Manta got hit by that huge drum spinner" — the drum is
+    MANTA'S, so the real line is "got him with". Read literally it says the
+    eventual winner took the damage, and the judge believed it: 20 hp across
+    three frames, twice, with captions inverting the attribution on every one.
+
+    A weapon belongs to the bot carrying it, so "X was hit by X's weapon" is a
+    contradiction in terms and the transcription is wrong. Dropping is honest
+    where rewriting is not: we know the line is garbled, we do not know what was
+    actually said, and the frames still show the blow. The weapon half of the
+    sentence usually lands in the NEXT cue, so the test spans the pair.
+    """
+    owner = weapon_owners(looks)
+    names = {(bots or {}).get(s): s for s in ("left", "right") if (bots or {}).get(s)}
+    if not (owner and names):
+        return 0
+    keep, dropped = [], 0
+    for i, seg in enumerate(segs):
+        text = seg["text"].lower()
+        nxt = segs[i + 1]["text"].lower() if i + 1 < len(segs) else ""
+        hurt = next((side for nm, side in names.items()
+                     if re.search(HURT_RE.format(name=re.escape(nm.lower())), text)), None)
+        if hurt and any(owner.get(w) == hurt
+                        for w in owner if re.search(rf"\b{w}\b", text + " " + nxt)):
+            print(f"  ~ dropped garbled cue at {seg['start']:.1f}s: {seg['text']!r} — "
+                  f"says {bots[hurt]} was hit by its own weapon", file=sys.stderr)
+            dropped += 1
+            continue
+        keep.append(seg)
+    segs[:] = keep
+    return dropped
+
+
 # ------------------------------------------------------------------------- main
 def transcribe(clip: str, bots: dict | None = None, source: str = "subs",
-               force: bool = False) -> list[dict]:
+               force: bool = False, looks: dict | None = None) -> list[dict]:
     name = Path(clip).stem
     out = transcript_path(name)
     if out.exists() and not force:
@@ -286,6 +352,10 @@ def transcribe(clip: str, bots: dict | None = None, source: str = "subs",
     n = fix_names(segs, names)
     if n:
         print(f"  snapped {n} mangled name(s) to {names}")
+    # after fix_names, so the bot names in a cue are already canonical
+    g = drop_own_weapon_garbles(segs, bots, looks)
+    if g:
+        print(f"  dropped {g} garbled cue(s) — a bot cannot be hit by its own weapon")
 
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(json.dumps(
@@ -335,7 +405,17 @@ if __name__ == "__main__":
         if source not in ("subs", "openai"):
             sys.exit("--source must be 'subs' or 'openai'")
         del argv[i:i + 2]
+    # same spelling as analyze.py's --looks; it is what owns each machine's weapon,
+    # and without it drop_own_weapon_garbles() cannot fire
+    looks = None
+    if "--looks" in argv:
+        i = argv.index("--looks")
+        left, _, right = (argv[i + 1] if i + 1 < len(argv) else "").partition("|")
+        if not left.strip() or not right.strip():
+            sys.exit('--looks takes "left desc|right desc"')
+        looks = {"left": left.strip(), "right": right.strip()}
+        del argv[i:i + 2]
     args = [a for a in argv if not a.startswith("-")]
     if not args:
         sys.exit(__doc__)
-    transcribe(args[0], bots=bots, source=source, force="--force" in argv)
+    transcribe(args[0], bots=bots, source=source, force="--force" in argv, looks=looks)

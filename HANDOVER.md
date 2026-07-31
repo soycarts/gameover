@@ -92,6 +92,26 @@ can see. Damage, victim and tier stay derived, never stored.
   it can be rewound) and the card carries BACK TO FIGHT / REPLAY / HOME.
 - **Hit ticks read as bot identity** — blue/orange on both strips, tier as height.
 - **Space starts the fight**, not any key.
+- **Three false hits on Manta are gone.** Two were reported by eye (t=7.5 "Skorpios
+  forks lift Manta" and t=14.5 "Skorpios nudges stuck Manta" — the frames show
+  Skorpios settling after being lifted, and both machines apart and still); a third
+  at t=5.5 had the same cause and had not been noticed. All three were the
+  `"Manta got hit by that / huge drum spinner"` auto-caption garble read literally,
+  charging the winner 20 hp across three frames — the exact signature this file and
+  CLAUDE.md already record. Three independent guards now stand between that garble
+  and the timeline: `drop_own_weapon_garbles()`, `drop_downed_hits()` and `--verify`.
+  See the attribution entry in [CLAUDE.md](CLAUDE.md) for why nothing older could
+  catch it.
+  **The honest result is a shutout, and it shows.** `manta-skorpios` now reads Manta
+  3 hits / 66 dealt / **0 taken**, Skorpios 0 — which is what a 24-second knockout of
+  a bot that died around t=8 actually looks like, and it matches what the owner sees
+  in the footage. The cost is that the winner's health bar never moves, so the run
+  ends on the `! SHUTOUT: Manta takes no damage` warning. That warning is doing its
+  job; do not "fix" it by loosening the guards, and do not re-run `repass()` on it —
+  that is exactly the mistake described below.
+- **`manta-skorpios` t=12–21.5 is NOT a replay**, whatever this repo said before. The
+  match clock is genuinely absent t=11.0–22.0, but that is a camera change (driver
+  booth, then a low ringside angle), not slow motion. Corrected in CLAUDE.md.
 
 ## Outstanding — highest value first
 
@@ -100,10 +120,14 @@ can see. Damage, victim and tier stay derived, never stored.
 `manta-skorpios` is current (2 fps, commentary on the corrected `t0` timing,
 `--regrade`, `--stop-pass`, and the count-start fix — 3 hits for Manta, count from
 t=16.0).
-`madcatter-tombstone` predates `--regrade`, `--stop-pass`, the count-start fix and the
-caption-timing fix; its captions were **0.81s** early. Its `source.json` now carries the
-right `t0`, so a re-transcribe (`--force`, free) plus a ~14 min re-judge brings it
-level. Worth doing before any demo.
+`madcatter-tombstone` predates `--regrade`, `--stop-pass`, `--verify`, the count-start
+fix and the caption-timing fix; its captions were **0.81s** early. Its `source.json` now
+carries the right `t0`, so a re-transcribe (`--force`, **with `--looks`** — the garble
+guard is inert without it) plus a ~14 min re-judge brings it level. Worth doing before
+any demo. Scanned for the same garble class and it is clean: neither
+`madcatter-tombstone` (39 cues) nor `jackpot-copperhead` (75) contains a single passive
+`"<bot> got hit"` cue, so the guard is targeted rather than a broad filter and should
+change nothing on either clip.
 `jackpot-copperhead` has **not** been re-judged at all — only limited API spend was
 authorised. It is still pre-merge output: the winner's bar barely moves (Copperhead
 pinned at 100 for 140s), there are no `hit` fields so no weapon labels, and deltas

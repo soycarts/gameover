@@ -227,7 +227,16 @@ def commentary_note(talk: list[dict]) -> str:
     return ("Live commentary heard over these frames (it lags the action by about "
             "a second, and is not always about the fight):\n" + lines + "\n"
             "Use it for WHO and WHAT. It is not proof of damage: if the frames do "
-            'not show it, the rating is still "none".\n')
+            'not show it, the rating is still "none".\n'
+            # Stated HERE, next to the cues, and not only once in the system
+            # prompt: these three sentences are the difference between a garbled
+            # verb costing 20 hp on the eventual winner and costing nothing.
+            "These are auto-captions and they mishear. A bot is never damaged by a "
+            "weapon it carries — read such a line as that bot LANDING the blow. "
+            "They also drop and swap subjects, so a line about something being hit, "
+            "stuck or stopped is evidence that SOMETHING happened, never evidence "
+            "about WHICH machine it happened to. Where two lines here disagree "
+            "about who is hitting whom, believe the frames and nothing else.\n")
 
 
 def immobile_note() -> str:
@@ -684,6 +693,97 @@ def relook(dispatch, prompt: str, stamped: list, obs: list[dict], spf: float,
     return moved
 
 
+def verify(dispatch, prompt: str, stamped: list, obs: list[dict], spf: float,
+           names: dict, state: dict) -> int:
+    """Re-ask WHO landed each scored blow, or whether one landed at all.
+
+    relook() is the right shape and the wrong question: its brief forbids
+    re-attribution and its floor stops it ever answering "nothing happened here".
+    So the one failure neither it nor any deterministic guard can reach is a blow
+    the model was TALKED INTO — the damage word and `hit.by` come from a single
+    act of identification, so a wrong one is self-consistent and `normalize_hit()`
+    sees no contradiction to flip.
+
+    On manta-skorpios the auto-captions said "Manta got hit by that / huge drum
+    spinner" — the drum is Manta's, so the line is a garble of "got him with" —
+    and the judge charged the eventual WINNER 20 hp across three frames, with a
+    caption inverting the attribution on every one. The frames show no contact at
+    all on two of them.
+
+    Deaf on purpose (talk=[]), for a sharper reason than relook()'s: the garbled
+    commentary is the very thing being checked against, so letting it into this
+    call would ask the model to mark its own homework with the same crib sheet.
+
+    Bounded to three outcomes, none of which can invent damage:
+      - "none"  -> no contact in this frame: drop the blow and its caption;
+      - a side  -> keep it, flipping `by` and the damaged side if it disagrees;
+      - unparseable -> leave the frame exactly as it was.
+    It never touches a frame that scored zero, and never changes severity — that
+    is --regrade's job, and keeping the two passes to one question each is what
+    makes either of them auditable.
+    """
+    changed = 0
+    hits = [i for i, o in enumerate(obs) if o["cost"]["left"] or o["cost"]["right"]]
+    for n, i in enumerate(hits, 1):
+        # A WIDER window than relook()'s, and that is the whole point. The question
+        # "is this a new blow or the tail of the last one" cannot be answered from
+        # the moment alone: on manta-skorpios t=7.5 is Skorpios dropping back down
+        # from the lift it took at t=6.5, and a three-frame window starting at t=7.0
+        # does not contain the lift, so the pass was being told "settling after an
+        # earlier hit is not contact" while being shown no earlier hit. Lead by
+        # MERGE_WINDOW's worth of frames so the originating blow is always in view.
+        lead = max(2, round(MERGE_WINDOW / spf))
+        batch = stamped[max(0, i - lead):i + 2]
+        ctx = stamped[max(0, i - lead - 1)] if i > lead else None
+        t = obs[i]["t"]
+        focus = (prompt + "\n\nSECOND PASS — ATTRIBUTION ONLY.\n"
+                 f"A blow was rated at t={t:.1f}s. The frames before it are there so "
+                 "you can see what led into it. Two questions about that ONE moment, "
+                 "and nothing else:\n"
+                 f"1. Do the frames show the machines making NEW contact at t={t:.1f}s, "
+                 "or a machine visibly taking fresh damage there? A bot dropping back "
+                 "down, bouncing, sliding or coming to rest after a hit in an EARLIER "
+                 "frame is the aftermath of that hit, not a new one — and neither is "
+                 "driving past, turning to line up, or sitting still.\n"
+                 f"2. If it is new contact, WHICH machine landed it at t={t:.1f}s?\n"
+                 'Answer as {"contact": true|false, "by": "left"|"right"|null}. Say '
+                 "contact false whenever you are unsure: a blow that did not happen "
+                 "costs more than one that is missed, because it is charged to the "
+                 "wrong robot. Do not grade how hard it was.\n")
+        print(f"verifying t={obs[i]['t']:.1f}s ({n}/{len(hits)})")
+        out = dispatch(focus, batch, ctx, [], names, state, [], spf)
+        f = {round(float(x.get("t", -1)), 1): x
+             for x in out.get("frames", [])}.get(obs[i]["t"])
+        if not isinstance(f, dict):
+            f = out if isinstance(out, dict) and "contact" in out else None
+        if not isinstance(f, dict) or "contact" not in f:
+            continue                       # unparseable: leave the frame alone
+        if f.get("contact") is False:
+            print(f"  {obs[i]['t']:.1f}s no contact — dropping the blow")
+            obs[i]["cost"] = {s: 0 for s in SIDES}
+            obs[i]["raw_hit"] = None
+            obs[i]["caption"] = ""
+            changed += 1
+            continue
+        by = str(f.get("by", "")).strip().lower()
+        if by not in SIDES:
+            continue
+        victim = "left" if by == "right" else "right"
+        if obs[i]["cost"][victim] or not obs[i]["cost"][by]:
+            continue                       # already agrees, or an exchange: leave it
+        # the damage sits on the side this call says LANDED the blow — swap it
+        print(f"  {obs[i]['t']:.1f}s re-attributed to {names.get(by) or by}")
+        obs[i]["cost"] = {victim: obs[i]["cost"][by], by: 0}
+        if isinstance(obs[i].get("raw_hit"), dict):
+            obs[i]["raw_hit"]["by"] = by
+        # the caption named the old attacker ("Skorpios forks lift Manta") and is
+        # now backwards. Blank beats wrong: the hp still moves, so the hit and its
+        # marker survive, and the HUD simply types nothing over them.
+        obs[i]["caption"] = ""
+        changed += 1
+    return changed
+
+
 def repass(dispatch, prompt: str, stamped: list, batch_n: int, spf: float,
            talk_all: list[dict], names: dict, state: dict, side: str) -> dict:
     """Judge the frames again, watching ONE bot — the one the first pass never
@@ -752,6 +852,51 @@ def drop_replays(obs: list[dict]) -> int:
             o["raw_hit"] = None
             n += 1
     return n
+
+
+def drop_downed_hits(obs: list[dict], names: dict | None = None) -> int:
+    """A machine that is not moving under its own power did not just land a blow.
+
+    The model answers the damage word and `hit.by` in one breath, from one act of
+    identification, so a mis-identification is SELF-CONSISTENT: `normalize_hit()`
+    only flips a hit whose `by` contradicts the hp delta, and here it does not.
+    This is the one cross-check the pipeline can make on its own, because it
+    compares two INDEPENDENT answers about the same frame — "who landed this" and
+    "which machine has stopped" — and the second has already been matched against
+    the human-verified --looks by resolve_immobile().
+
+    On manta-skorpios the model flagged Skorpios immobile from t=14.0 and then
+    credited it with a clean blow at t=14.5. It also fed that phantom blow to
+    immobile_from(), which reads `raw_hit.by == side` as proof the bot was still
+    driving — so the false hit was corrupting the count-out walk as well. This
+    runs BEFORE that walk, to take the bad evidence out rather than argue with it.
+
+    Only `clean` hits: an incidental one is a fire, a wall or a fall, and a
+    stopped machine suffers those exactly as well as a moving one.
+    """
+    dropped = 0
+    for o in obs:
+        raw = o.get("raw_hit") or {}
+        by = str(raw.get("by", "")).strip().lower()
+        if by not in SIDES or raw.get("clean") is False:
+            continue
+        if o.get("immobile") != by:
+            continue
+        who = names.get(by) if names else by
+        print(f"  ~ dropped hit at t={o['t']:.1f}s: {who} is described immobile on "
+              f"that frame, so it did not land it", file=sys.stderr)
+        # the blow's damage landed on the OTHER side; anything the immobile bot
+        # itself took on this frame came from a different blow and stands
+        victim = "left" if by == "right" else "right"
+        o["cost"][victim] = 0
+        o["raw_hit"] = None
+        # the caption described the blow just deleted, so it goes with it — but
+        # only once nothing else on the frame scored, or it may be narrating the
+        # other half of an exchange
+        if not any(o["cost"][s] for s in SIDES):
+            o["caption"] = ""
+        dropped += 1
+    return dropped
 
 
 def immobile_from(obs: list[dict], side: str, confirm: int = 3) -> int | None:
@@ -1061,7 +1206,8 @@ def validate(timeline: dict) -> None:
 def analyze(clip: str, backend: str = "api", bots: dict | None = None,
             ko: str | None = None, audio: bool = True,
             partial: bool = False, looks: dict | None = None,
-            regrade: bool = False, stop: bool = False) -> Path:
+            regrade: bool = False, stop: bool = False,
+            verify_pass: bool = False) -> Path:
     name = Path(clip).stem
     frame_dir = ROOT / "frames" / name
     paths = sorted(frame_dir.glob("*.jpg"))
@@ -1228,6 +1374,23 @@ def analyze(clip: str, backend: str = "api", bots: dict | None = None,
         merge_blows(obs)          # the new ratings need collapsing too
         print(f"  second pass found {sum(o['cost'][side] for o in obs)} damage "
               f"for {names.get(side) or side}")
+
+    # WHO, and whether a blow happened at all. This runs AFTER the shutout rescue,
+    # and the order is load-bearing: repass() exists to rescue a bot that was never
+    # scored and it only ever adds (max() per frame), so a deletion pass in front of
+    # it gets undone wholesale. Run the other way round it did exactly that — verify
+    # correctly left Manta having taken 0 damage, the shutout check read that zero as
+    # a mis-read, and repass put 62 back, inverting the fight.
+    if verify_pass:
+        n = verify(dispatch, prompt, stamped, obs, spf, names, state)
+        print(f"  verify changed {n} blow(s)")
+        merge_blows(obs)
+
+    # A dropped blow here also takes a false "it was still driving" signal out of
+    # immobile_from()'s walk, which is why it runs before the walk and not after.
+    n = drop_downed_hits(obs, names)
+    if n:
+        print(f"  dropped {n} hit(s) credited to a machine that had stopped")
 
     fin_i, loser = finish_at(obs)
     if fin_i is not None:
@@ -1475,4 +1638,5 @@ if __name__ == "__main__":
         sys.exit(0)
     analyze(positional[0], backend=backend, bots=bots, ko=ko,
             audio="--no-audio" not in argv, partial="--partial" in argv,
-            looks=looks, regrade="--regrade" in argv, stop="--stop-pass" in argv)
+            looks=looks, regrade="--regrade" in argv, stop="--stop-pass" in argv,
+            verify_pass="--verify" in argv)

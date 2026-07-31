@@ -136,7 +136,9 @@ bash backend/make_test_clip.sh
 
 # era A, one clip
 python backend/extract_frames.py fight1.mp4                        # 2 fps, 768px
-python backend/transcribe.py fight1 --bots "Tombstone,Witch Doctor"  # commentary
+# commentary. Pass --looks too: it is what lets the garble guard know whose weapon
+# is whose, and without it a mis-transcribed "X got hit by X's own drum" gets through
+python backend/transcribe.py fight1 --bots "Tombstone,Witch Doctor" --looks "...|..."
 python backend/scrape_comments.py fight1 "tombstone witch doctor" --mock
 python backend/analyze.py fight1.mp4                               # -> timelines/
 python backend/analyze.py fight1.mp4 --backend cli                 # no API key needed
@@ -144,6 +146,7 @@ python backend/analyze.py fight1.mp4 --bots "Manta,Skorpios"       # pin the car
 python backend/analyze.py fight1.mp4 --looks "blue wedge|copper forks"  # pin the machines
 python backend/analyze.py fight1.mp4 --regrade      # re-grade each blow's severity
 python backend/analyze.py fight1.mp4 --stop-pass    # re-ask when the LOSER stopped
+python backend/analyze.py fight1.mp4 --verify       # re-ask WHO landed each blow
 
 # where did a blow land? probe first — writes nothing, and the frame with no
 # impact in it MUST come back null before hit.at is worth paying to judge
@@ -416,11 +419,73 @@ python3 backend/serve.py     # -> http://localhost:40911/frontend/index.html?cli
   settled loser; the bot still being counted out at the end of a fight is the one
   that lost it. It prints when the model disagreed. The only thing that breaks the
   walk is the loser *landing a blow* — it has to be driving to do that.
-- **Broadcasts cut to slow motion, and a replay is damage you already judged.** On
-  `manta-skorpios` the whole t=12–21.5s stretch is a replay: the burned-in match
-  clock vanishes and 10.5s of clip covers 7s of fight. `drop_replays()` zeroes damage
-  on frames the model flags `replay` (captions survive — a replay is fine to narrate,
-  it just must not move the bar). Without it the same blow scores twice.
+- **Broadcasts cut to slow motion, and a replay is damage you already judged.**
+  `drop_replays()` zeroes damage on frames the model flags `replay` (captions survive —
+  a replay is fine to narrate, it just must not move the bar). Without it the same blow
+  scores twice.
+  **A missing match clock does NOT mean a replay.** This file used to claim
+  `manta-skorpios` t=12–21.5 was one, on exactly that reasoning. It is not — measured,
+  the burned-in clock is absent t=11.0–22.0 (sample the clock box: blue-minus-red ≈ +44
+  with it, ≤ +22 without), and that whole stretch is **live**: the broadcast cuts to the
+  driver booth and then to a low ringside angle that does not carry the overlay. The
+  real t=15.5 launch is in there. Do not build a clock-based replay gate off this
+  signal — on this clip it would zero live action and delete a real blow.
+- **A wrong attribution is SELF-CONSISTENT, so almost nothing downstream can see it.**
+  The per-bot damage word and `hit.by` come from one act of identification, so when the
+  model puts a blow on the wrong robot it puts both on the wrong robot. `obs[i]["cost"]`
+  is read from the damage words and never from `hit.by`; `normalize_hit()` only flips a
+  hit whose `by` names the side that *lost* hp, and only coerces on `clean: false`;
+  `relook()` is forbidden to re-attribute and is floored so it can never say "nothing
+  happened"; `validate()` is a shape check. A `clean: true` hit with `by` on the
+  opposite side is the *canonical* shape, so every guard passes it. Three defences now
+  exist, and they are independent on purpose:
+  - **`drop_own_weapon_garbles()`** (`transcribe.py`) drops a cue saying a bot was
+    damaged by a weapon it carries, testing across adjacent cues because the weapon
+    usually lands in the next one. This is the `"Manta got hit by that" / "huge drum
+    spinner"` garble — really "got him with" — which has now cost two runs, charging the
+    eventual WINNER 20 hp across three frames both times, with the caption inverted on
+    every one. It needs `--looks` (that is where each machine's weapon is named) and
+    does nothing without it. It **drops** rather than rewrites: we know the line is
+    garbled, we do not know what was said, and the frames still carry the blow.
+  - **`drop_downed_hits()`** (`analyze.py`) deletes a clean hit whose `by` is a machine
+    described immobile on that same frame. This is the pipeline's one genuinely
+    independent cross-check — "who landed this" and "which machine has stopped" are
+    separate answers, and the second has already been matched to a side against the
+    human-verified `--looks`. It runs **before** `immobile_from()`, which reads
+    `raw_hit.by == side` as proof the bot was still driving, so a false hit was
+    corrupting the count-out walk as well.
+    **Its weak point is the side, not the rule.** It trusts `resolve_immobile()`, and
+    the same run still printed `model named the other bot immobile on 2/9 frames` —
+    the model does flag the WINNER immobile, which is why `immobile_from()` reads
+    flags against the settled loser rather than at face value. Two things keep this
+    safe rather than lucky: the description is matched against the human-verified
+    `--looks`, and `match_look()` returns `None` when it is a coin flip. If a real
+    blow ever disappears with this message on it, that is where to look.
+  - **`--verify`** re-asks WHO, deaf (`talk=[]`), on frames that already scored. It is
+    the only pass that can answer "no contact here" and delete a blow. Bounded: it
+    cannot touch a zero-scoring frame and cannot change severity. Deaf for a sharper
+    reason than `--regrade`: the garbled commentary is the thing being checked against.
+    A re-attributed frame loses its caption — it named the old attacker.
+    Its window leads by `MERGE_WINDOW`'s worth of frames, **wider than `relook()`'s on
+    purpose**: "is this a new blow or the tail of the last one" cannot be answered from
+    the moment alone. `manta-skorpios` t=7.5 is Skorpios dropping back down from the
+    lift it took at t=6.5, and a three-frame window starting at t=7.0 does not contain
+    the lift — so the pass was told "settling after an earlier hit is not contact"
+    while being shown no earlier hit, and kept the phantom. `merge_blows()` cannot
+    catch this one either: it deliberately does not merge across sides, and an
+    aftermath frame gets scored against the OTHER bot.
+- **A deletion pass must run AFTER the shutout rescue, never before.** The passes are
+  ordered `merge_blows` → `relook` (how hard) → `repass` (shutout rescue) → `verify`
+  (who, or whether) → `drop_downed_hits` → `finish_at`, and that order is load-bearing.
+  `repass()` exists to rescue a bot the first pass never scored and it **only ever adds**
+  (`max()` per frame). Put `verify()` in front of it and the two fight: on
+  `manta-skorpios`, verify correctly deleted every false blow and left Manta having
+  taken **0** damage — which is the true answer for a 24-second knockout — the shutout
+  check read that zero as a mis-read, and `repass()` put **62** back, tripping the
+  "identity may be inverted" warning and handing the winner more damage than the loser.
+  Same lesson as `relook()` running before the shutout check and for the opposite
+  reason: anything that changes the totals has to be placed relative to whatever reads
+  them next.
 - **The model never emits hp — it rates a damage word.** `prompt.txt` asks for
   `none`/`glance`/`solid`/`heavy`/`catastrophic` per bot per frame; `SEVERITY` in
   `analyze.py` turns that into 0/4/12/22/35 points. Asking for absolute hp instead is
