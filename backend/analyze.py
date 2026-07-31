@@ -110,6 +110,7 @@ MAX_DRAIN_STEPS = 20         # a count-out never adds more events than this
 MAX_COUNT_SECONDS = 15.0     # a referee count is 10s; the graphic follows shortly
 MIN_COUNT_SECONDS = 5.0      # ... and never shorter than this: see immobile_from()
 SHUTOUT_FLOOR = SEVERITY["solid"]   # under this, a bot is "untouched" — see repass()
+KO_MARGIN = 1.25             # damage must be this lopsided to overrule a KO flag
 LOOK_FLOOR = 0.34            # below this a description matches neither machine
 LOOK_MARGIN = 0.12           # ... and this close together, it is a coin flip
 # "both twins are out", "two machines down" — the only way a description can say
@@ -1515,6 +1516,15 @@ def analyze(clip: str, backend: str = "api", bots: dict | None = None,
         # clip someone has actually watched; otherwise the fight the model just
         # described is better evidence than its guess, so the more-damaged bot loses.
         # Ties and 0-0 keep the flag.
+        #
+        # But only when the damage is DECISIVELY lopsided (KO_MARGIN). This used to
+        # override on any margin at all, and it inverted a whole fight on 186 vs 178
+        # — 4.5%, which is noise on totals that both blow past the 55/70 budgets. It
+        # put the count on jackpot-copperhead's WINNER and produced a timeline whose
+        # own last caption reads "Jackpot taps out" above `ko: left`. The check exists
+        # to catch a genuinely inverted identity, where the winner appears to absorb
+        # everything — and that failure is lopsided by construction, so demanding a
+        # real margin keeps the check while stopping it deciding on a coin flip.
         took = {s: sum(o["cost"][s] for o in obs) for s in ("left", "right")}
         other = "left" if loser == "right" else "right"
         if ko and ko != loser:
@@ -1528,10 +1538,16 @@ def analyze(clip: str, backend: str = "api", bots: dict | None = None,
             print(f"  ! {names.get(ko) or ko} is pinned as the loser but took LESS "
                   f"damage ({took}) — identity may be inverted; check --looks",
                   file=sys.stderr)
-        elif not ko and took[loser] < took[other]:
-            print(f"  ! KO flagged on {loser}, but {other} took more damage "
+        elif not ko and took[other] >= took[loser] * KO_MARGIN:
+            print(f"  ! KO flagged on {loser}, but {other} took decisively more damage "
                   f"({took}) — going with {other}", file=sys.stderr)
             loser = other
+        elif not ko and took[loser] < took[other]:
+            # Closer than KO_MARGIN: the flag stands. Printed anyway, because this is
+            # the one place the two answers disagree and a silent "kept the flag" is
+            # as hard to audit as a silent override was.
+            print(f"  {other} took slightly more damage ({took}) but not decisively "
+                  f"— keeping the KO the model flagged, on {loser}")
         obs[-1]["cost"][loser] = 0     # the finishing blow is free — it is forced to
                                        # 0 below, so charging it would spend budget
                                        # that belongs to the fight
