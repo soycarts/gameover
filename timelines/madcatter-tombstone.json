@@ -13,296 +13,285 @@
     },
     {
       "t": 5.0,
-      "left_hp": 100,
-      "right_hp": 88,
-      "caption": "MaDCaTTer knocks Tombstone blade up",
+      "left_hp": 96,
+      "right_hp": 100,
+      "caption": "Tombstone clips MaDCaTTer wedge",
       "hit": {
-        "by": "left",
-        "weapon": "vertical spinner",
-        "clean": true
-      },
-      "fan_comment": "Gets even wilder when you learn Tombstone isn't using them for the MadCatter fight"
+        "by": "right",
+        "weapon": "horizontal bar",
+        "clean": true,
+        "at": [
+          0.63,
+          0.53
+        ]
+      }
     },
     {
       "t": 8.0,
-      "left_hp": 96,
-      "right_hp": 88,
-      "caption": "Tombstone sparks off MaDCaTTer",
+      "left_hp": 84,
+      "right_hp": 100,
+      "caption": "Tombstone sparks MaDCaTTer wedge",
       "hit": {
         "by": "right",
         "weapon": "horizontal bar",
-        "clean": true
-      }
-    },
-    {
-      "t": 8.5,
-      "left_hp": 96,
-      "right_hp": 76,
-      "caption": "MaDCaTTer tips Tombstone up",
-      "hit": {
-        "by": "left",
-        "weapon": "vertical spinner",
-        "clean": true
-      },
-      "fan_comment": "Madcatter versus Tombstone: sloped well-armored wedges with small verts are Tombstone's kryptonite. Madcatter to win by KO."
-    },
-    {
-      "t": 9.5,
-      "left_hp": 92,
-      "right_hp": 76,
-      "caption": "Tombstone sparks MaDCaTTer again",
-      "hit": {
-        "by": "right",
-        "weapon": "horizontal bar",
-        "clean": true
-      }
-    },
-    {
-      "t": 11.0,
-      "left_hp": 92,
-      "right_hp": 64,
-      "caption": "MaDCaTTer flips Tombstone with spinner",
-      "hit": {
-        "by": "left",
-        "weapon": "vertical spinner",
-        "clean": true
+        "clean": true,
+        "at": [
+          0.42,
+          0.79
+        ]
       },
       "fan_comment": "MadCatter will avenge their WC V loss to Tombstone with a sturdy wedge and great driving. Tombstone will go down fighting though."
     },
     {
+      "t": 9.5,
+      "left_hp": 80,
+      "right_hp": 100,
+      "caption": "Tombstone sparks MaDCaTTer wedge",
+      "hit": {
+        "by": "right",
+        "weapon": "horizontal bar",
+        "clean": true,
+        "at": [
+          0.64,
+          0.66
+        ]
+      }
+    },
+    {
+      "t": 11.0,
+      "left_hp": 80,
+      "right_hp": 96,
+      "caption": "MaDCaTTer lifts Tombstone with spinner",
+      "hit": {
+        "by": "left",
+        "weapon": "vertical spinner",
+        "clean": true,
+        "at": [
+          0.56,
+          0.72
+        ]
+      }
+    },
+    {
       "t": 13.5,
-      "left_hp": 92,
-      "right_hp": 52,
+      "left_hp": 80,
+      "right_hp": 74,
       "caption": "MaDCaTTer launches Tombstone",
       "hit": {
         "by": "left",
         "weapon": "vertical spinner",
-        "clean": true
+        "clean": true,
+        "at": [
+          0.48,
+          0.55
+        ]
       },
-      "fan_comment": "Seeing Tombstone with wheel guards is throwing me off so badly lol"
+      "fan_comment": "Gets even wilder when you learn Tombstone isn't using them for the MadCatter fight"
     },
     {
       "t": 15.5,
-      "left_hp": 80,
-      "right_hp": 52,
-      "caption": "Tombstone pops MaDCaTTer upward",
+      "left_hp": 58,
+      "right_hp": 74,
+      "caption": "Tombstone launches MaDCaTTer",
       "hit": {
         "by": "right",
         "weapon": "horizontal bar",
-        "clean": true
+        "clean": true,
+        "at": [
+          0.5,
+          0.56
+        ]
       },
-      "fan_comment": "Probably going for madcatter, I dig that teacher and how he has a class doing this, but it's a tough one."
+      "fan_comment": "Madcatter versus Tombstone: sloped well-armored wedges with small verts are Tombstone's kryptonite. Madcatter to win by KO."
     },
     {
       "t": 17.0,
-      "left_hp": 80,
-      "right_hp": 52,
-      "caption": "MaDCaTTer sparks Tombstone"
+      "left_hp": 58,
+      "right_hp": 74,
+      "caption": "Tombstone clips MaDCaTTer"
     },
     {
       "t": 18.0,
-      "left_hp": 80,
-      "right_hp": 52,
+      "left_hp": 58,
+      "right_hp": 74,
+      "caption": "Tombstone sparks off MaDCaTTer"
+    },
+    {
+      "t": 18.5,
+      "left_hp": 58,
+      "right_hp": 74,
       "caption": "MaDCaTTer launches Tombstone"
     },
     {
       "t": 21.0,
-      "left_hp": 80,
+      "left_hp": 58,
       "right_hp": 52,
-      "caption": "MaDCaTTer flips Tombstone upright"
-    },
-    {
-      "t": 22.5,
-      "left_hp": 76,
-      "right_hp": 52,
-      "caption": "Tombstone sparks MaDCaTTer side",
-      "hit": {
-        "by": "right",
-        "weapon": "horizontal bar",
-        "clean": true
-      }
-    },
-    {
-      "t": 26.0,
-      "left_hp": 72,
-      "right_hp": 52,
-      "caption": "MaDCaTTer flips Tombstone away",
-      "hit": {
-        "by": "right",
-        "weapon": "vertical spinner",
-        "clean": true
-      }
-    },
-    {
-      "t": 29.0,
-      "left_hp": 72,
-      "right_hp": 52,
-      "caption": "MaDCaTTer launches Tombstone"
-    },
-    {
-      "t": 31.0,
-      "left_hp": 72,
-      "right_hp": 30,
-      "caption": "Tombstone catches fire",
+      "caption": "MaDCaTTer tips Tombstone vertical",
       "hit": {
         "by": "left",
         "weapon": "vertical spinner",
-        "clean": true
+        "clean": true,
+        "at": [
+          0.39,
+          0.47
+        ]
+      },
+      "fan_comment": "Seeing Tombstone with wheel guards is throwing me off so badly lol"
+    },
+    {
+      "t": 22.5,
+      "left_hp": 46,
+      "right_hp": 52,
+      "caption": "Tombstone clips MaDCaTTer wedge",
+      "hit": {
+        "by": "right",
+        "weapon": "horizontal bar",
+        "clean": true,
+        "at": [
+          0.36,
+          0.54
+        ]
+      },
+      "fan_comment": "Probably going for madcatter, I dig that teacher and how he has a class doing this, but it's a tough one."
+    },
+    {
+      "t": 26.0,
+      "left_hp": 46,
+      "right_hp": 30,
+      "caption": "MaDCaTTer launches Tombstone",
+      "hit": {
+        "by": "left",
+        "weapon": "vertical spinner",
+        "clean": true,
+        "at": [
+          0.51,
+          0.42
+        ]
       },
       "fan_comment": "This is gonna be fun! Always exciting to see Tombstone."
     },
     {
-      "t": 31.5,
-      "left_hp": 72,
+      "t": 29.0,
+      "left_hp": 46,
       "right_hp": 30,
-      "caption": "Tombstone fire spreads"
-    },
-    {
-      "t": 32.0,
-      "left_hp": 72,
-      "right_hp": 30,
-      "caption": "Tombstone flames grow"
-    },
-    {
-      "t": 32.5,
-      "left_hp": 72,
-      "right_hp": 30,
-      "caption": "Tombstone flames flare higher"
-    },
-    {
-      "t": 33.5,
-      "left_hp": 72,
-      "right_hp": 30,
-      "caption": "Tombstone fire jets outward"
-    },
-    {
-      "t": 35.5,
-      "left_hp": 72,
-      "right_hp": 30,
-      "caption": "Tombstone smoke thickens"
+      "caption": "MaDCaTTer launches Tombstone again"
     },
     {
       "t": 43.5,
-      "left_hp": 72,
+      "left_hp": 46,
       "right_hp": 30,
-      "caption": "Tombstone fire flares up"
+      "caption": "Tombstone fire flares larger"
     },
     {
       "t": 59.5,
-      "left_hp": 72,
+      "left_hp": 46,
       "right_hp": 28,
       "caption": "Tombstone immobile, count begins",
       "drain": "right"
     },
     {
       "t": 60.5,
-      "left_hp": 72,
+      "left_hp": 46,
       "right_hp": 26,
       "caption": "",
       "drain": "right"
     },
     {
       "t": 61.5,
-      "left_hp": 72,
+      "left_hp": 46,
       "right_hp": 24,
       "caption": "",
       "drain": "right"
     },
     {
-      "t": 62.0,
-      "left_hp": 72,
-      "right_hp": 24,
-      "caption": "Tombstone fire spreads wider"
-    },
-    {
       "t": 62.5,
-      "left_hp": 72,
+      "left_hp": 46,
       "right_hp": 22,
       "caption": "",
       "drain": "right"
     },
     {
       "t": 63.5,
-      "left_hp": 72,
+      "left_hp": 46,
       "right_hp": 20,
       "caption": "",
       "drain": "right"
     },
     {
       "t": 64.5,
-      "left_hp": 72,
+      "left_hp": 46,
       "right_hp": 18,
       "caption": "",
       "drain": "right"
     },
     {
       "t": 65.5,
-      "left_hp": 72,
+      "left_hp": 46,
       "right_hp": 16,
       "caption": "",
       "drain": "right"
     },
     {
       "t": 66.5,
-      "left_hp": 72,
+      "left_hp": 46,
       "right_hp": 14,
       "caption": "",
       "drain": "right"
     },
     {
       "t": 67.5,
-      "left_hp": 72,
+      "left_hp": 46,
       "right_hp": 12,
       "caption": "",
       "drain": "right"
     },
     {
       "t": 68.5,
-      "left_hp": 72,
+      "left_hp": 46,
       "right_hp": 10,
       "caption": "",
       "drain": "right"
     },
     {
       "t": 69.5,
-      "left_hp": 72,
+      "left_hp": 46,
       "right_hp": 8,
       "caption": "",
       "drain": "right"
     },
     {
       "t": 70.5,
-      "left_hp": 72,
+      "left_hp": 46,
       "right_hp": 6,
       "caption": "",
       "drain": "right"
     },
     {
       "t": 71.5,
-      "left_hp": 72,
+      "left_hp": 46,
       "right_hp": 4,
       "caption": "",
       "drain": "right"
     },
     {
       "t": 72.5,
-      "left_hp": 72,
+      "left_hp": 46,
       "right_hp": 2,
       "caption": "",
       "drain": "right"
     },
     {
       "t": 73.5,
-      "left_hp": 72,
+      "left_hp": 46,
       "right_hp": 1,
       "caption": "",
       "drain": "right"
     },
     {
       "t": 74.5,
-      "left_hp": 72,
+      "left_hp": 46,
       "right_hp": 0,
-      "caption": "Tombstone knocked out",
+      "caption": "Tombstone knocked out burning",
       "drain": "right",
       "ko": "right"
     }
