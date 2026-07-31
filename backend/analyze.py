@@ -1261,11 +1261,26 @@ def count_out(obs: list[dict], loser: str, start: int, hp_left: int,
     # A long count would otherwise emit an event per second for a minute, most of
     # them rounding to a 0-point step. Spread the same bar over MAX_DRAIN_STEPS so
     # every step actually moves the bar and the timeline stays readable.
+    #
     span = len(obs) - start
     every = max(every, -(-span // MAX_DRAIN_STEPS))
     steps = list(range(start, len(obs), every))
     if steps[-1] != len(obs) - 1:
         steps.append(len(obs) - 1)             # the finish frame always lands on 0
+
+    # Never more steps than there is hp to spend, or divmod() hands the tail an
+    # amount of 0 and validate() throws "drain with no drop" at the END of a
+    # 25-minute paid run. This was slack while the count inherited ~30hp; under
+    # KO_BLOW_TOTAL it inherits 15, and madcatter-tombstone already emits SIXTEEN
+    # drain events — the two constants were one clip apart from crashing.
+    # Trimmed here rather than folded into `every` above, because `every` cannot
+    # express it: the finish frame is appended unconditionally afterwards, so a
+    # stride that yields exactly hp_left steps still ends up with one too many.
+    # The LAST step is always kept — it is the frame the bar has to reach 0 on.
+    if len(steps) > hp_left:
+        keep = {steps[round(k * (len(steps) - 1) / (hp_left - 1))]
+                for k in range(hp_left)} if hp_left > 1 else {steps[-1]}
+        steps = [i for i in steps if i in keep]
 
     # Remainder goes on the EARLIEST steps, not the last one. Piling it on the end
     # rebuilds a miniature version of the very thing this replaces: a final drop
