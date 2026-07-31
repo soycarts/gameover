@@ -157,6 +157,20 @@ python backend/say.py perfect "Perfect." --voice Adam --pitch 0.82 --room 0.30 -
 # impact in it MUST come back null before hit.at is worth paying to judge
 python backend/probe_at.py manta-skorpios --at 2.0 15.5 23.0 --repeat 2
 
+# the two free pre-flights. Both write nothing, call no model, take a second, and
+# both exist because a failure they catch has already shipped once.
+python backend/check_looks.py --bots "Copperhead,Jackpot" --looks "<left>|<right>"
+python backend/check_timelines.py          # run after EVERY merge, before pushing
+
+# the Pro League roster and the sprites derived from it — free, no model
+python backend/roster.py                   # -> backend/roster.json (27 bots)
+python backend/roster.py --force --photos  # refetch, and cache the studio cutouts
+python backend/make_sprites.py --check     # -> frontend/sprites.js + a compare page
+
+# re-run the prediction labels over a comments file already on disk. No scrape,
+# no Bright Data spend, no risk to the pool — ~2 model calls.
+python backend/scrape_comments.py madcatter-tombstone "q" --bots "L,R" --reclassify
+
 # a better comments file into an EXISTING timeline — no frames, no model, free
 python backend/analyze.py manta-skorpios --rejoin --bots "Manta,Skorpios"
 
@@ -448,9 +462,46 @@ python3 backend/serve.py     # -> http://localhost:40911/frontend/index.html?cli
   position in one arbitrary frame, which is a second identity decision unrelated to the
   timeline's — and it shows: `bots/manta-skorpios-left.png` actually contains *Skorpios*,
   and the `-right.png` contains both bots, because both were cut from a frame where the
-  machines are vertically stacked. Nothing loads them (the hand-drawn `ART` sprites win
-  the portrait cascade), and they are now in `.vercelignore`. Do **not** feed them to the
-  judge as reference images — they would teach the swap.
+  machines are vertically stacked. Nothing loads them (the generated sprites win the
+  portrait cascade), and they are now in `.vercelignore`. Do **not** feed them to the
+  judge as reference images — they would teach the swap. The right reference is
+  `bots/.proleague/<key>.png`, below.
+- **The sprites are GENERATED from the official photos, and `ART` is now the override.**
+  `battlebots.com/proleague/` publishes the whole field as **2100×1500 8-bit RGBA studio
+  cutouts**, so `make_sprites.py` gets the silhouette free from the alpha channel and the
+  livery free from RGB — nothing is guessed. The hand-drawn table it replaced was drawn
+  from memory and some of it was flatly wrong: `jackpot` was red and yellow for a green
+  chassis with a red vertical disc, `madcatter` was purple for a red-and-blue cat face.
+  ffmpeg does the resampling (already a dependency) and the quantising is stdlib, so
+  `requirements.txt` does not grow Pillow or numpy for 27 images. Points worth keeping:
+  - **`ART` in `index.html` still WINS**, and is empty. That is where a hand-tuned fix
+    goes; editing `frontend/sprites.js` works right up until the next regeneration
+    silently reverts it.
+  - **Two grids per bot, and both are needed.** `.vsart` renders at up to 148px, where
+    48×36 is ~3px a cell and reads as pixel art; `.sigil` renders at **14–26px**, where a
+    48-wide grid is half a pixel a cell and turns to mush — so the HUD name row gets its
+    own 16×12 cut. `spriteSVG()` takes the viewBox from the rows for the same reason: the
+    hard-coded `0 0 16 12` cropped every 48×36 sprite to its top-left corner.
+  - **Palette entries must be `MIN_SEP` apart.** Taking the k busiest colour bins gave
+    Jackpot five near-identical dark reds and one green, for a robot whose whole chassis
+    is green: one big region splits across adjacent bins and crowds out every other hue.
+  - **`LUMA_FLOOR` is why black machines are visible at all.** `--bg` is `#07080b`, so
+    Tombstone, Skorpios and Cobalt rendered as holes in the screen. Same reason arcade
+    sprites have never drawn black as `#000`. Raise `--bg` and this can come down.
+  - `make_sprites.py --check` writes a page putting every sprite beside its source photo
+    at both real sizes. All three problems above were invisible in the numbers and
+    obvious on that page — look at it before believing a regeneration.
+- **`backend/roster.json` is the field, and the photo URL is SCRAPED, never derived.**
+  The proleague page carries all 27 entries (24 competitors + 3 alternates) in one
+  embedded `sourceBots` array in the **server** HTML, so `requests` is enough and no
+  browser is needed. There is no filename convention to follow: `Disarray` is
+  `disarray-proleage.png` and `Nemesis` is `nemisis-right.png`, **both misspelt** (and
+  Nemesis's slug spells it correctly, so the two disagree); `End Game` is
+  `end-game-right.png` where `Death Roll` is `deathroll-right.png`; and Manta, Orbitron
+  and The Twins are `-left` where the other 24 are `-right`. A name-to-URL rule 404s on
+  five bots. Each bot's own page gives `Type:` — the site's word for the weapon — which
+  several entries leave **empty**, so it is sliced between known labels rather than
+  lazily matched; a lazy `(.+?)` returned Disarray's weapon as "Job: Software Engineer".
 - **A fight can contain more than two machines, and the prompt used to deny it.**
   `identity_note()` asserted *"the ONLY two competitors are X and Y"*. That is false for
   a third of the roster — Jackpot fields **Ace**, MaDCaTTer fields **Gassy Cat**, and
