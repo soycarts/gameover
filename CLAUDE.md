@@ -687,6 +687,9 @@ python3 backend/serve.py     # -> http://localhost:40911/frontend/index.html?cli
   answer `null`. It does, repeatably. Worth knowing that the human ground truth was the
   thing that was wrong here — (0.47, 0.22) was the *spark plume*; the model's
   (0.42, 0.48) is the actual contact point, confirmed by drawing it on the frame.
+  It is no longer a manta-only feature: every judged clip now carries `at` on every
+  hit, and `check_timelines.py` asserts it. It stays **optional in the contract**
+  regardless — `synthfight` has no `hit` field at all and must keep loading.
 - **`object-fit: cover` means the model's point is NOT the stage's point.** `#video`
   is centre-cropped into `#stage`, so a normalised frame coordinate has to go through
   `frameToStage()` — `s = max(stageW/videoW, stageH/videoH)` and the centring offset —
@@ -776,7 +779,28 @@ python3 backend/serve.py     # -> http://localhost:40911/frontend/index.html?cli
   reason attribution, the pre-fight `#preds` block and the `04 / CROWD` card cost
   no re-judge — the contract never had to grow a field. It also means a re-scrape
   that drops a string a timeline still references degrades that one comment to
-  "no author"; run `--rejoin` straight after a scrape.
+  "no author"; run `--rejoin` straight after a scrape. `check_timelines.py` asserts
+  every `fan_comment` still resolves, so that degradation is now caught rather than
+  noticed in a demo.
+- **One side can legitimately have NO showable quote, and the grid has to cope.**
+  `crowdCall()` filters `!c.rival`, and on `madcatter-tombstone` the only `tombstone`
+  pick is a rival comment — so `loudest('R')` is `null`. Hiding the empty
+  `<blockquote>` was not enough: `.pq` is `1fr 1fr`, so it rendered one quote against
+  a blank half, and one take BESIDE the opposing one is the entire point of the card.
+  `.pq.solo` goes full width instead. Do **not** reach for the other fix and show the
+  rival pick — a rival comment counts in the tally and is never displayed.
+  The pool genuinely cannot fill that quote: the one latent Tombstone vote says
+  *"still rooting for the king of kinetic energy"* and never names Tombstone, so
+  `void_flips()` voids the pick, correctly. `--reclassify` was tried and re-labelled
+  two comments `banter` → `prediction` without changing that, which is the honest
+  answer, not a failure.
+- **`--reclassify` re-runs the labels over a pool already on disk, with no scrape.**
+  `crowd.classify()` only ever ran inside `scrape()`, so improving a label used to
+  mean paying Bright Data again — and re-scraping the same pinned thread can quietly
+  return a *worse* set, which the zero-rows guard does not catch because it only
+  fires on nothing at all. It touches `pick`/`phase`/`kind` and never `text`, so it
+  cannot orphan a `fan_comment` and needs no `--rejoin`. It is non-deterministic and
+  re-runs `pair_exchanges()`, so the `ex` pairs can shuffle: diff before committing.
 - **`loserSide()` is the ONE definition of who lost**, the same way `deriveHits()`
   is the one definition of a hit — `finish()` and the crowd card must never
   disagree about the result. It reads the contract's `ko` first (set for a tap-out
@@ -956,7 +980,9 @@ python3 backend/serve.py     # -> http://localhost:40911/frontend/index.html?cli
 - **The frame rate is data, not a constant.** `extract_frames.py` writes
   `frames/<clip>/meta.json` with the fps it actually used, and `analyze.py` reads the
   gap back from there (`seconds_per_frame()`). Frame N (1-indexed) is at
-  `t = (N-1) / fps`. Default is now **2 fps**; the clips judged before that were 0.5.
+  `t = (N-1) / fps`. Default is now **2 fps**, and all three demo clips are extracted
+  and judged at it — `jackpot-copperhead` was the last one still on 0.5 (72 frames,
+  and no `meta.json`, which `extract()` correctly treats as stale) and is now 299.
   There is deliberately **no `--fps` on `analyze.py`** — one flag that can disagree
   with the frames on disk is all it takes to scale every timestamp by a constant, and
   a HUD drifting off the video reads as a frontend bug for hours. `extract()` also
