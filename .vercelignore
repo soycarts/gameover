@@ -12,6 +12,9 @@ transcripts/
 comments/.titles-backup/
 backend/
 CLAUDE.md
+# Same reason as CLAUDE.md: internal notes, served as readable plaintext at
+# /HANDOVER.md to anyone who guesses the path. It names the winner of every clip.
+HANDOVER.md
 .claude/
 .DS_Store
 __pycache__/
