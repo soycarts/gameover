@@ -213,11 +213,24 @@ The KO event also has an empty caption, so the finish lands on GAME OVER with no
 line of text. Fixable in the prompt (`finish` frames currently tend to rate both
 bots `none`, which forces `caption: ""`).
 
-### 3. Jackpot's sprite is a placeholder
+### 3. Sprites — done, and no longer hand-drawn
 
-Still a neutral red body rather than a wrong mechanism, because nobody confirmed
-what weapon Jackpot runs. Fix the rows in the `ART` table in `frontend/index.html`
-— a 16x12 character grid, no rebuild. Same table is where a new bot gets added.
+Every sprite is now **generated from the official Pro League studio photo** by
+`backend/make_sprites.py` into `frontend/sprites.js`, for all 27 roster entries.
+Jackpot's placeholder is gone and the question behind it is settled: it is a
+**vertical disc spinner** — green chassis, tall red disc, red forks, red-and-black
+striped wedgelets, confirmed against both the photo and the team booth at t=56.0.
+The old hand-drawn `madcatter` was purple; the machine is a red-and-blue cat face.
+
+`ART` in `index.html` is now **empty and is the override** — it still wins over the
+generated sprite, so that is where a hand-tuned fix belongs. Editing `sprites.js`
+works until the next regeneration silently reverts it. Adding a bot outside the Pro
+League roster is still an `ART` entry.
+
+Run `make_sprites.py --check` and actually look at the page before believing a
+regeneration: all three problems found so far (a palette of near-identical reds,
+black machines vanishing into the background, a thin linkage breaking into speckle)
+were invisible in the numbers and obvious on that page.
 
 ### 4. Fan comments — fixed, with one thing left
 
