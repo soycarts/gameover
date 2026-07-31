@@ -150,7 +150,9 @@ def min_down(machines: list[dict]) -> int:
         down += m["weight"]
         if down / total >= KO_FRACTION:
             return i
-    return len(machines)
+    # Never 0: an empty list would otherwise disable the check it is meant to
+    # tighten, which is the wrong direction to fail in.
+    return max(1, len(machines))
 
 
 def minibots(entry: dict | None) -> list[dict]:
