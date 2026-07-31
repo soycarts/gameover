@@ -148,9 +148,10 @@ python backend/analyze.py fight1.mp4 --regrade      # re-grade each blow's sever
 python backend/analyze.py fight1.mp4 --stop-pass    # re-ask when the LOSER stopped
 python backend/analyze.py fight1.mp4 --verify       # re-ask WHO landed each blow
 
-# the one sampled sound. Regenerating is a deliberate act — the file is committed.
+# the one sampled sound. The shipping take was chosen by ear, so this REFUSES to
+# overwrite sfx/perfect.mp3 without --force.
 python backend/say.py --list                        # voices on the account
-python backend/say.py perfect "Perfect." --voice Adam --pitch 0.82 --room 0.30
+python backend/say.py perfect "Perfect." --voice Adam --pitch 0.82 --room 0.30 --force
 
 # where did a blow land? probe first — writes nothing, and the frame with no
 # impact in it MUST come back null before hit.at is worth paying to judge
@@ -718,11 +719,26 @@ python3 backend/serve.py     # -> http://localhost:40911/frontend/index.html?cli
   `#preds` unhideable for its entire life, painting an empty CROWD CALL header on every
   clip and never hiding on the ones with no picks. Any new element that is both styled
   with `display` and toggled with `hidden` needs `[hidden] { display: none }`.
+- **That same `z-index: 8` also lifts the badge over the FIGHT CARD, so PERFECT read
+  twice** — once beside the winner's dimmed HUD panel and again in the card's DAMAGE
+  panel. `.screen` is `z-index: 5`, so anything that beats the fireball beats the card
+  as well. Containing `#hud` in its own stacking context fixes it and re-breaks the
+  fireball ordering, which is the whole reason the 8 is there; `body.over .perfect`
+  costs one class, set in `finish()` and cleared in `showFight()` and `reset()`. The
+  badge deliberately comes back on a rewind — the fight really did end that way.
+- **The GAME OVER exits live ABOVE the breakdown.** Four stacked panels put the last
+  of them below the fold on a laptop, so BACK TO FIGHT / REPLAY / HOME parked underneath
+  could only be reached by scrolling past everything you might want to skip.
 - **One sampled sound, and one only.** Everything else is oscillators; `sfx/perfect.mp3`
-  is an announcer line generated once by `backend/say.py` (ElevenLabs, then pitched down
-  and given a room with ffmpeg — resampling drops the formants too, which is what makes
-  it read as a big voice rather than a slowed-down small one). It is committed and
-  served statically: no key in the browser, no API call at runtime. It decodes through
+  is an announcer line. **The shipping take was picked by ear in the ElevenLabs studio**
+  (a voice clone the API's voice list does not offer) and dropped in whole — it is not
+  the output of `backend/say.py`, which exists to make the asset reproducible and can
+  only approximate it. That is why `say.py` now **refuses to overwrite an existing
+  `sfx/<name>.mp3` without `--force`**: nothing downstream could tell a chosen take from
+  a regenerated one, since the frontend only ever checks that the file decodes. Its
+  `deepen()` (ffmpeg resample + echo — dropping the formants with the pitch is what
+  reads as a big voice rather than a slowed-down small one) is still there for a fresh
+  line. It is committed and served statically: no key in the browser, no API call at runtime. It decodes through
   the same `AudioContext` as everything else and degrades in two steps — no sample, the
   synth fanfare alone; no audio, silence and the badge still lands. **`ac()` now resumes
   on every call**: `loadVoice()` decodes at boot, which creates the context before any
@@ -749,6 +765,21 @@ python3 backend/serve.py     # -> http://localhost:40911/frontend/index.html?cli
   without its sprite. The picker also stopped re-fetching the current clip's timeline:
   `loadJSON` is `no-store`, so that duplicate could never be served from cache and
   competed with the one request the whole page was waiting on.
+- **…but reserving heights could never finish the job, because `#preds` is the thing
+  that moves and its presence is not knowable in advance.** Measured with the JSON
+  fetches lagged 400ms: the crowd block goes 0 → **195px**, and `.screen` is
+  `justify-content: center`, so the h1 rose 110px and the picker fell 111px *long after*
+  the card looked settled. A `min-height` on the block is wrong on exactly the clips
+  that have no picks — `synthfight`, `?demo=1`, anything whose comments file 404s — and
+  which those are is only known once the file lands. So the card is now laid out but
+  **held at `visibility: hidden` (`.screen.staging`) until every part of it has arrived**,
+  then shown in one paint: `showTitle()`, racing the comments *and* the picker's other
+  two timelines against `TITLE_WAIT_MS` so a hanging fetch cannot leave the screen
+  blank. `visibility`, not `opacity` — layout has to happen underneath, because
+  `sizeCaption()` and the picker both measure during that window. Two consequences worth
+  keeping: the NO TIMELINE error path must call `showTitle()` itself or the one screen
+  that explains the failure never appears, and `start()` is gated on `booted` so a click
+  landing in the staging window cannot start a fight nobody can see yet.
 - **The caption block reserves measured space, not a guessed line count.**
   `sizeCaption()` renders every caption in this timeline once at load and reserves the
   tallest, per slot, as `--cur-h` / `--prev-h`, so the block is the same height for a

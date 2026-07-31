@@ -14,6 +14,13 @@ statically — no key in the browser, no API call at runtime.
 The script is committed rather than run ad hoc so the asset is reproducible: it
 prints the voice id, model and settings it used, and re-running with those
 arguments regenerates the same character of line.
+
+The line SHIPPING today was not made by this script. sfx/perfect.mp3 is a render
+picked by ear in the ElevenLabs studio ("Keith Hinton", a professional voice
+clone this account has and the API voice list does not offer under that name),
+dropped in whole. Which is why --force exists: a casual re-run here would
+overwrite a chosen take with an approximation of it, and nothing downstream could
+tell — the frontend only ever checks that the file decodes.
 """
 import argparse
 import subprocess
@@ -148,6 +155,8 @@ def main() -> None:
                     help="resample ratio: <1 deepens, 1.0 leaves it alone")
     ap.add_argument("--room", type=float, default=0.28, metavar="N",
                     help="echo depth, 0 for a dry booth voice")
+    ap.add_argument("--force", action="store_true",
+                    help="overwrite an existing sfx/<name>.mp3")
     args = ap.parse_args()
 
     if args.list:
@@ -159,6 +168,9 @@ def main() -> None:
     if not (args.name and args.text):
         ap.error("give a NAME and TEXT, or --list")
     out = ROOT / "sfx" / f"{args.name}.mp3"
+    if out.exists() and not args.force:
+        sys.exit(f"{out.relative_to(ROOT)} already exists — this is a committed "
+                 f"asset chosen by ear.\n  pass --force to replace it.")
     render(args.text, out, pick(args.voice), args.stability, args.style,
            args.similarity)
     deepen(out, args.pitch, args.room)

@@ -291,6 +291,12 @@ html, body { margin: 0; height: 100%; background: var(--bg); color: var(--ink);
   transform-origin: center bottom; }
 .side.right .perfect { align-self: flex-end; }
 .perfect[hidden] { display: none; }
+/* The badge outranks .screen (z-index 8 vs 5) so it can paint over #ko's fireball,
+   which means it also paints over the fight card — PERFECT read twice, once beside
+   Manta's dimmed HUD panel and again in the DAMAGE panel. Containing #hud in its
+   own stacking context would fix it and break the fireball ordering, which is what
+   the 8 is for; hiding it while the card is up costs one body class. */
+body.over .perfect { display: none; }
 .perfect.pop { animation: perfectIn 460ms cubic-bezier(.2,1.6,.4,1) both; }
 @keyframes perfectIn {
   0%   { transform: scale(0) rotate(-8deg); opacity: 0 }
@@ -465,6 +471,15 @@ html, body { margin: 0; height: 100%; background: var(--bg); color: var(--ink);
   align-items: center; justify-content: center; gap: 26px; text-align: center;
   background: #05060aee; z-index: 5; }
 .screen.on { display: flex; }
+/* The title card is laid out but not shown until every part of it has landed, so
+   it arrives in ONE paint. Measured, the crowd block is 195px tall and #title is
+   `justify-content: center`, so a late #preds moved the WHOLE card — the h1 rose
+   110px and the picker fell 111px, long after the card looked settled. Reserving
+   the block's height instead is not an option: whether it appears at all depends
+   on the comments file, so a reservation is wrong on exactly the clips that have
+   no picks. `visibility` rather than `opacity` because layout must still happen
+   underneath — sizeCaption() and the picker both measure during this window. */
+.screen.staging { visibility: hidden; }
 #title h1 { font-family: var(--font-pixel); font-size: var(--fs-title); margin: 0;
   color: var(--accent); text-shadow: 6px 6px 0 var(--accent-2); letter-spacing: 4px; }
 #title .sub { color: var(--ink-dim); font-size: var(--fs-comment); letter-spacing: 3px; }
@@ -871,7 +886,7 @@ body.rainbow .core-fill { background: linear-gradient(90deg,#ff2e63,#ffd23f,#3ff
   <div id="flash"></div>
   <div id="ko"><div class="stamp"><span class="go">K.O.</span></div></div>
 
-  <div class="screen on" id="title">
+  <div class="screen on staging" id="title">
     <h1>GAMEOVER</h1>
     <div class="sub">ROBOT COMBAT / VISION-JUDGED</div>
     <div class="sub rule">ONE HIT = ONE BOT DAMAGED IN ONE MOMENT</div>
@@ -901,6 +916,16 @@ body.rainbow .core-fill { background: linear-gradient(90deg,#ff2e63,#ffd23f,#3ff
       <h2>GAME OVER</h2>
       <div class="winner" id="winner"></div>
     </div>
+    <!-- the way OUT sits above the read: the breakdown is four stacked panels and
+         on a laptop the last of them is already below the fold, so exits parked
+         underneath it could only be reached by scrolling past everything -->
+    <div id="omenu">
+      <button data-act="rewind">Back to fight</button>
+      <button data-act="replay">Replay</button>
+      <button data-act="home">Home</button>
+    </div>
+    <div class="hint">ESC — BACK TO THE FIGHT &nbsp;·&nbsp; R — REPLAY &nbsp;·&nbsp; H — HOME
+      &nbsp;·&nbsp; C — CRT</div>
     <div id="breakdown">
       <section class="bd">
         <div class="bd-head">
@@ -944,13 +969,6 @@ body.rainbow .core-fill { background: linear-gradient(90deg,#ff2e63,#ffd23f,#3ff
         <div class="pq" id="cwQuotes"></div>
       </section>
     </div>
-    <div id="omenu">
-      <button data-act="rewind">Back to fight</button>
-      <button data-act="replay">Replay</button>
-      <button data-act="home">Home</button>
-    </div>
-    <div class="hint">ESC — BACK TO THE FIGHT &nbsp;·&nbsp; R — REPLAY &nbsp;·&nbsp; H — HOME
-      &nbsp;·&nbsp; C — CRT</div>
   </div>
 
   <div class="screen" id="pause">
@@ -1019,6 +1037,7 @@ let COMMENTS = [], credits = {},          // norm(text) -> the full comment reco
 const MIN_VOTES = 3;                      // below this a percentage is a lie
 let timeline = null, events = [],
     applied = -1, started = false, koDone = false, overDone = false,
+    booted = false,            // the title card is laid out AND shown; see showTitle()
     virtualClock = false, vStart = 0, useVideo = true, duration = 60,
     userPaused = false,        // a deliberate pause, not a blocked one — watchdog()
     vHold = 0,                 // wall-clock instant the VIRTUAL clock was frozen at
@@ -1146,6 +1165,7 @@ async function boot() {
   } catch (e) {
     $('title').innerHTML = `<h1>NO TIMELINE</h1><div class="sub">${tlUrl}</div>
       <div class="hint">run: python backend/analyze.py ${CLIP}.mp4</div>`;
+    showTitle();          // or the one screen that explains the failure never shows
     return;
   }
   labelSelf.forEach(fn => fn(timeline));       // the picker's own button, no refetch
@@ -1297,7 +1317,22 @@ async function boot() {
   v.src = src;
   render(events[0] || {left_hp: 100, right_hp: 100});
   sizeCaption();          // reserve this clip's caption space before it is needed
-  await commentsReady;    // the crowd call lands last; nothing above it waits
+  /* The crowd call is the last thing to land and the only one that resizes the
+     card, so the card is shown once it has — capped, because a comments file that
+     404s or hangs must not leave the title screen invisible. Everything above has
+     already been built, so this window is a fetch, not work. */
+  await Promise.race([Promise.all([commentsReady, ...pickerReady]),
+                      new Promise(r => setTimeout(r, TITLE_WAIT_MS))]);
+  showTitle();
+}
+
+/* Reveal the title card. Idempotent — the race above and the timeout can both get
+   here — and it lifts the click/key gate with it, so a click landing in the
+   staging window cannot start a fight nobody can see yet. */
+const TITLE_WAIT_MS = 900;
+function showTitle() {
+  booted = true;
+  $('title').classList.remove('staging');
 }
 
 const norm = s => (s || '').toLowerCase().replace(/[^a-z0-9 ]/g, '').trim();
@@ -1970,6 +2005,7 @@ function finish(loser) {
   $('ko').classList.remove('on');
   $('pause').classList.remove('on');
   document.body.classList.remove('controls');    // the fight card owns the screen now
+  document.body.classList.add('over');           // ...and the HUD's PERFECT stands down
   clearTimeout(pbTimer);
   if (useVideo) $('video').pause();
 }
@@ -2194,7 +2230,9 @@ function say() {
 
 /* ---------------- start / keys ---------------- */
 function start() {
-  if (started) return;
+  // a click or SPACE inside the staging window would otherwise start a fight whose
+  // card was never visible — and, on a slow fetch, one with no events loaded yet
+  if (started || !booted) return;
   started = true;
   sfx('coin');
   $('title').classList.remove('on');
@@ -2223,7 +2261,7 @@ function reset() {
   $('video').removeEventListener('ended', outEnded);
   $('over').classList.remove('on'); $('ko').classList.remove('on');
   $('pause').classList.remove('on');
-  document.body.classList.remove('controls');
+  document.body.classList.remove('controls', 'over');
   showHits(-1, null, false); hideComments(); clearTransients(); clearPerfect();
   clearCaption();
   ['L','R'].forEach(s => $('cores' + s).classList.remove('dead'));
@@ -2367,6 +2405,8 @@ function showFight() {
   if (!overDone) return;
   overDone = false;
   $('over').classList.remove('on');
+  // the fight really did end that way, so the badge comes back with the fight
+  document.body.classList.remove('over');
   // playOut()'s poll self-cancels on overDone and its 'ended' listener still
   // holds the old `loser`; both would re-fire finish() from a fight state that
   // no longer applies
@@ -2445,6 +2485,9 @@ const FIGHTS = ['madcatter-tombstone', 'jackpot-copperhead', 'manta-skorpios'];
    timeline to name itself from yet. It waits here instead of fetching its own
    copy; boot() drains this the moment `timeline` lands. */
 const labelSelf = [];
+/* the OTHER clips' fetches, so the card is not revealed with two buttons still
+   reading their slug and about to relabel */
+const pickerReady = [];
 
 FIGHTS.forEach(slug => {
   const b = document.createElement('button');
@@ -2467,7 +2510,8 @@ FIGHTS.forEach(slug => {
   // the browser cannot reuse the response — fetching it twice is a wasted
   // round-trip competing with the one the whole page is waiting on
   if (slug === CLIP) labelSelf.push(label);
-  else loadJSON(`../timelines/${slug}.json`).then(label).catch(() => { /* keep the slug */ });
+  else pickerReady.push(
+    loadJSON(`../timelines/${slug}.json`).then(label).catch(() => { /* keep the slug */ }));
 });
 
 /* era B: show the ingest command, no backend server */
