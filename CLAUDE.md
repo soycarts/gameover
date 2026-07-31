@@ -3,6 +3,19 @@
 Hackathon project. A vision model watches robot-combat clips and drives a retro
 arcade fighting-game HUD. Read this before changing anything.
 
+**[COMPLIANCE.md](COMPLIANCE.md) governs anything touching the footage, the Reddit
+data, or where the site is hosted, and it OUTRANKS this file where the two disagree.**
+They currently do disagree, on purpose and in writing: the sharing section below says a
+clip must be committed to git or the public site 404s it, and COMPLIANCE's hard rule 3
+says no video may be committed at all. Both are true — the second is where the project
+is going and the first is how it works today, and closing the gap means moving the clips
+to object storage behind `CLIP_BASE_URL` *before* the ignore rule lands, or the demo
+goes dark. The audit at the bottom of COMPLIANCE.md lists every other open item.
+
+If a request conflicts with a rule in there, say so rather than quietly implementing it.
+That includes requests that look purely cosmetic: putting a Reddit username on screen or
+adding an `og:video` tag are both one-line changes that cross a line in that file.
+
 ## Architecture — do not deviate
 
 Two independent halves joined by **one JSON contract**, `timelines/<clip>.json`.

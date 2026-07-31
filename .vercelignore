@@ -15,6 +15,11 @@ CLAUDE.md
 # Same reason as CLAUDE.md: internal notes, served as readable plaintext at
 # /HANDOVER.md to anyone who guesses the path. It names the winner of every clip.
 HANDOVER.md
+# The MOST important entry here. COMPLIANCE.md states in writing that the footage
+# is unlicensed and audits exactly which rules the project is currently breaking.
+# Serving that at /COMPLIANCE.md hands a complainant their own case, and defeats
+# the whole posture the file exists to describe. It is an internal document.
+COMPLIANCE.md
 .claude/
 .DS_Store
 __pycache__/
