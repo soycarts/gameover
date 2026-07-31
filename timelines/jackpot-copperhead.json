@@ -13,291 +13,450 @@
     },
     {
       "t": 1.0,
-      "left_hp": 100,
-      "right_hp": 78,
-      "caption": "Jackpot collision flips both",
+      "left_hp": 98,
+      "right_hp": 100,
+      "caption": "Jackpot sparks Copperhead",
       "hit": {
-        "by": "left",
+        "by": "right",
         "weapon": "vertical spinner",
         "clean": true,
         "at": [
-          0.54,
-          0.52
-        ]
-      },
-      "fan_comment": "Jackpot versus Copperhead: the hardest one to predict. Narrow large diameter verts tend to beat drums, but Jackpot's performance in their last face offs episode was pretty poor."
+          0.56,
+          0.53
+        ],
+        "sev": "glance"
+      }
+    },
+    {
+      "t": 1.5,
+      "left_hp": 98,
+      "right_hp": 93,
+      "caption": "Jackpot launched into tumble",
+      "hit": {
+        "by": "left",
+        "weapon": "drum spinner",
+        "clean": true,
+        "sev": "solid"
+      }
     },
     {
       "t": 7.5,
-      "left_hp": 100,
-      "right_hp": 78,
-      "caption": "Jackpot lifts Copperhead's side"
+      "left_hp": 98,
+      "right_hp": 93,
+      "caption": "Copperhead scraped by screws"
     },
     {
       "t": 8.5,
-      "left_hp": 100,
-      "right_hp": 78,
-      "caption": "Jackpot throws Copperhead onto screws"
+      "left_hp": 94,
+      "right_hp": 93,
+      "caption": "Jackpot lifts Copperhead into screws",
+      "hit": {
+        "by": "right",
+        "weapon": "vertical spinner",
+        "clean": true,
+        "at": [
+          0.56,
+          0.55
+        ],
+        "sev": "solid"
+      }
     },
     {
       "t": 11.5,
-      "left_hp": 78,
-      "right_hp": 78,
-      "caption": "Jackpot sparks Copperhead front",
+      "left_hp": 89,
+      "right_hp": 93,
+      "caption": "Jackpot sparks Copperhead drum",
       "hit": {
         "by": "right",
         "weapon": "vertical disc",
         "clean": true,
         "at": [
-          0.62,
-          0.61
-        ]
-      },
-      "fan_comment": "Jackpot has been struggling some recently, but they have the same team that knows the bot vs. a brand new team that is still learning Copperhead."
-    },
-    {
-      "t": 20.5,
-      "left_hp": 78,
-      "right_hp": 78,
-      "caption": "Jackpot lifts Copperhead side"
+          0.64,
+          0.59
+        ],
+        "sev": "heavy"
+      }
     },
     {
       "t": 21.5,
-      "left_hp": 56,
-      "right_hp": 78,
-      "caption": "Copperhead launched into air",
+      "left_hp": 84,
+      "right_hp": 93,
+      "caption": "Jackpot launches Copperhead",
       "hit": {
         "by": "right",
         "weapon": "vertical spinner",
-        "clean": true
-      },
-      "fan_comment": "Jackpot. Copperhead struggles with narrow spinners so I\u2019m going with the Sin City Slugger."
+        "clean": true,
+        "sev": "heavy"
+      }
     },
     {
       "t": 30.5,
-      "left_hp": 56,
-      "right_hp": 78,
-      "caption": "Copperhead tumbles onto side"
+      "left_hp": 79,
+      "right_hp": 93,
+      "caption": "Copperhead self-flips over",
+      "hit": {
+        "by": "left",
+        "weapon": "drum spinner",
+        "clean": false,
+        "sev": "heavy"
+      }
     },
     {
       "t": 36.0,
-      "left_hp": 56,
-      "right_hp": 78,
-      "caption": "Jackpot launches Copperhead"
+      "left_hp": 74,
+      "right_hp": 93,
+      "caption": "Jackpot launches Copperhead",
+      "hit": {
+        "by": "right",
+        "weapon": "vertical disc",
+        "clean": true,
+        "at": [
+          0.51,
+          0.55
+        ],
+        "sev": "heavy"
+      }
     },
     {
       "t": 46.0,
-      "left_hp": 56,
-      "right_hp": 78,
-      "caption": "Jackpot shoves Copperhead into wall"
+      "left_hp": 69,
+      "right_hp": 93,
+      "caption": "Jackpot tumbles Copperhead into wall",
+      "hit": {
+        "by": "right",
+        "weapon": "vertical spinner",
+        "clean": true,
+        "at": [
+          0.56,
+          0.47
+        ],
+        "sev": "heavy"
+      }
     },
     {
       "t": 52.5,
-      "left_hp": 56,
-      "right_hp": 78,
-      "caption": "Jackpot bursts into flames"
-    },
-    {
-      "t": 59.5,
-      "left_hp": 56,
-      "right_hp": 78,
-      "caption": "Jackpot sparks Copperhead top"
+      "left_hp": 69,
+      "right_hp": 86,
+      "caption": "Jackpot catches fire",
+      "hit": {
+        "by": "right",
+        "weapon": "vertical spinner",
+        "clean": false,
+        "at": [
+          0.75,
+          0.55
+        ],
+        "sev": "solid"
+      }
     },
     {
       "t": 70.5,
-      "left_hp": 56,
-      "right_hp": 74,
-      "caption": "Copperhead tears Jackpot wedgelet",
+      "left_hp": 69,
+      "right_hp": 83,
+      "caption": "Jackpot fork torn loose",
       "hit": {
         "by": "left",
         "weapon": "drum spinner",
         "clean": true,
-        "at": [
-          0.43,
-          0.62
-        ]
+        "sev": "glance"
       }
     },
     {
       "t": 73.0,
-      "left_hp": 56,
-      "right_hp": 52,
-      "caption": "Copperhead lifts Jackpot",
+      "left_hp": 69,
+      "right_hp": 76,
+      "caption": "Copperhead pops Jackpot up",
       "hit": {
         "by": "left",
         "weapon": "drum spinner",
         "clean": true,
         "at": [
-          0.45,
-          0.67
-        ]
-      },
-      "fan_comment": "Dragon slayer, Jackpot and Vanguard. Said they wanted to return on discord and [Drago has applied](https://youtube.com/watch?v=-QU7_YUfEpE&feature=share)"
+          0.42,
+          0.63
+        ],
+        "sev": "solid"
+      }
     },
     {
-      "t": 91.5,
-      "left_hp": 56,
-      "right_hp": 52,
-      "caption": "Copperhead pins Jackpot on wall"
-    },
-    {
-      "t": 93.0,
-      "left_hp": 56,
-      "right_hp": 30,
-      "caption": "Copperhead bends Jackpot fork",
+      "t": 76.5,
+      "left_hp": 65,
+      "right_hp": 76,
+      "caption": "Jackpot lifts Copperhead side",
       "hit": {
-        "by": "left",
-        "weapon": "drum spinner",
+        "by": "right",
+        "weapon": "vertical spinner",
         "clean": true,
         "at": [
           0.54,
-          0.58
-        ]
-      },
-      "fan_comment": "One thing I am excited for is the young driver for Copperhead."
+          0.63
+        ],
+        "sev": "solid"
+      }
     },
     {
-      "t": 94.0,
-      "left_hp": 56,
-      "right_hp": 30,
-      "caption": "Jackpot nudges Copperhead away"
+      "t": 87.0,
+      "left_hp": 65,
+      "right_hp": 64,
+      "caption": "Copperhead tears Jackpot forks away",
+      "hit": {
+        "by": "left",
+        "weapon": "drum spinner",
+        "clean": true,
+        "at": [
+          0.42,
+          0.52
+        ],
+        "sev": "heavy"
+      },
+      "fan_comment": "Jackpot versus Copperhead: the hardest one to predict. Narrow large diameter verts tend to beat drums, but Jackpot's performance in their last face offs episode was pretty poor."
+    },
+    {
+      "t": 91.5,
+      "left_hp": 65,
+      "right_hp": 57,
+      "caption": "Copperhead smokes Jackpot against wall",
+      "hit": {
+        "by": "left",
+        "weapon": "drum spinner",
+        "clean": true,
+        "at": [
+          0.5,
+          0.56
+        ],
+        "sev": "solid"
+      }
     },
     {
       "t": 98.5,
-      "left_hp": 56,
-      "right_hp": 30,
-      "caption": "Copperhead bumps Jackpot"
+      "left_hp": 62,
+      "right_hp": 57,
+      "caption": "Jackpot lifts Copperhead side",
+      "hit": {
+        "by": "right",
+        "weapon": "vertical spinner",
+        "clean": true,
+        "at": [
+          0.59,
+          0.43
+        ],
+        "sev": "solid"
+      }
     },
     {
-      "t": 101.0,
-      "left_hp": 56,
-      "right_hp": 30,
-      "caption": "Jackpot shoves Copperhead"
-    },
-    {
-      "t": 105.5,
-      "left_hp": 56,
-      "right_hp": 30,
-      "caption": "Copperhead lifted by arena screws"
+      "t": 104.0,
+      "left_hp": 59,
+      "right_hp": 57,
+      "caption": "Copperhead shoved into screws",
+      "hit": {
+        "by": "left",
+        "weapon": "screws",
+        "clean": false,
+        "at": [
+          0.22,
+          0.43
+        ],
+        "sev": "solid"
+      }
     },
     {
       "t": 108.5,
       "left_hp": 56,
-      "right_hp": 30,
-      "caption": "Jackpot shoves Copperhead"
-    },
-    {
-      "t": 109.5,
-      "left_hp": 56,
-      "right_hp": 30,
-      "caption": "Copperhead bumps Jackpot"
+      "right_hp": 57,
+      "caption": "Jackpot nudges Copperhead",
+      "hit": {
+        "by": "right",
+        "weapon": "front forks",
+        "clean": true,
+        "at": [
+          0.44,
+          0.6
+        ],
+        "sev": "solid"
+      }
     },
     {
       "t": 110.0,
-      "left_hp": 56,
-      "right_hp": 30,
-      "caption": "Copperhead lifts Jackpot's front"
+      "left_hp": 54,
+      "right_hp": 57,
+      "caption": "Jackpot bumps Copperhead again",
+      "hit": {
+        "by": "right",
+        "weapon": "front forks",
+        "clean": true,
+        "at": [
+          0.41,
+          0.63
+        ],
+        "sev": "glance"
+      }
     },
     {
-      "t": 113.0,
-      "left_hp": 56,
-      "right_hp": 30,
-      "caption": "Copperhead hoists Jackpot onto rails"
-    },
-    {
-      "t": 118.5,
-      "left_hp": 52,
-      "right_hp": 30,
-      "caption": "Jackpot lifts Copperhead side",
+      "t": 112.0,
+      "left_hp": 51,
+      "right_hp": 57,
+      "caption": "Jackpot lifts Copperhead on forks",
       "hit": {
         "by": "right",
         "weapon": "forks",
         "clean": true,
         "at": [
-          0.56,
-          0.61
-        ]
+          0.47,
+          0.6
+        ],
+        "sev": "solid"
       }
     },
     {
+      "t": 113.0,
+      "left_hp": 51,
+      "right_hp": 46,
+      "caption": "Jackpot hoisted into arena wall",
+      "hit": {
+        "by": "right",
+        "weapon": "arena wall",
+        "clean": false,
+        "at": [
+          0.52,
+          0.54
+        ],
+        "sev": "heavy"
+      },
+      "fan_comment": "Jackpot has been struggling some recently, but they have the same team that knows the bot vs. a brand new team that is still learning Copperhead."
+    },
+    {
       "t": 122.0,
-      "left_hp": 52,
-      "right_hp": 30,
-      "caption": "Copperhead tosses Jackpot into wall"
+      "left_hp": 51,
+      "right_hp": 35,
+      "caption": "Copperhead lifts Jackpot in corner",
+      "hit": {
+        "by": "left",
+        "weapon": "drum spinner",
+        "clean": true,
+        "at": [
+          0.7,
+          0.55
+        ],
+        "sev": "heavy"
+      },
+      "fan_comment": "Jackpot. Copperhead struggles with narrow spinners so I\u2019m going with the Sin City Slugger."
     },
     {
       "t": 124.5,
-      "left_hp": 52,
-      "right_hp": 30,
-      "caption": "Jackpot throws Copperhead over"
+      "left_hp": 46,
+      "right_hp": 35,
+      "caption": "Jackpot launches Copperhead sideways",
+      "hit": {
+        "by": "right",
+        "weapon": "vertical disc",
+        "clean": true,
+        "at": [
+          0.45,
+          0.61
+        ],
+        "sev": "heavy"
+      }
     },
     {
       "t": 128.0,
-      "left_hp": 52,
-      "right_hp": 30,
-      "caption": "Copperhead drums Jackpot side"
+      "left_hp": 46,
+      "right_hp": 28,
+      "caption": "Copperhead sparks Jackpot wedgelets",
+      "hit": {
+        "by": "left",
+        "weapon": "front drum",
+        "clean": true,
+        "at": [
+          0.59,
+          0.65
+        ],
+        "sev": "solid"
+      }
     },
     {
       "t": 129.5,
-      "left_hp": 52,
-      "right_hp": 30,
-      "caption": "Jackpot scrapes wall sparks"
-    },
-    {
-      "t": 130.0,
-      "left_hp": 52,
-      "right_hp": 30,
-      "caption": "Jackpot starts smoking at wall"
+      "left_hp": 46,
+      "right_hp": 25,
+      "caption": "Jackpot scrapes arena wall",
+      "hit": {
+        "by": "right",
+        "weapon": "arena wall",
+        "clean": false,
+        "at": [
+          0.71,
+          0.55
+        ],
+        "sev": "glance"
+      }
     },
     {
       "t": 131.0,
-      "left_hp": 52,
-      "right_hp": 30,
-      "caption": "Jackpot backside catches fire"
+      "left_hp": 46,
+      "right_hp": 22,
+      "caption": "Copperhead smokes Jackpot backside",
+      "hit": {
+        "by": "left",
+        "weapon": "drum spinner",
+        "clean": true,
+        "at": [
+          0.36,
+          0.61
+        ],
+        "sev": "glance"
+      }
     },
     {
       "t": 132.0,
-      "left_hp": 52,
-      "right_hp": 30,
-      "caption": "Jackpot fire flares up"
+      "left_hp": 46,
+      "right_hp": 22,
+      "caption": "Jackpot fire flares higher"
     },
     {
       "t": 134.5,
-      "left_hp": 52,
-      "right_hp": 30,
-      "caption": "Jackpot fire spreads along side"
+      "left_hp": 46,
+      "right_hp": 15,
+      "caption": "Jackpot fire spreads again",
+      "hit": {
+        "by": "left",
+        "weapon": "drum spinner",
+        "clean": true,
+        "at": [
+          0.75,
+          0.62
+        ],
+        "sev": "solid"
+      }
     },
     {
       "t": 137.0,
-      "left_hp": 52,
-      "right_hp": 24,
+      "left_hp": 46,
+      "right_hp": 12,
       "caption": "Jackpot immobile, count begins",
       "drain": "right"
     },
     {
       "t": 138.0,
-      "left_hp": 52,
-      "right_hp": 18,
-      "caption": "Jackpot fire flickers",
+      "left_hp": 46,
+      "right_hp": 9,
+      "caption": "Jackpot flame flickers up",
       "drain": "right"
     },
     {
       "t": 139.0,
-      "left_hp": 52,
-      "right_hp": 12,
-      "caption": "",
-      "drain": "right"
-    },
-    {
-      "t": 140.0,
-      "left_hp": 52,
+      "left_hp": 46,
       "right_hp": 6,
       "caption": "",
       "drain": "right"
     },
     {
+      "t": 140.0,
+      "left_hp": 46,
+      "right_hp": 3,
+      "caption": "",
+      "drain": "right"
+    },
+    {
       "t": 140.5,
-      "left_hp": 52,
+      "left_hp": 46,
       "right_hp": 0,
       "caption": "Jackpot taps out",
       "drain": "right",
