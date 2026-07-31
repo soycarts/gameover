@@ -12,116 +12,295 @@
       "caption": ""
     },
     {
-      "t": 2.0,
+      "t": 1.0,
       "left_hp": 100,
-      "right_hp": 90,
-      "caption": "Jackpot flipped onto side",
+      "right_hp": 78,
+      "caption": "Jackpot collision flips both",
+      "hit": {
+        "by": "left",
+        "weapon": "vertical spinner",
+        "clean": true,
+        "at": [
+          0.54,
+          0.52
+        ]
+      },
       "fan_comment": "Jackpot versus Copperhead: the hardest one to predict. Narrow large diameter verts tend to beat drums, but Jackpot's performance in their last face offs episode was pretty poor."
     },
     {
-      "t": 50.0,
+      "t": 7.5,
       "left_hp": 100,
-      "right_hp": 80,
-      "caption": "Jackpot weapon parts flying off",
+      "right_hp": 78,
+      "caption": "Jackpot lifts Copperhead's side"
+    },
+    {
+      "t": 8.5,
+      "left_hp": 100,
+      "right_hp": 78,
+      "caption": "Jackpot throws Copperhead onto screws"
+    },
+    {
+      "t": 11.5,
+      "left_hp": 78,
+      "right_hp": 78,
+      "caption": "Jackpot sparks Copperhead front",
+      "hit": {
+        "by": "right",
+        "weapon": "vertical disc",
+        "clean": true,
+        "at": [
+          0.62,
+          0.61
+        ]
+      },
       "fan_comment": "Jackpot has been struggling some recently, but they have the same team that knows the bot vs. a brand new team that is still learning Copperhead."
     },
     {
-      "t": 52.0,
-      "left_hp": 100,
-      "right_hp": 65,
-      "caption": "Jackpot smoking, weapon part detached",
+      "t": 20.5,
+      "left_hp": 78,
+      "right_hp": 78,
+      "caption": "Jackpot lifts Copperhead side"
+    },
+    {
+      "t": 21.5,
+      "left_hp": 56,
+      "right_hp": 78,
+      "caption": "Copperhead launched into air",
+      "hit": {
+        "by": "right",
+        "weapon": "vertical spinner",
+        "clean": true
+      },
       "fan_comment": "Jackpot. Copperhead struggles with narrow spinners so I\u2019m going with the Sin City Slugger."
     },
     {
-      "t": 58.0,
-      "left_hp": 100,
-      "right_hp": 55,
-      "caption": "Jackpot wheel torn off",
+      "t": 30.5,
+      "left_hp": 56,
+      "right_hp": 78,
+      "caption": "Copperhead tumbles onto side"
+    },
+    {
+      "t": 36.0,
+      "left_hp": 56,
+      "right_hp": 78,
+      "caption": "Jackpot launches Copperhead"
+    },
+    {
+      "t": 46.0,
+      "left_hp": 56,
+      "right_hp": 78,
+      "caption": "Jackpot shoves Copperhead into wall"
+    },
+    {
+      "t": 52.5,
+      "left_hp": 56,
+      "right_hp": 78,
+      "caption": "Jackpot bursts into flames"
+    },
+    {
+      "t": 59.5,
+      "left_hp": 56,
+      "right_hp": 78,
+      "caption": "Jackpot sparks Copperhead top"
+    },
+    {
+      "t": 70.5,
+      "left_hp": 56,
+      "right_hp": 74,
+      "caption": "Copperhead tears Jackpot wedgelet",
+      "hit": {
+        "by": "left",
+        "weapon": "drum spinner",
+        "clean": true,
+        "at": [
+          0.43,
+          0.62
+        ]
+      }
+    },
+    {
+      "t": 73.0,
+      "left_hp": 56,
+      "right_hp": 52,
+      "caption": "Copperhead lifts Jackpot",
+      "hit": {
+        "by": "left",
+        "weapon": "drum spinner",
+        "clean": true,
+        "at": [
+          0.45,
+          0.67
+        ]
+      },
       "fan_comment": "Dragon slayer, Jackpot and Vanguard. Said they wanted to return on discord and [Drago has applied](https://youtube.com/watch?v=-QU7_YUfEpE&feature=share)"
     },
     {
-      "t": 70.0,
-      "left_hp": 100,
-      "right_hp": 45,
-      "caption": "Jackpot armour panel torn off"
+      "t": 91.5,
+      "left_hp": 56,
+      "right_hp": 52,
+      "caption": "Copperhead pins Jackpot on wall"
     },
     {
-      "t": 72.0,
-      "left_hp": 100,
-      "right_hp": 38,
-      "caption": "Jackpot front armour bent upward"
-    },
-    {
-      "t": 74.0,
-      "left_hp": 100,
-      "right_hp": 32,
-      "caption": "Jackpot armour piece detached"
-    },
-    {
-      "t": 78.0,
-      "left_hp": 100,
+      "t": 93.0,
+      "left_hp": 56,
       "right_hp": 30,
-      "caption": "Jackpot front fork broken loose"
+      "caption": "Copperhead bends Jackpot fork",
+      "hit": {
+        "by": "left",
+        "weapon": "drum spinner",
+        "clean": true,
+        "at": [
+          0.54,
+          0.58
+        ]
+      },
+      "fan_comment": "One thing I am excited for is the young driver for Copperhead."
     },
     {
-      "t": 82.0,
-      "left_hp": 100,
-      "right_hp": 28,
-      "caption": "Jackpot red fork dragging"
+      "t": 94.0,
+      "left_hp": 56,
+      "right_hp": 30,
+      "caption": "Jackpot nudges Copperhead away"
     },
     {
-      "t": 112.0,
-      "left_hp": 100,
-      "right_hp": 24,
-      "caption": "Jackpot side smoking"
+      "t": 98.5,
+      "left_hp": 56,
+      "right_hp": 30,
+      "caption": "Copperhead bumps Jackpot"
+    },
+    {
+      "t": 101.0,
+      "left_hp": 56,
+      "right_hp": 30,
+      "caption": "Jackpot shoves Copperhead"
+    },
+    {
+      "t": 105.5,
+      "left_hp": 56,
+      "right_hp": 30,
+      "caption": "Copperhead lifted by arena screws"
+    },
+    {
+      "t": 108.5,
+      "left_hp": 56,
+      "right_hp": 30,
+      "caption": "Jackpot shoves Copperhead"
+    },
+    {
+      "t": 109.5,
+      "left_hp": 56,
+      "right_hp": 30,
+      "caption": "Copperhead bumps Jackpot"
+    },
+    {
+      "t": 110.0,
+      "left_hp": 56,
+      "right_hp": 30,
+      "caption": "Copperhead lifts Jackpot's front"
+    },
+    {
+      "t": 113.0,
+      "left_hp": 56,
+      "right_hp": 30,
+      "caption": "Copperhead hoists Jackpot onto rails"
+    },
+    {
+      "t": 118.5,
+      "left_hp": 52,
+      "right_hp": 30,
+      "caption": "Jackpot lifts Copperhead side",
+      "hit": {
+        "by": "right",
+        "weapon": "forks",
+        "clean": true,
+        "at": [
+          0.56,
+          0.61
+        ]
+      }
     },
     {
       "t": 122.0,
-      "left_hp": 100,
-      "right_hp": 22,
-      "caption": "Jackpot smoking near wall"
+      "left_hp": 52,
+      "right_hp": 30,
+      "caption": "Copperhead tosses Jackpot into wall"
     },
     {
-      "t": 124.0,
-      "left_hp": 100,
-      "right_hp": 18,
-      "caption": "Jackpot armour panel dislodged"
+      "t": 124.5,
+      "left_hp": 52,
+      "right_hp": 30,
+      "caption": "Jackpot throws Copperhead over"
     },
     {
       "t": 128.0,
-      "left_hp": 100,
-      "right_hp": 15,
-      "caption": "Jackpot front wedge crumpled"
+      "left_hp": 52,
+      "right_hp": 30,
+      "caption": "Copperhead drums Jackpot side"
+    },
+    {
+      "t": 129.5,
+      "left_hp": 52,
+      "right_hp": 30,
+      "caption": "Jackpot scrapes wall sparks"
     },
     {
       "t": 130.0,
-      "left_hp": 100,
-      "right_hp": 10,
-      "caption": "Jackpot smoking against wall"
+      "left_hp": 52,
+      "right_hp": 30,
+      "caption": "Jackpot starts smoking at wall"
+    },
+    {
+      "t": 131.0,
+      "left_hp": 52,
+      "right_hp": 30,
+      "caption": "Jackpot backside catches fire"
     },
     {
       "t": 132.0,
-      "left_hp": 100,
-      "right_hp": 5,
-      "caption": "Jackpot on fire"
+      "left_hp": 52,
+      "right_hp": 30,
+      "caption": "Jackpot fire flares up"
     },
     {
-      "t": 134.0,
-      "left_hp": 100,
-      "right_hp": 3,
-      "caption": "Jackpot fire intensifies"
+      "t": 134.5,
+      "left_hp": 52,
+      "right_hp": 30,
+      "caption": "Jackpot fire spreads along side"
+    },
+    {
+      "t": 137.0,
+      "left_hp": 52,
+      "right_hp": 24,
+      "caption": "Jackpot immobile, count begins",
+      "drain": "right"
     },
     {
       "t": 138.0,
-      "left_hp": 100,
-      "right_hp": 2,
-      "caption": "Jackpot smoking against wall"
+      "left_hp": 52,
+      "right_hp": 18,
+      "caption": "Jackpot fire flickers",
+      "drain": "right"
+    },
+    {
+      "t": 139.0,
+      "left_hp": 52,
+      "right_hp": 12,
+      "caption": "",
+      "drain": "right"
     },
     {
       "t": 140.0,
-      "left_hp": 100,
-      "right_hp": 0,
+      "left_hp": 52,
+      "right_hp": 6,
       "caption": "",
+      "drain": "right"
+    },
+    {
+      "t": 140.5,
+      "left_hp": 52,
+      "right_hp": 0,
+      "caption": "Jackpot taps out",
+      "drain": "right",
       "ko": "right"
     }
   ]

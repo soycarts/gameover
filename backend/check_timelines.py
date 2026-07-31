@@ -79,9 +79,19 @@ def check(name: str) -> list[str]:
     if not drains:
         bad.append(f"{name}: no `drain` events — the count-out fell back to forcing "
                    f"hp to 0 on the last event, which invents a finishing blow")
-    if hits and len(at) < len(hits):
-        bad.append(f"{name}: {len(hits) - len(at)}/{len(hits)} hits carry no `at` — "
-                   f"judged before the impact point existed")
+    # NOT "every hit must have one". normalize_hit() REJECTS an out-of-range
+    # coordinate rather than clamping it — a model answering in pixels would clamp
+    # to the bottom-right corner, a confident wrong answer straight onto the HUD's
+    # own bar — and the fixed 36%/64% fallback is merely approximate. So the odd
+    # miss is the guard working: jackpot-copperhead's is t=21.5 "Copperhead
+    # launched into air", where the contact point is genuinely off-frame. Only a
+    # timeline where NO hit has one was judged before the field existed.
+    if hits and not at:
+        bad.append(f"{name}: not one of {len(hits)} hits carries `at` — judged "
+                   f"before the impact point existed, so every crosshair falls back")
+    elif len(at) < len(hits):
+        print(f"{'':22} {len(hits) - len(at)}/{len(hits)} hit(s) with no `at` — "
+              f"rejected as out of range, falling back to the fixed position")
     if not ko:
         bad.append(f"{name}: no event carries `ko` — loserSide() falls back to hp")
 
