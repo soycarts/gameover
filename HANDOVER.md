@@ -16,19 +16,34 @@ were rival designs and that someone had to pick one. That was wrong, and it is
 worth understanding why, because the shape matters:
 
 - **The backend owns *how much*.** The model never emits hp. It rates each frame
-  with a damage word per bot; `SEVERITY` maps those to 4/12/22/35 points; `pay()`
-  spends a fixed budget on the worst moments and zeroes the surplus.
-- **The frontend owns *how it looks*.** `deriveHits()` reads hp deltas and `TIERS`
-  bands them at 1/10/20/30 into graze / solid / heavy / massive.
-- **They meet only at the hp delta**, and the ladder quantises every delta to
-  exactly one of four values, so each rung lands squarely in one tier.
+  with a damage word per bot; `SEVERITY` maps those to relative weights;
+  `normalise()` shares one target across every surviving blow in proportion.
+- **The frontend owns *how it looks*.** `deriveHits()` reads `hit.sev` and `TIERS`
+  bands it into graze / solid / heavy / massive.
+- **They meet at `hit.sev`, not at the hp delta.** That changed on 31 Jul and it
+  is the single most important thing on this page.
 
-Keep the two tables in step. Move a rung on either side without the other and a
-whole category of hit silently changes colour, size and whether it shakes the
-screen.
+**Why it changed.** `pay()` spent a fixed budget (55 live / 70 ko) on the worst
+moments and zeroed the rest. The budget was absolute while a fight's length is
+not, so `jackpot-copperhead` — 140s of events — got the same allowance as
+`manta-skorpios`'s 27s and came out with both budgets exhausted to the point
+(Copperhead 52/55, Jackpot exactly 70/70) against raw totals of 240 and 164.
+**Thirty-five captioned moments, seven that move a bar.** On screen that is
+"Jackpot throws Copperhead onto screws" typed over a frozen health bar, and it is
+what a viewer notices before anything else on the page.
 
-`hit {by, weapon, clean}` is orthogonal to both — it carries only what the model
-can see. Damage, victim and tier stay derived, never stored.
+**Why it is safe.** CLAUDE.md used to forbid exactly this — "do not fix it by
+scaling every hit down to fit; that reconstructs the 3–5 point drip". That warning
+was right about the *original* pipeline for one specific reason: it emitted
+absolute hp with **no rung behind it**, so a 3-point delta could not be banded,
+coloured or shaken. Here the rung survives as `hit.sev`. The delta is now purely
+*how much bar*; the rung is *how hard*. **Do not put those back together.** If you
+ever find yourself writing `dmg >= 10` in the HUD, that is the regression —
+`SHAKE_AT`/`MASSIVE_AT` were exactly that and are now `SHAKE_TIERS`/`HARD_TIERS`.
+
+`hit {by, weapon, clean, at, sev}` still carries only what the model can see.
+Damage and victim stay derived. `sev` is stored for the same reason `drain` is:
+under normalisation it is no longer a function of two adjacent events.
 
 ## Works and verified
 
@@ -151,10 +166,18 @@ Every clip is now 2 fps, judged with `--bots`, `--looks`, `--regrade` and
 severity ladder; `f7f9ecb` then took *main's* side of the file in a merge and the
 pre-ladder version was back at every commit for three days. Nobody noticed, because a
 reverted timeline still loads, still validates and still plays. That is what
-`check_timelines.py` now exists to catch: the model never emits hp, it rates a damage
-word that becomes 4/12/22/35, so a non-drain delta of 10 or 15 or 7 is arithmetically
-impossible from the current pipeline and proves the file is stale. **Run it after
-every merge, before pushing.**
+`check_timelines.py` now exists to catch. **Run it after every merge, before
+pushing.**
+
+It is now **two-era aware**, because the clips are deliberately in two states. A
+timeline whose hits carry `sev` is *normalised*: every non-count delta ≥1, `sev` on
+every hit, and the eliminated bot's blows summing to `KO_BLOW_TOTAL` (85) exactly.
+One with no `sev` anywhere is *ladder*: the old fixed-budget pipeline, where every
+non-count delta lands on a `SEVERITY` rung. **A judged clip in neither state is
+stale** — deltas off the rungs *with no `sev` to explain them* is a sharper
+`f7f9ecb` detector than the ladder check alone was. Only `jackpot-copperhead` was
+re-judged onto normalisation; madcatter and manta stay on the ladder, which is why
+both branches are live and neither is dead code.
 
 **`jackpot-copperhead` needs `--ko right`, and the reason is worth reading.**
 Copperhead took *more* raw damage than Jackpot (240 vs 164) and still won. The damage
@@ -284,8 +307,30 @@ CLAUDE.md wants the core near 700. Cheapest trims are the `.bd-tier` pixel chips
 It forwards `ko`, `looks`, `regrade` and `stop_pass` now, so era B can set every
 judging flag era A uses.
 
+### 7. Known wart of normalisation: the readout can print `HEAVY −6` next to `SOLID −8`
+
+Within one side a bigger rung always takes more bar — `normalise()`'s share is
+proportional to the rung, so it is monotonic. **Across sides it is not**, because
+the two bots have different targets and different blow counts, so the eliminated
+bot's `solid` can cost more hp than the survivor's `heavy`. Both numbers are
+honest — the tier says how hard, the number says what happened to that bar — and
+they are only ever juxtaposed by a viewer comparing two different moments. Left
+alone deliberately; dropping the number would lose the more useful of the two.
+
 ## Traps that cost time
 
+- **An EMPTY exported variable shadowed the key in `.env` and 401'd everything.**
+  `load_env()` skipped any name already `in os.environ`, and this shell carried
+  `OPENAI_API_KEY=` with no value — so the good key in `.env` was never read. It
+  reads exactly like "the key in `.env` is broken", which is the same wrong
+  conclusion the worktree-`.env` trap produces. Fixed in `config.py` (it now tests
+  truthiness, matching `get()`), but the habit is the real fix: **fingerprint the
+  resolved key before any paid run.** `sha256`, first 8 chars — `e3b0c442` is the
+  hash of the empty string, and seeing it is the whole diagnosis. Never print the
+  key itself. The one-liner is in CLAUDE.md's commands block.
+- **`python … > log 2>&1` block-buffers, so a long run's log stays 0 bytes.** It
+  looks exactly like a hung process. Use `python -u`, or check `ps -o etime=` on
+  the pid rather than the log, before concluding anything is wrong.
 - **A three-way merge can duplicate a whole code block without conflicting.** The
   merged `analyze.py` ended up with *both* branches' `--bots` parsers: the first
   parsed the flag and deleted it from `argv`, the second reset `bots = None` and
