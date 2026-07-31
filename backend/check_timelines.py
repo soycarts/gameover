@@ -12,12 +12,23 @@ commit for three days and nobody noticed, because a reverted timeline still
 loads, still validates and still plays — it just quietly describes a different
 fight. A JSON timeline is not a file where "take theirs" is ever obviously right.
 
-The load-bearing check is the LADDER one. The model never emits hp; it rates a
-damage word, which SEVERITY turns into 0/4/12/22/35. So every hp delta that is
-not a count-out has to land exactly on a rung. Deltas of 10, 15, 7, 6, 3 are the
-signature of the old absolute-hp pipeline, where the model nudged the bar down a
-few points per frame to signal "time passed" — a drip the HUD renders as mush and
-no TIERS band can colour.
+The load-bearing check is the ERA one, and there are now two legitimate eras.
+
+**Normalised** (hits carry `sev`): normalise() shares one target across every
+blow in proportion to its rung, so a delta is a share of the bar and no longer a
+rung. What has to hold instead is that every blow moves the bar at all, that the
+rung is carried explicitly as `hit.sev`, and that the loser's blows sum to
+KO_BLOW_TOTAL with the count bleeding the rest.
+
+**Ladder** (no `sev` anywhere): the older fixed-budget pipeline, where every
+non-count delta lands exactly on a SEVERITY rung of 4/12/22/35. madcatter and
+manta are deliberately still here.
+
+A judged clip in NEITHER state is stale. That is a sharper test than the ladder
+check it replaces: deltas of 10, 15, 7, 6, 3 with no `sev` to explain them are
+the signature of the original absolute-hp pipeline, where the model nudged the
+bar down a few points a frame to signal "time passed" — a drip the HUD renders as
+mush because there was no rung behind it to colour, size or shake from.
 
 Synthetic timelines (synthfight, demo/) are hand-made fixtures that deliberately
 exercise the no-`hit` fallback path, so they are validated but exempt from the
@@ -55,24 +66,54 @@ def check(name: str) -> list[str]:
     weapon = [e for e in hits if e["hit"].get("weapon")]
     ko = [e.get("ko") for e in ev if e.get("ko")]
 
-    off = []
+    sev = [e for e in hits if e["hit"].get("sev")]
+    normalised = bool(sev)
+
+    off, blows = [], {s: 0 for s in analyze.SIDES}
     for a, b in zip(ev, ev[1:]):
         for side in analyze.SIDES:
             d = a[f"{side}_hp"] - b[f"{side}_hp"]
-            if d and not b.get("drain") and d not in LADDER:
+            if not d or b.get("drain"):
+                continue
+            blows[side] += d
+            if not normalised and d not in LADDER:
                 off.append(f"t={b['t']}:{side} -{d}")
 
     print(f"{name:22} {len(ev):3} events  {len(drains):3} drain  {len(hits):3} hit  "
-          f"{len(at):3} at  {len(weapon):3} weapon  ko={ko or 'NONE'}")
+          f"{len(at):3} at  {len(weapon):3} weapon  ko={ko or 'NONE'}  "
+          f"{'normalised' if normalised else 'ladder'}")
 
     if name in SYNTHETIC:
         print(f"{'':22} synthetic fixture — validated, parity rules not applied")
         return bad
 
-    if off:
-        bad.append(f"{name}: {len(off)} hp delta(s) off the severity ladder "
-                   f"({', '.join(off[:6])}{'…' if len(off) > 6 else ''}) — this is "
-                   f"the pre-ladder pipeline, i.e. a stale or reverted timeline")
+    if normalised:
+        # Reported, not asserted. The bug this era exists to fix looks like a wall
+        # of captions over a frozen bar — jackpot-copperhead was 35 captions to 7
+        # scoring moments, one every 20s against manta's every 9s. There is no
+        # honest threshold to fail on (a fire spreading is a caption and not a
+        # blow), so print the density and let a human read it.
+        told = [e for e in ev if e.get("caption")]
+        span = ev[-1]["t"] - ev[0]["t"] or 1
+        print(f"{'':22} {len(hits)} blow(s) across {span:.0f}s — one every "
+              f"{span / max(1, len(hits)):.1f}s, over {len(told)} captioned moment(s)")
+        if len(sev) < len(hits):
+            bad.append(f"{name}: {len(hits) - len(sev)} of {len(hits)} hits carry no "
+                       f"`sev` — the HUD bands those off the hp delta, which under "
+                       f"normalisation is a share of the bar and not a rung")
+        # The loser's blows must sum to KO_BLOW_TOTAL; the count bleeds the rest.
+        for side in ko:
+            got = blows[side]
+            if got != analyze.KO_BLOW_TOTAL:
+                bad.append(f"{name}: the eliminated bot ({side}) lost {got}hp to blows, "
+                           f"not {analyze.KO_BLOW_TOTAL} — normalise() and the count-out "
+                           f"disagree about who owns the last "
+                           f"{100 - analyze.KO_BLOW_TOTAL}hp")
+    elif off:
+        bad.append(f"{name}: {len(off)} hp delta(s) off the severity ladder and no "
+                   f"`sev` to explain them ({', '.join(off[:6])}"
+                   f"{'…' if len(off) > 6 else ''}) — this is the original absolute-hp "
+                   f"pipeline, i.e. a stale or reverted timeline")
     if not hits:
         bad.append(f"{name}: no `hit` objects at all — judged before the hit "
                    f"contract, so no weapon labels and no crosshairs")

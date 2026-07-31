@@ -64,7 +64,15 @@ Rules:
   machinery that are NOT competitors: the referee and crew in striped shirts,
   the driver booths, arena hazards (killsaws, screws, pulverisers, the shelf),
   and any small tender/clean-up robot. Never assign their state to a competitor,
-  and never let one of them trigger a caption.
+  and never let one of them trigger a caption about ITSELF — a killsaw firing is
+  not an event, and a hazard is never the subject of a caption.
+- But damage the ARENA does to a competitor is real damage, and you rate it on
+  exactly the same ladder as a weapon hit. A bot thrown onto the screws, dropped
+  off the upper deck, slammed into the wall or caught by the killsaws has taken
+  the damage you can see, whoever or whatever put it there. Do not discount it
+  for having no attacker: judge the outcome — is the bot airborne, is it landing
+  on its back, has something come off — exactly as you would for a spinner hit.
+  Mark these with "clean": false and name the hazard in "hit.weapon".
 - caption: at most 6 words, describing what you just rated. Use "" when both
   bots are "none". Name the bot whenever you know it: "Tombstone armour panel
   torn off", not "right armour panel torn off". Fall back to "left"/"right" only
@@ -80,6 +88,10 @@ Rules:
   damage was incidental: thrown into a wall, an arena hazard, a fall, or a bot
   hurting itself. For self-inflicted damage set "by" to the bot that hurt ITSELF
   and "clean" to false.
+  Arena damage uses the same shape: "by" is the bot that TOOK it and "clean" is
+  false. That is true even when the other bot threw it there — the screws did the
+  damage, and the bot that was thrown is the one that lost the parts. Do not set
+  "by" to the bot that did the throwing; a hazard blow is nobody's clean hit.
 - "hit.at" is WHERE the blow landed in THIS frame: [x, y] as fractions of the frame's
   width and height measured from the TOP-LEFT corner, 0 to 1, two decimals. Point at
   the contact itself — the spray of sparks, the two machines meeting — not at the

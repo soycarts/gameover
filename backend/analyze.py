@@ -42,8 +42,18 @@ flag precisely so it cannot disagree with the frames on disk.
 
 The model never emits hp: it rates each frame with a damage word per bot, and
 SEVERITY turns that into points. Everything else -- merging one blow rated across
-adjacent frames, discarding replays, the budget, thinning, the knockout count and the
-fan comment join -- is deterministic Python, not model output.
+adjacent frames, discarding replays, normalising, thinning, the knockout count and
+the fan comment join -- is deterministic Python, not model output.
+
+Damage NORMALISES per match rather than being spent from a fixed budget. Every
+blow that survives the merging and dropping passes takes a share of one target
+total in proportion to its rung, so a 140s fight shows its blows instead of
+burning the whole bar on the first four. The eliminated bot loses KO_BLOW_TOTAL
+to blows and the referee count bleeds the rest; the survivor's total is half a
+visual end-condition reading (--no-condition skips the call) and half how hard it
+was hit relative to the loser. Because the hp delta is now a share and not a rung,
+the rung itself is stored as `hit.sev` -- that is what the HUD colours, sizes and
+shakes from, and getting those two apart is what makes small deltas renderable.
 
 A knockout is a COUNT, not a blow. immobile_from() finds where the loser stopped and
 count_out() bleeds its remaining hp to 0 across the frames up to the finish, marked
@@ -102,8 +112,15 @@ NOT_COMPETITOR = "other"
 # is not representable. The rungs are spaced against the HUD's 5 cores x 20 hp, so
 # a mis-graded hit is wrong by a category rather than by an unreadable 3 points.
 SEVERITY = {"none": 0, "glance": 4, "solid": 12, "heavy": 22, "catastrophic": 35}
-KO_BUDGET = 70               # damage a bot may take BEFORE the finishing blow
-LIVE_BUDGET = 55             # ... for a bot still fighting at the end
+# The rungs above are RELATIVE weights now, not hp. normalise() turns a side's
+# surviving blows into a share of one target total, so a rung decides how big a
+# blow is COMPARED TO the others in this fight rather than what it costs outright.
+KO_BLOW_TOTAL = 85           # hp the eliminated bot loses to BLOWS ...
+# ... and the referee count bleeds the remaining 15 to 0, one step a second. The
+# split is why a knockout still reads as a count and not as a finishing blow.
+CONDITION = {"pristine": 5, "scuffed": 22, "damaged": 45, "wrecked": 70}
+CONDITION_FRAMES = 6         # closing frames condition_pass() reads — one call
+WINNER_FLOOR, WINNER_CEIL = 8, KO_BLOW_TOTAL   # the survivor never bottoms out
 FINISH_WINDOW = 0.7          # a finish flag in the first 70% of a clip is a misread
 MERGE_WINDOW = 1.0           # one blow's follow-through, in seconds
 MAX_DRAIN_STEPS = 20         # a count-out never adds more events than this
@@ -318,6 +335,14 @@ def footer(frames: list[tuple[float, Path]], recent: list[str],
               '"clean": true|false, "at": [x, y]}) naming the bot that LANDED the '
               'blow, and where on the frame it landed. '
               'Omit "hit" when both bots are "none".\n'
+            # Restated for the same reason the hit rule is: a rule that lives only
+            # in prompt.txt is honoured for a batch or two and then drifts back to
+            # the obvious answer, and hazard throws cluster in the scrappy middle
+            # of a long clip where the drift has already happened.
+            + 'The arena damages bots too. A bot thrown onto the screws, into the '
+              'wall, off the deck or into the killsaws has taken real damage — rate '
+              'it on the same ladder, set "clean": false, name the hazard in '
+              '"weapon", and set "by" to the bot that TOOK it.\n'
             + immobile_note()
             + f"Return one entry per frame above, at exactly these timestamps: "
               f"{[round(t, 1) for t, _ in frames]}")
@@ -587,25 +612,103 @@ def trim_caption(text: str) -> str:
     return " ".join((text or "").split()[:MAX_CAPTION_WORDS])
 
 
-def pay(obs: list[dict], side: str, budget: int) -> None:
-    """Spend a fixed damage budget on the worst moments first; zero the rest.
+def normalise(obs: list[dict], side: str, target: int) -> None:
+    """Share one target total across every blow this side took, in proportion.
 
-    A busy fight overshoots badly — the model will happily call 30 hits, and 30
-    hits at 12 points each is 360 damage against a 100 point bar. Scaling every
-    hit down to fit would just re-create the 3-5 point drip this replaces, and a
-    plain floor would flatline the bar halfway through the fight. Paying the big
-    hits first keeps them full size and drops the surplus scuffing. Ties go to the
-    earlier frame, so the result is stable and idempotent.
+    This replaces pay(), which spent a FIXED budget on the worst moments and
+    zeroed everything else. The budget was absolute while a fight's length is
+    not: jackpot-copperhead is 140s of events against manta's 27s and got the
+    same 55/70, so it burned its whole allowance on four blows and struck out
+    ~253 of ~404 raw points. Thirty-five captioned moments produced seven that
+    moved a bar — "Jackpot throws Copperhead onto screws" typed over a frozen
+    health bar, which is exactly what a viewer reads as "that didn't register".
 
-    The budget is under 100 on purpose: a bot bottoms out with hp to spare, and
-    the only route to 0 is the model's finish flag."""
-    spent = 0
-    for i in sorted(range(len(obs)), key=lambda i: (-obs[i]["cost"][side], i)):
-        c = obs[i]["cost"][side]
-        if c and spent + c <= budget:
-            spent += c
-        else:
+    Scaling to fit is the thing CLAUDE.md warns against, and the warning is
+    right about the OLD pipeline for one specific reason: it emitted absolute hp
+    with no severity rung behind it, so a 3-point delta could not be banded,
+    coloured or shaken. Here the rung survives — normalize_hit() stores the
+    model's own word as `hit.sev` and the HUD takes the tier from that, never
+    from the delta. The delta is now purely "how much bar"; the rung stays "how
+    hard". Decoupling those two is what makes proportional damage renderable.
+
+    Largest-remainder (Hamilton) allocation, so the parts sum to `target`
+    EXACTLY rather than to target±n after rounding — check_timelines.py asserts
+    that sum, and the count-out reads it back as `100 - sum(costs)`.
+
+    Every blow gets at least 1hp. A blow that moves no bar is the bug being
+    fixed, so a zero here would reintroduce it through the back door. If there
+    are more blows than points, the lowest rungs are dropped until they fit and
+    the drop is printed — never silently, or a truncated fight reads as a
+    covered one. At 85 points and ~11 blows that branch does not fire.
+
+    Ties break to the earlier frame, so this is deterministic and idempotent.
+    """
+    idx = [i for i, o in enumerate(obs) if o["cost"][side] > 0]
+    if not idx or target <= 0:
+        for i in idx:
             obs[i]["cost"][side] = 0
+        return
+
+    # More blows than hp: the cheapest rungs lose, exactly as pay() would have.
+    if len(idx) > target:
+        keep = sorted(sorted(idx, key=lambda i: (-obs[i]["cost"][side], i))[:target])
+        for i in set(idx) - set(keep):
+            obs[i]["cost"][side] = 0
+        print(f"  ! {side}: {len(idx)} blows into {target}hp — dropped the "
+              f"{len(idx) - target} lowest-rated")
+        idx = keep
+
+    total = sum(obs[i]["cost"][side] for i in idx)
+    exact = {i: (target - len(idx)) * obs[i]["cost"][side] / total for i in idx}
+    share = {i: 1 + int(exact[i]) for i in idx}          # the 1hp floor
+    # hand out what rounding left over, biggest fractional part first
+    left = target - sum(share.values())
+    for i in sorted(idx, key=lambda i: (-(exact[i] % 1), i))[:left]:
+        share[i] += 1
+    for i in idx:
+        obs[i]["cost"][side] = share[i]
+
+
+def intense_in(obs: list[dict], side: str) -> int:
+    """How many blows at or above SHUTOUT_FLOOR this side TOOK. The unit is the
+    blow, not the point total — the question the winner's bar answers is "did it
+    get hit hard, often" and one catastrophic frame is not four solid ones."""
+    return sum(1 for o in obs if o["cost"][side] >= SHUTOUT_FLOOR)
+
+
+def winner_target(obs: list[dict], winner: str, loser: str,
+                  cond: dict[str, str] | None = None) -> int:
+    """How much bar the SURVIVING bot loses over the fight.
+
+    The eliminated bot's total is fixed (KO_BLOW_TOTAL, with the count bleeding
+    the rest) because the fight itself settles it. The survivor's is not: it
+    drove away, so the only evidence for how beaten up it is comes from two
+    places, and neither is trustworthy alone. So take half from each:
+
+    - What it LOOKS like at the end — condition_pass() rating it pristine /
+      scuffed / damaged / wrecked, through the CONDITION table. Honest but hard:
+      a robot can be gutted underneath and look fine from above.
+    - How hard it got hit RELATIVE to the bot that lost. Countable and
+      independent of appearance, but blind to what the blows achieved.
+
+    The ratio is clamped at 1: the survivor cannot be more damaged than the bot
+    that was counted out. It really can exceed 1 — on jackpot-copperhead the
+    WINNER took more raw damage (240 vs 164) and still won, which is why this is
+    a clamp and not an assertion.
+
+    With no condition reading the intensity half carries the whole thing, so a
+    skipped or failed pass degrades rather than breaking the run.
+    """
+    ratio = min(1.0, intense_in(obs, winner) / max(1, intense_in(obs, loser)))
+    hits_half = KO_BLOW_TOTAL * ratio
+    rung = (cond or {}).get(winner)
+    blend = (0.5 * CONDITION[rung] + 0.5 * hits_half) if rung in CONDITION else hits_half
+    got = max(WINNER_FLOOR, min(WINNER_CEIL, round(blend)))
+    print(f"  {winner} survives on {100 - got} hp — "
+          f"condition {rung or 'not read'} ({CONDITION.get(rung, '—')}) / "
+          f"intensity {intense_in(obs, winner)}v{intense_in(obs, loser)} "
+          f"-> {hits_half:.0f}")
+    return got
 
 
 def merge_blows(obs: list[dict], window: float = MERGE_WINDOW) -> None:
@@ -623,7 +726,8 @@ def merge_blows(obs: list[dict], window: float = MERGE_WINDOW) -> None:
 
     Ties go to the EARLIER frame, so this is deterministic and idempotent — run
     it twice and nothing more moves. Zeroed observations keep their captions,
-    exactly like pay()'s leftovers, so thin() still has a beat for the HUD.
+    so thin() still has a beat for the HUD, exactly like the ones normalise()
+    never sees.
 
     Deliberately does NOT merge across sides: an exchange that damages both bots
     is TWO hits, and deriveHits() in index.html is the one place that definition
@@ -701,13 +805,67 @@ def stop_pass(dispatch, prompt: str, stamped: list, obs: list[dict], loser: str,
     return n
 
 
+def condition_pass(dispatch, prompt: str, stamped: list, names: dict, state: dict,
+                   spf: float) -> dict[str, str]:
+    """Ask how beaten up each bot LOOKS at the end. Returns {side: rung}.
+
+    Half of the surviving bot's damage total (see winner_target()). The other
+    half is countable — how many hard blows it took relative to the loser — and
+    this half is the thing counting cannot see: a bot can absorb eight solid
+    hits and drive away straight, or take three and end up trailing its own
+    guts. The fight itself settles the loser's bar, so strictly only the winner's
+    answer is used; both are asked because it is the same call and the loser's
+    answer is a free sanity check — a run that calls the counted-out machine
+    "pristine" has read the wrong robot somewhere.
+
+    Deliberately NOT a damage rating. It asks about the END STATE, cumulative,
+    which is the one question the frame-by-frame pass is explicitly forbidden to
+    answer (prompt.txt: a bot that is still upside down is "none"). So it cannot
+    double-count: it never touches obs and never adds a blow.
+
+    Deaf (`talk=[]`) for relook()'s reason — commentators exaggerate condition
+    more than anything else in a fight, and this is a visual question.
+    """
+    frames = stamped[-CONDITION_FRAMES:]
+    if not frames:
+        return {}
+    left, right = names.get("left") or "the left bot", names.get("right") or "the right bot"
+    focus = (prompt + "\n\nFINAL PASS — ONE QUESTION, AND IT IS NOT ABOUT DAMAGE.\n"
+             "These are the closing frames. Ignore what happened earlier and ignore "
+             "who won. Judge how each machine LOOKS NOW, cumulatively, using:\n"
+             "  pristine   — intact, clean, no visible damage\n"
+             "  scuffed    — cosmetic only: scratches, scorch marks, minor debris\n"
+             "  damaged    — a panel, wheel, fork or weapon visibly bent, torn or gone\n"
+             "  wrecked    — major structural damage, on fire, in pieces, weapon dead\n"
+             f'Return {{"left": "...", "right": "...", "why": "<8 words>"}} for '
+             f"{left} (left) and {right} (right). One answer for the whole batch, "
+             f"not per frame. If a bot is not visible in any of these frames, say "
+             f'"unknown" for it rather than guessing.\n')
+    print(f"condition pass over the last {len(frames)} frame(s)")
+    out = dispatch(focus, frames, None, [], names, state, [], spf)
+    got = {s: str(out.get(s, "")).lower().strip() for s in SIDES}
+    cond = {s: w for s, w in got.items() if w in CONDITION}
+    for s in SIDES:
+        print(f"  {names.get(s) or s}: {got[s] or 'no answer'}"
+              f"{'' if s in cond else '  (ignored)'}")
+    if out.get("why"):
+        print(f"  \"{str(out['why'])[:60]}\"")
+    return cond
+
+
 def other_side(s: str) -> str:
     return "left" if s == "right" else "right"
 
 
 def word_for(cost: int) -> str:
-    """The ladder word a cost came from. Exact by construction: nothing in the
-    pipeline ever scales a cost, so every one is a SEVERITY value or zero."""
+    """The ladder word a cost came from.
+
+    Exact only BEFORE normalise() runs — up to that point nothing scales a cost,
+    so every one is a SEVERITY value or zero. normalise() replaces them with a
+    share of the bar and the mapping stops being invertible, which is exactly why
+    the rung is stamped onto the observation first and carried through as
+    `hit.sev` rather than being re-derived from the hp delta later.
+    """
     for w, v in SEVERITY.items():
         if v == cost:
             return w
@@ -734,9 +892,11 @@ def relook(dispatch, prompt: str, stamped: list, obs: list[dict], spf: float,
     - it snaps to a rung. Nothing here produces a value the ladder cannot express,
       which is the whole reason the ladder exists.
 
-    pay() still runs afterwards on the same budgets, so the totals cannot inflate:
-    a re-graded fight redistributes which blows win the auction, not how much
-    there is to spend.
+    normalise() still runs afterwards against the same target, so the totals
+    cannot inflate: a re-graded fight changes each blow's SHARE of the bar, never
+    how much bar there is. That makes this pass matter more than it used to — a
+    rung is now relative weight rather than an outright price, so mis-grading one
+    blow quietly resizes every other blow on that side.
 
     Deliberately blind: the first pass's rating is NOT in the prompt. A stated
     prior turns a second opinion into a rubber stamp. Deliberately deaf too —
@@ -881,8 +1041,9 @@ def repass(dispatch, prompt: str, stamped: list, batch_n: int, spf: float,
 
     Only ever ADDs, and the blast radius is bounded by code that already exists:
     whatever comes back is max()'d into the first pass's costs and then still has
-    to survive pay() on LIVE_BUDGET, so even a maximally over-eager second pass
-    cannot take this bot below hp 45. Nothing here fabricates damage — a rating
+    to go through normalise() against a target this cannot raise, so even a
+    maximally over-eager second pass cannot change where this bot's bar ends up —
+    only how the drop is spread. Nothing here fabricates damage — a rating
     with no hp drop behind it is dropped by normalize_hit() exactly as before.
     """
     who = names.get(side) or side
@@ -1130,7 +1291,8 @@ def finish_at(obs: list[dict]) -> tuple[int | None, str | None]:
 def thin(observations: list[dict]) -> list[dict]:
     """~60 frame observations -> ~10 events: keep only visible change.
 
-    A caption with no hp change is still kept — pay() zeroes surplus hits, and the
+    A caption with no hp change is still kept: the earlier passes zero replays,
+    merged follow-through frames and everything inside the count window, and the
     caption beat gives the HUD something to type across a long fight. But a caption
     that just repeats the one before it is dropped: the model narrates a fire for
     ten frames running, and the HUD should not type "right side on fire" ten times.
@@ -1148,13 +1310,20 @@ def thin(observations: list[dict]) -> list[dict]:
     return events
 
 
-def normalize_hit(raw, prev: dict, cur: dict) -> dict | None:
+def normalize_hit(raw, prev: dict, cur: dict, sev: dict | None = None) -> dict | None:
     """Model hit -> contract hit, or None. Deterministic, like the hp clamp.
 
     Runs AFTER the clamp so it judges the damage the timeline will actually show:
     hp deltas are the only evidence a blow landed, and a hit with none behind it is
-    dropped. The frontend derives damage, victim and tier from those same deltas —
-    what survives here is only what the model could see and code cannot infer.
+    dropped. The frontend derives damage and victim from those same deltas — what
+    survives here is only what the model could see and code cannot infer.
+
+    `sev` is the ladder rung this frame was rated, captured before normalise()
+    turned the costs into shares of a bar. The TIER used to be derivable from the
+    hp delta and no longer is: a heavy sharing 85 points with ten other blows is
+    worth ~8hp and would band as a graze. So the rung joins `drain` as the second
+    thing stored rather than derived, for the same reason — two adjacent events
+    cannot express it. Optional, so a timeline written before this still loads.
     """
     if not isinstance(raw, dict):
         return None
@@ -1183,6 +1352,12 @@ def normalize_hit(raw, prev: dict, cur: dict) -> dict | None:
     at = clamp_at(raw.get("at"))
     if at:
         out["at"] = at            # never "at": None — the key is absent or it is a pair
+    # The rung of the side that actually lost hp — the blow this hit describes,
+    # not whichever bot `by` names, for the same reason `at` and `weapon` are set
+    # against the victim. Absent rather than null when unknown, like `at`.
+    rung = (sev or {}).get(dropped[0]) if len(dropped) == 1 else None
+    if rung in SEVERITY and rung != "none":
+        out["sev"] = rung
     return out
 
 
@@ -1283,11 +1458,13 @@ def validate(timeline: dict) -> None:
         # normalize_hit() clamps model noise; these catch bugs in our own code.
         h = e.get("hit")
         if h is not None:
-            # subset, not equality: "at" is OPTIONAL, so every timeline judged
-            # before it existed still has to validate and still has to load
+            # subset, not equality: "at" and "sev" are OPTIONAL, so every timeline
+            # judged before either existed still has to validate and still load
             assert isinstance(h, dict) and \
-                {"by", "weapon", "clean"} <= set(h) <= {"by", "weapon", "clean", "at"}, \
-                f"bad hit shape at {e['t']}"
+                {"by", "weapon", "clean"} <= set(h) <= \
+                {"by", "weapon", "clean", "at", "sev"}, f"bad hit shape at {e['t']}"
+            assert h.get("sev", "glance") in SEVERITY and h.get("sev") != "none", \
+                f"bad hit.sev at {e['t']}"
             a = h.get("at")
             assert a is None or (isinstance(a, list) and len(a) == 2
                                  and all(isinstance(v, (int, float)) and 0 <= v <= 1
@@ -1311,7 +1488,7 @@ def analyze(clip: str, backend: str = "api", bots: dict | None = None,
             ko: str | None = None, audio: bool = True,
             partial: bool = False, looks: dict | None = None,
             regrade: bool = False, stop: bool = False,
-            verify_pass: bool = False) -> Path:
+            verify_pass: bool = False, condition: bool = True) -> Path:
     name = Path(clip).stem
     frame_dir = ROOT / "frames" / name
     paths = sorted(frame_dir.glob("*.jpg"))
@@ -1428,8 +1605,8 @@ def analyze(clip: str, backend: str = "api", bots: dict | None = None,
             rep = f.get("replay") is True
             cap = trim_caption(f.get("caption", ""))
             # The raw hit rides along untouched until hp exist. It cannot be
-            # normalised yet: pay() may still zero this frame's cost, and a hit
-            # with no hp drop behind it is not a hit.
+            # normalised yet: later passes may still zero this frame's cost, and
+            # a hit with no hp drop behind it is not a hit.
             obs.append({"t": round(t, 1), "cost": cost, "finish": fin, "caption": cap,
                         "immobile": imm, "immobile_raw": f.get("immobile"),
                         "replay": rep, "raw_hit": f.get("hit")})
@@ -1561,7 +1738,7 @@ def analyze(clip: str, backend: str = "api", bots: dict | None = None,
 
     # A knockout is a referee counting, not a blow. Find the moment the loser
     # actually stopped; from there the count owns the bar, so those frames are
-    # taken out of pay()'s auction before it runs.
+    # zeroed before normalise() runs and never take a share of it.
     drain_from = (immobile_from(obs, loser, need=machines_needed(names.get(loser)))
                   if loser else None)
     if drain_from is not None:
@@ -1580,25 +1757,46 @@ def analyze(clip: str, backend: str = "api", bots: dict | None = None,
                   f"clamping to t={obs[drain_from]['t']:.1f}s", file=sys.stderr)
         for o in obs[drain_from:]:
             o["cost"][loser] = 0
-    # More frames means more candidate blows against the same absolute budget, so
-    # these two lines are how you tell a busier fight from an inflated one without
-    # re-reading the whole timeline. The budgets themselves stay put: merge_blows()
-    # keeps the number of DISTINCT blows fps-invariant, which is what makes 70/55
-    # keep meaning what they meant at 0.5 fps. Raising them to fit more hits is
-    # arithmetically the same as having no budget, and that is the drip.
-    print(f"  raw damage before budget: "
-          f"{ {s: sum(o['cost'][s] for o in obs) for s in SIDES} } "
-          f"(budgets {LIVE_BUDGET} live / {KO_BUDGET} ko)")
-    for side in ("left", "right"):
-        pay(obs, side, KO_BUDGET if side == loser else LIVE_BUDGET)
+    # The raw totals are rungs, not hp — they are the WEIGHTS normalise() shares a
+    # target across, so a big number here means a busy fight and never an inflated
+    # one. Print them anyway: the ratio between the two sides is what decides the
+    # winner's bar, and a run where the winner out-rates the loser is worth a look.
+    raw = {s: sum(o["cost"][s] for o in obs) for s in SIDES}
+    print(f"  raw severity weight: {raw} "
+          f"(blows {[intense_in(obs, s) for s in SIDES]} at or above solid)")
+
+    # One call, and only the winner's answer is load-bearing. Default on: it is
+    # half of how the survivor's bar is computed, so a run without it is a run
+    # with a different (and blinder) answer, not the same one cheaper.
+    cond = (condition_pass(dispatch, prompt, stamped, names, state, spf)
+            if condition and loser else {})
+
+    targets = {s: (KO_BLOW_TOTAL if s == loser else
+                   winner_target(obs, s, loser, cond) if loser else
+                   # No loser at all — nobody is being counted out, so neither bar
+                   # has a fixed end point. Split KO_BLOW_TOTAL by relative weight
+                   # and let the busier side take more of it.
+                   round(KO_BLOW_TOTAL * raw[s] / max(1, max(raw.values()))))
+               for s in SIDES}
+    # Stamp the rung BEFORE the costs become shares of a bar. After normalise()
+    # the hp delta no longer says how hard a blow was — an 8-point heavy would
+    # band as a graze in the HUD — so this is the only moment the two are still
+    # the same number, and it is what `hit.sev` carries to the frontend.
+    for o in obs:
+        o["sev"] = {s: word_for(o["cost"][s]) for s in SIDES}
+    for side in SIDES:
+        normalise(obs, side, targets[side])
+    print(f"  normalised to {targets} hp of blows"
+          + (f" (+{100 - KO_BLOW_TOTAL} bled by the count on {loser})" if loser else ""))
     for side in SIDES:
         if not sum(o["cost"][side] for o in obs):
             print(f"  ! SHUTOUT: {names.get(side) or side} takes no damage in the "
                   f"final timeline — check the frames before shipping this",
                   file=sys.stderr)
 
-    # Schedule the count-out now that pay() has settled what damage actually lands,
-    # so the drain bleeds exactly the bar the fight left standing.
+    # Schedule the count-out now normalise() has settled what damage actually
+    # lands, so the drain bleeds exactly the bar the fight left standing — which
+    # for a settled loser is 100 - KO_BLOW_TOTAL by construction.
     if loser and drain_from is not None:
         hp_left = max(0, 100 - sum(o["cost"][loser] for o in obs[:drain_from]))
         count_out(obs, loser, drain_from, hp_left)
@@ -1613,7 +1811,7 @@ def analyze(clip: str, backend: str = "api", bots: dict | None = None,
 
     # hp at last, and only now can a hit be judged: normalize_hit() drops anything
     # with no hp drop behind it, so it has to see the damage the timeline will
-    # actually show — after pay() has zeroed the surplus, not before.
+    # actually show — after normalise() has sized every blow, not before.
     hp, observations, last = {"left": 100, "right": 100}, [], len(obs) - 1
     for i, o in enumerate(obs):
         before = dict(hp)
@@ -1622,7 +1820,7 @@ def analyze(clip: str, backend: str = "api", bots: dict | None = None,
         # Judge the hit against the DAMAGE change only, before the count-out moves
         # the bar. A drain is nobody's blow, and normalize_hit() would happily
         # attribute one to whichever bot is still standing.
-        hit = normalize_hit(o.get("raw_hit"), before, hp)
+        hit = normalize_hit(o.get("raw_hit"), before, hp, o.get("sev"))
         drain = o.get("drain")
         if drain and drain["amount"]:
             hp[drain["side"]] = max(0, hp[drain["side"]] - drain["amount"])
@@ -1767,4 +1965,4 @@ if __name__ == "__main__":
     analyze(positional[0], backend=backend, bots=bots, ko=ko,
             audio="--no-audio" not in argv, partial="--partial" in argv,
             looks=looks, regrade="--regrade" in argv, stop="--stop-pass" in argv,
-            verify_pass="--verify" in argv)
+            verify_pass="--verify" in argv, condition="--no-condition" not in argv)
