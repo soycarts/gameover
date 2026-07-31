@@ -15,6 +15,11 @@ frames/
 # A worktree has no frames/, so symlinking the main checkout's is handy — and a
 # symlink is a file, which `frames/` does not match.
 frames
+# The official Pro League studio cutouts, cached by roster.py --photos. 27 files
+# at ~2.2MB each is ~60MB of build-time reference: make_sprites.py reads them and
+# commits the derived rows in frontend/sprites.js, which is the only part anyone
+# needs. Dotted so serve.py 404s it as well.
+bots/.proleague/
 .env
 __pycache__/
 *.pyc

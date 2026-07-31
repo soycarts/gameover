@@ -60,11 +60,13 @@ import os
 import re
 import subprocess
 import sys
+from collections import Counter
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import config  # noqa: E402
 import extract_frames  # noqa: E402
+import roster  # noqa: E402
 import transcribe  # noqa: E402
 # Scraped threads are about the whole season, so a MaD CaTTer search surfaces the
 # SawBlaze fight too. names_a_rival() keeps a comment naming a bot that is not in
@@ -88,6 +90,11 @@ COMMENT_DROP = 10            # solid+ — a hit worth reacting to, if a comment 
 MAX_CAPTION_WORDS = 6
 MAX_WEAPON_WORDS = 3
 SIDES = ("left", "right")
+# What match_look() returns for a machine that is legitimately in the arena but
+# cannot win or lose the fight — a minibot. Deliberately not a side and not None:
+# "that was Ace" and "I could not tell" are different answers, and only the first
+# is a reason to keep looking rather than to give up on the frame.
+NOT_COMPETITOR = "other"
 
 # The model judges severity; Python owns every number. Asking it for absolute hp
 # instead made it nudge the bar down 3-5 points per frame to signal "time passed",
@@ -105,6 +112,9 @@ MIN_COUNT_SECONDS = 5.0      # ... and never shorter than this: see immobile_fro
 SHUTOUT_FLOOR = SEVERITY["solid"]   # under this, a bot is "untouched" — see repass()
 LOOK_FLOOR = 0.34            # below this a description matches neither machine
 LOOK_MARGIN = 0.12           # ... and this close together, it is a coin flip
+# "both twins are out", "two machines down" — the only way a description can say
+# 60% of a true multibot has stopped, since identical machines have identical looks
+PLURAL_RE = re.compile(r"\b(both|two|pair|twins|all)\b", re.I)
 LADDER = ("none", "glance", "solid", "heavy", "catastrophic")
 REGRADE_UP = 2               # rungs a re-look may ADD to a blow the first pass scored
 REGRADE_DOWN = 1             # ... and take off it. Never below "glance": see relook()
@@ -147,13 +157,35 @@ def identity_note(state: dict, names: dict | None = None) -> str:
     Naming the two competitors explicitly matters: left to itself the model reads
     sponsor livery off the machines and captions them as bots ("Rapid Taxis
     catches fire", which is a taxi firm's decal, not a competitor).
+
+    This used to say "the ONLY two competitors are X and Y", which is FALSE for a
+    fight with a minibot in it, and false in the most expensive direction: a third
+    machine is plainly on screen, the model has been told only two exist, so it
+    files the minibot under whichever competitor it looks closest to. Ace is in the
+    jackpot-copperhead frames at four separate moments. Nothing downstream can
+    catch that — a hit credited to the wrong machine is self-consistent.
+
+    So the non-competitors are named too, with what they are. That keeps the
+    anti-sponsor-livery force of the original line (it is still a closed list of
+    machines) while giving the model somewhere correct to put the minibot.
     """
     names = names or {}
     head = ""
+    extra = state.get("others") or {}
     if names.get("left") and names.get("right"):
-        head = (f"The ONLY two competitors are {names['left']} (left) and "
+        head = (f"The two competitors are {names['left']} (left) and "
                 f"{names['right']} (right). Use no other name in a caption — text on "
                 f"the robots is sponsor livery, not a bot.\n")
+        if extra:
+            listed = "; ".join(f"{n} ({look})" if look else n
+                               for n, look in extra.items())
+            head += (f"Also in the arena, and NOT competitors: {listed}. "
+                     f"These are minibots. They are not "
+                     f"{names['left']} or {names['right']}, they cannot win or lose "
+                     f"the fight, and NOTHING they do is damage: a minibot lifting, "
+                     f"shoving or hitting a competitor is not a hit, and a minibot "
+                     f"being destroyed is not damage to its team. Report their "
+                     f"contact as none.\n")
     bits = []
     for side in ("left", "right"):
         look = state.get(f"{side}_look")
@@ -413,42 +445,85 @@ def words(text: str) -> set[str]:
             if w and w not in STOPWORDS and len(w) > 2}
 
 
-def match_look(desc: str, looks: dict, names: dict) -> str | None:
-    """Which side a free-text description of a stopped machine refers to.
+def match_look(desc: str, looks: dict, names: dict,
+               others: dict | None = None) -> str | None:
+    """Which machine a free-text description of a stopped machine refers to.
+
+    Returns "left", "right", NOT_COMPETITOR for a minibot, or None.
 
     Scored on shared content words, because that is what the descriptions ARE —
     colour, shape and weapon words, which is exactly what a human pins in --looks.
-    Words common to BOTH machines are discounted to nothing: on manta-skorpios
-    both looks contain "wedge", so whole-string similarity (difflib on the pair,
-    the obvious first idea) scores the two sides almost identically and decides on
-    noise. The discriminating tokens are blue/yellow/drum versus copper/teal/
-    forked/blade, and only the distinctive ones should get a vote.
+    Words common to more than one machine are discounted to nothing: on
+    manta-skorpios both looks contain "wedge", so whole-string similarity (difflib
+    on the pair, the obvious first idea) scores the two sides almost identically
+    and decides on noise. The discriminating tokens are blue/yellow/drum versus
+    copper/teal/forked/blade, and only the distinctive ones should get a vote.
 
-    Returns None when neither side clears LOOK_FLOOR or the two are within
+    `others` maps a non-competitor machine's name to its appearance — Jackpot's
+    Ace, MaDCaTTer's Gassy Cat. They are scored in the SAME contest rather than
+    checked afterwards, because the question is genuinely "which of the machines
+    in this arena is this", and a minibot that only competes against itself would
+    win by default. A description that lands on one of them is evidence about a
+    machine that cannot win or lose the fight, which callers read as no evidence
+    about the SIDE — see resolve_immobile().
+
+    Returns None when nothing clears LOOK_FLOOR or the top two are within
     LOOK_MARGIN of each other. A coin flip is precisely the failure this replaces,
     and immobile_from() already reads None as "no evidence" rather than as a side.
     """
     d = words(desc)
     if not d:
         return None
-    for side in SIDES:                      # a name in the description settles it
+    low = (desc or "").lower()
+    for name, _ in (others or {}).items():   # a name in the description settles it
+        if name.lower() in low:
+            return NOT_COMPETITOR
+    for side in SIDES:
         n = names.get(side)
-        if n and n.lower() in (desc or "").lower():
+        if n and n.lower() in low:
             return side
     bags = {s: words(looks.get(s) or "") for s in SIDES}
-    shared = bags["left"] & bags["right"]
+    bags.update({f"{NOT_COMPETITOR}:{n}": words(v) for n, v in (others or {}).items()})
+    # a token has to be distinctive to vote, and with three machines in the arena
+    # "distinctive" means it appears in exactly one bag, not just "not in both"
+    seen = Counter(w for bag in bags.values() for w in bag)
+    shared = {w for w, c in seen.items() if c > 1}
     # score against the DESCRIPTION's distinctive words, not the look string's:
     # dividing by the look would mark down a short, correct answer ("low blue
     # wedge") purely for being shorter than the look it matches
     told = d - shared
     if not told:
         return None
-    score = {s: len(told & (bags[s] - shared)) / len(told) for s in SIDES}
-    best = max(SIDES, key=lambda s: score[s])
-    other = "left" if best == "right" else "right"
-    if score[best] < LOOK_FLOOR or score[best] - score[other] < LOOK_MARGIN:
+    score = {k: len(told & (bag - shared)) / len(told) for k, bag in bags.items()}
+    ranked = sorted(score, key=lambda k: -score[k])
+    best = ranked[0]
+    runner = score[ranked[1]] if len(ranked) > 1 else 0.0
+    if score[best] < LOOK_FLOOR or score[best] - runner < LOOK_MARGIN:
         return None
-    return best
+    return NOT_COMPETITOR if best.startswith(NOT_COMPETITOR) else best
+
+
+def others_for(names: dict) -> dict:
+    """{minibot name: what it looks like} for the machines in THIS fight.
+
+    Read off the committed roster rather than a flag, because which minibot a team
+    brings is a property of the team, not of the clip — pinning it per-run is one
+    more thing to get wrong on a re-judge. Empty when the roster has not been
+    scraped, which is exactly the behaviour before any of this existed.
+    """
+    out = {}
+    table = roster.load()
+    for side in SIDES:
+        entry = table.get(roster.bot_key(names.get(side) or ""))
+        for m in roster.minibots(entry):
+            out[m["name"]] = roster.minibot_look(m["name"])
+    return out
+
+
+def machines_needed(name: str) -> int:
+    """How many of this bot's machines must stop before a count can start (7.5.4)."""
+    entry = roster.load().get(roster.bot_key(name or ""))
+    return roster.min_down(entry["machines"]) if entry else 1
 
 
 def resolve_immobile(raw, state: dict, names: dict, tally: dict) -> str | None:
@@ -469,7 +544,16 @@ def resolve_immobile(raw, state: dict, names: dict, tally: dict) -> str | None:
         return raw
     if not isinstance(raw, str) or not raw.strip():
         return None
-    got = match_look(raw, {s: state.get(f"{s}_look") for s in SIDES}, names)
+    got = match_look(raw, {s: state.get(f"{s}_look") for s in SIDES}, names,
+                     state.get("others"))
+    # A stopped MINIBOT is not a stopped competitor. Counting it would start a
+    # referee count on a bot that is still driving, which is the single most
+    # damaging thing a false immobile flag can do — count_out() then zeroes every
+    # loser-side cost from that point and erases real blows. Tallied separately so
+    # the run prints how often it happened rather than silently swallowing it.
+    if got == NOT_COMPETITOR:
+        tally["minibot"] = tally.get("minibot", 0) + 1
+        return None
     tally["matched" if got else "ambiguous"] = \
         tally.get("matched" if got else "ambiguous", 0) + 1
     return got
@@ -899,7 +983,8 @@ def drop_downed_hits(obs: list[dict], names: dict | None = None) -> int:
     return dropped
 
 
-def immobile_from(obs: list[dict], side: str, confirm: int = 3) -> int | None:
+def immobile_from(obs: list[dict], side: str, confirm: int = 3,
+                  need: int = 1) -> int | None:
     """Start of the run of immobility that `side` never comes back from.
 
     The count-out starts here, not at the KNOCKOUT graphic — the bot dies well
@@ -936,6 +1021,15 @@ def immobile_from(obs: list[dict], side: str, confirm: int = 3) -> int | None:
     `confirm` sightings are needed overall, so one blurred misread cannot start a
     count on a bot that is still fighting.
 
+    `need` is the 7.5.4 rule: a multibot is counted out only when 60% or more of
+    its COMBINED weight has stopped. For every ordinary bot, and for every bot
+    with a minibot, roster.min_down() returns 1 — a 250lb machine is 93% of itself
+    plus a 20lb minibot — so this branch is inert and the walk behaves exactly as
+    it always has. It is 2 only for a true multibot like The Twins, where one of
+    two equal machines is 50% and not enough. There the sighting has to say more
+    than one machine is down, because two identical twins cannot be told apart
+    from a description and `immobile` holds one machine at a time.
+
     WHICH bot is down comes from `side` (the settled loser), not from the model.
     "Something has stopped" is an easy call; "which of these two machines is it" is
     the hardest call in this clip, and the model gets it wrong — on manta-skorpios
@@ -961,8 +1055,17 @@ def immobile_from(obs: list[dict], side: str, confirm: int = 3) -> int | None:
             stopped_by = o["t"]                # it was still being fought here
             break
         if o.get("immobile"):
+            # A true multibot needs 60% of its weight down, and one of two equal
+            # twins is 50%. Since both twins answer to the same description, the
+            # only honest signal is the model saying more than one has stopped.
+            if need > 1 and not PLURAL_RE.search(str(o.get("immobile_raw") or "")):
+                continue
             swapped += o["immobile"] != side
             start, seen = i, seen + 1
+    if need > 1:
+        print(f"  {side} is a multibot: {need} machines must stop for a count "
+              f"(rule 7.5.4, 60% of combined weight) — "
+              f"{seen} frame(s) said more than one was down")
     if seen and swapped:
         print(f"  ! model named the other bot immobile on {swapped}/{seen} frames — "
               f"reading them as {side}, the side that loses", file=sys.stderr)
@@ -1267,6 +1370,13 @@ def analyze(clip: str, backend: str = "api", bots: dict | None = None,
     names = {"left": None, "right": None}
     if bots:                       # a caller who knows the card anchors identity
         names.update({k: v for k, v in bots.items() if k in ("left", "right")})
+    # Which extra machines this fight puts in the arena, from the committed roster.
+    # Needs the card, so an unpinned run gets none — the same degradation as
+    # --looks, and for the same reason: we do not know who is fighting yet.
+    state["others"] = others_for(names)
+    if state["others"]:
+        print(f"  minibots in this fight: "
+              + ", ".join(state["others"]) + " (not competitors)")
     obs: list[dict] = []
     recent: list[str] = []
     failed = 0                 # batches that never reached the model
@@ -1320,7 +1430,8 @@ def analyze(clip: str, backend: str = "api", bots: dict | None = None,
             # normalised yet: pay() may still zero this frame's cost, and a hit
             # with no hp drop behind it is not a hit.
             obs.append({"t": round(t, 1), "cost": cost, "finish": fin, "caption": cap,
-                        "immobile": imm, "replay": rep, "raw_hit": f.get("hit")})
+                        "immobile": imm, "immobile_raw": f.get("immobile"),
+                        "replay": rep, "raw_hit": f.get("hit")})
             if cost["left"] or cost["right"]:
                 recent.append(f"{t:.0f}s left {sev['left']}, right {sev['right']}"
                               + (f" — {cap}" if cap else ""))
@@ -1435,7 +1546,8 @@ def analyze(clip: str, backend: str = "api", bots: dict | None = None,
     # A knockout is a referee counting, not a blow. Find the moment the loser
     # actually stopped; from there the count owns the bar, so those frames are
     # taken out of pay()'s auction before it runs.
-    drain_from = immobile_from(obs, loser) if loser else None
+    drain_from = (immobile_from(obs, loser, need=machines_needed(names.get(loser)))
+                  if loser else None)
     if drain_from is not None:
         # A count is a bounded thing — ten seconds, plus a beat for the graphic. A
         # longer one means immobility was called while the bot was still fighting,

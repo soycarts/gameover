@@ -217,11 +217,46 @@ python backend/ingest.py "<url>" --name manta-skorpios --start 187 --duration 32
 lands in the timeline as `events[-1]["ko"]`, the side whose hp is 0.
 
 **`--looks` pins WHICH MACHINE is which**, where `--bots` only pins the names. Verified
-by eye against the frames; pipe-separated because the descriptions contain commas:
+by eye against the frames **and against the official Pro League studio photo**
+(`bots/.proleague/<key>.png`, cached by `roster.py --photos`); pipe-separated because
+the descriptions contain commas. **All three are recorded here on purpose** — a string
+that lives only in shell history is one the next re-judge will guess at, and a guessed
+`--looks` is worse than none, because it is stated to the model as human-verified fact:
 
 ```bash
---looks "low blue wedge, wide yellow drum spinner|copper forked wedge, teal vertical blade, teal wheels"   # manta-skorpios
+# manta-skorpios
+--looks "low blue wedge, wide yellow drum spinner|copper forked wedge, teal vertical blade, teal wheels"
+# jackpot-copperhead
+--looks "black low wedge with a copper front drum spinner, black top plate, black wheels|green chassis with a red vertical disc spinner, tall red forks, red and black striped wedgelets"
+# madcatter-tombstone
+--looks "wide low wedge painted as a red cat face with big cyan eyes, blue and red marbled flanks, blue upright spinner|black angular body with a long red horizontal bar spinner, black wheels"
 ```
+
+**Run `check_looks.py` before paying for a run.** It writes nothing, calls no model and
+takes a second, and it has already caught two bad strings that would have shipped:
+
+```bash
+python backend/check_looks.py --bots "Copperhead,Jackpot" --looks "<left>|<right>"
+```
+
+The two failures it exists for are both real. Copperhead's first draft said *"copper top
+plate"* — but the photo shows the copper is the **front drum**, i.e. the weapon, and the
+body is black; a model told to look for copper on top would have been hunting the wrong
+part of the machine. And only Copperhead's string said `spinner`, so
+`transcribe.weapon_owners()` handed every "spinner" in the commentary to Copperhead even
+though Jackpot is a spinner too — putting the word in **both** strings gets it correctly
+discounted. The rule: **a word true of both machines must appear in both strings**, or it
+votes instead of being discounted.
+
+It reports shape words (`a wedge`, `a drum`) as CHECK rather than failing them, because
+whether they discriminate is a fact about the robots that the tool cannot know. On these
+two fights `a wedge` correctly resolves to Copperhead and MaDCaTTer — Jackpot is a forked
+vertical spinner and Tombstone is an angular bar spinner, neither is a wedge — where on
+`manta-skorpios` both machines are wedges, both strings say so, and the word is correctly
+discounted to nothing. One outstanding nit on the recorded manta string: `a spinner`
+resolves to Manta, though Skorpios's vertical blade also spins. It has not caused a
+problem and manta is not being re-judged, but add `spinner` to the Skorpios side if it
+ever is.
 
 `manta-skorpios` **needs `--ko right`**: Skorpios loses. Its KNOCKOUT graphic lands over
 a crowd shot with no bot in it, so the model has nothing to read the finish off and picks
@@ -416,6 +451,41 @@ python3 backend/serve.py     # -> http://localhost:40911/frontend/index.html?cli
   machines are vertically stacked. Nothing loads them (the hand-drawn `ART` sprites win
   the portrait cascade), and they are now in `.vercelignore`. Do **not** feed them to the
   judge as reference images — they would teach the swap.
+- **A fight can contain more than two machines, and the prompt used to deny it.**
+  `identity_note()` asserted *"the ONLY two competitors are X and Y"*. That is false for
+  a third of the roster — Jackpot fields **Ace**, MaDCaTTer fields **Gassy Cat**, and
+  **The Twins** is two machines — and false in the most expensive direction: a minibot is
+  plainly on screen, the model has been told only two things exist, so it files it under
+  whichever competitor it resembles. Ace appears in the `jackpot-copperhead` commentary
+  at t=6.1 / 25.5 / 81.7 / 97.4 and in the frames, and a hit credited to the wrong
+  machine is **self-consistent**, so nothing downstream can catch it. Three changes:
+  - `identity_note()` still gives a **closed list** of machines (that is what stops
+    sponsor decals being captioned as robots) but now names the non-competitors too and
+    states that nothing they do is damage. It needs the card, so an unpinned run gets
+    none — the same degradation as `--looks`, and for the same reason.
+  - `match_look()` scores the minibots **in the same contest** as the two sides and
+    returns `NOT_COMPETITOR`. Scoring them separately afterwards would let a minibot win
+    a contest it was the only entrant in. `resolve_immobile()` maps that to `None` and
+    tallies it separately, so a **stopped minibot never starts a referee count** — the
+    single most damaging thing a false immobile flag can do, since `count_out()` then
+    zeroes every loser-side cost from that point and erases real blows.
+  - With three machines in the arena, "distinctive" had to become *appears in exactly
+    one description*, not *not in both*.
+  Which minibot a team brings is read from `backend/roster.json`, not from a flag — it
+  is a property of the team, not of the clip, so pinning it per-run is one more thing to
+  get wrong on a re-judge.
+- **A knockout is 60% of a multibot's COMBINED WEIGHT, not one machine** (BattleBots
+  Tournament Rules 7.5.4, unaltered since 2016). `roster.min_down()` is the whole rule
+  and it is pure arithmetic: Jackpot 250lb + Ace 20lb means the heavyweight alone is
+  **93%**, so one machine is enough and Ace's state is irrelevant to the count. It
+  returns 1 for every ordinary bot **and** every bot with a minibot alike, so
+  `immobile_from()` behaves exactly as it always has on all three demo clips — the
+  branch is inert. It returns 2 only for a true multibot like The Twins, where one of
+  two equal machines is 50% and under the bar. There the sighting has to say more than
+  one machine is down (`PLURAL_RE`), because two identical twins have identical
+  descriptions and `immobile` holds one machine at a time. **The Twins is in none of our
+  clips, so that branch is exercised only synthetically** — treat it as untested against
+  real footage.
 - **`immobile` is trusted for WHEN, never for WHICH bot.** "Something has stopped" is
   easy; "which of these two machines is it" is the hardest call in the clip, and the
   model gets it wrong — on `manta-skorpios` it flags *Manta*, the winner, immobile

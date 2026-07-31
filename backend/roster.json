@@ -1,0 +1,506 @@
+{
+ "source": "https://battlebots.com/proleague/",
+ "bots": [
+  {
+   "name": "Bloodsport",
+   "slug": "bloodsport-wcvii",
+   "photo": "https://battlebots.com/wp-content/uploads/2026/06/bloodsport-right.png",
+   "country": "",
+   "team": "Bots ‘n’ Stuff Robotics",
+   "team_photo": "https://battlebots.com/wp-content/uploads/2026/06/bloodsport-team-2026-scaled.png",
+   "seed": 1,
+   "key": "bloodsport",
+   "machines": [
+    {
+     "name": "Bloodsport",
+     "weight": 250,
+     "competitor": true
+    }
+   ],
+   "weapon": "Bar spinner (horizontal)"
+  },
+  {
+   "name": "Cobalt",
+   "slug": "cobalt-wcvii",
+   "photo": "https://battlebots.com/wp-content/uploads/2026/06/cobalt-right.png",
+   "country": "us, gb",
+   "team": "Robotic Death Company",
+   "team_photo": "https://battlebots.com/wp-content/uploads/2026/06/cobalt-team-2026-1-scaled.png",
+   "seed": 2,
+   "key": "cobalt",
+   "machines": [
+    {
+     "name": "Cobalt",
+     "weight": 250,
+     "competitor": true
+    }
+   ],
+   "weapon": "Disc spinner (vertical)"
+  },
+  {
+   "name": "Copperhead",
+   "slug": "copperhead-wcvii",
+   "photo": "https://battlebots.com/wp-content/uploads/2026/06/copperhead-right.png",
+   "country": "",
+   "team": "Caustic Creations",
+   "team_photo": "https://battlebots.com/wp-content/uploads/2026/06/copperhead-team-2026-1-scaled.png",
+   "seed": 3,
+   "key": "copperhead",
+   "machines": [
+    {
+     "name": "Copperhead",
+     "weight": 250,
+     "competitor": true
+    }
+   ],
+   "weapon": "Drum spinner"
+  },
+  {
+   "name": "Death Roll",
+   "slug": "deathroll-wcvii",
+   "photo": "https://battlebots.com/wp-content/uploads/2026/06/deathroll-right.png",
+   "country": "au",
+   "team": "Team DeathRoll",
+   "team_photo": "https://battlebots.com/wp-content/uploads/2026/06/deathroll-team-2026-1-scaled.png",
+   "seed": 4,
+   "key": "deathroll",
+   "machines": [
+    {
+     "name": "Death Roll",
+     "weight": 250,
+     "competitor": true
+    }
+   ],
+   "weapon": "Disc spinner (vertical)"
+  },
+  {
+   "name": "Disarray",
+   "slug": "disarray-fo",
+   "photo": "https://battlebots.com/wp-content/uploads/2026/05/disarray-proleage.png",
+   "country": "",
+   "team": "Wildcat Robotics",
+   "team_photo": "https://battlebots.com/wp-content/uploads/2026/06/disarray-team-2026-1-scaled.png",
+   "seed": 5,
+   "key": "disarray",
+   "machines": [
+    {
+     "name": "Disarray",
+     "weight": 250,
+     "competitor": true
+    }
+   ],
+   "weapon": ""
+  },
+  {
+   "name": "End Game",
+   "slug": "end-game-wcvii",
+   "photo": "https://battlebots.com/wp-content/uploads/2026/06/end-game-right.png",
+   "country": "nz",
+   "team": "End Game",
+   "team_photo": "https://battlebots.com/wp-content/uploads/2026/06/endgame-team-2026-1-scaled.png",
+   "seed": 6,
+   "key": "endgame",
+   "machines": [
+    {
+     "name": "End Game",
+     "weight": 250,
+     "competitor": true
+    }
+   ],
+   "weapon": "Bar spinner (vertical)"
+  },
+  {
+   "name": "Golden Fury",
+   "slug": "golden-fury",
+   "photo": "https://battlebots.com/wp-content/uploads/2026/06/golden-fury-right.png",
+   "country": "in",
+   "team": "PY ROBOTICSZ INDIA",
+   "team_photo": "https://battlebots.com/wp-content/uploads/2026/06/golden-fury-team-2026-1-scaled.png",
+   "seed": 7,
+   "key": "goldenfury",
+   "machines": [
+    {
+     "name": "Golden Fury",
+     "weight": 250,
+     "competitor": true
+    }
+   ],
+   "weapon": ""
+  },
+  {
+   "name": "Huge",
+   "slug": "huge-wcvii",
+   "photo": "https://battlebots.com/wp-content/uploads/2026/06/huge-right.png",
+   "country": "",
+   "team": "Team HUGE",
+   "team_photo": "https://battlebots.com/wp-content/uploads/2026/06/huge-team-2026-1-scaled.png",
+   "seed": 8,
+   "key": "huge",
+   "machines": [
+    {
+     "name": "Huge",
+     "weight": 250,
+     "competitor": true
+    }
+   ],
+   "weapon": "Bar spinner (vertical)"
+  },
+  {
+   "name": "HyperShock",
+   "slug": "hypershock-wcvii",
+   "photo": "https://battlebots.com/wp-content/uploads/2026/06/hypershock-right.png",
+   "country": "",
+   "team": "Team HyperShock",
+   "team_photo": "https://battlebots.com/wp-content/uploads/2026/06/hypershock-team-2026-1-scaled.png",
+   "seed": 9,
+   "key": "hypershock",
+   "machines": [
+    {
+     "name": "HyperShock",
+     "weight": 250,
+     "competitor": true
+    }
+   ],
+   "weapon": "Disc spinner (vertical)"
+  },
+  {
+   "name": "Jackpot",
+   "slug": "jackpot-wcvii",
+   "photo": "https://battlebots.com/wp-content/uploads/2026/06/jackpot-right.png",
+   "country": "",
+   "team": "VCR (Vegas Combat Robotics)",
+   "team_photo": "https://battlebots.com/wp-content/uploads/2026/06/jackpot-team-2026-1-scaled.png",
+   "seed": 10,
+   "key": "jackpot",
+   "machines": [
+    {
+     "name": "Jackpot",
+     "weight": 250,
+     "competitor": true
+    },
+    {
+     "name": "Ace",
+     "weight": 20,
+     "competitor": false
+    }
+   ],
+   "weapon": "Disc spinner (vertical)"
+  },
+  {
+   "name": "MadCatter",
+   "slug": "madcatter-wcvii",
+   "photo": "https://battlebots.com/wp-content/uploads/2026/06/madcatter-right.png",
+   "country": "",
+   "team": "Bad Kitty",
+   "team_photo": "https://battlebots.com/wp-content/uploads/2026/06/madcatter-team-2026-scaled.png",
+   "seed": 11,
+   "key": "madcatter",
+   "machines": [
+    {
+     "name": "MaDCaTTer",
+     "weight": 250,
+     "competitor": true
+    },
+    {
+     "name": "Gassy Cat",
+     "weight": 20,
+     "competitor": false
+    }
+   ],
+   "weapon": "Disc spinner (vertical)"
+  },
+  {
+   "name": "Magnitude",
+   "slug": "magnitude-fo",
+   "photo": "https://battlebots.com/wp-content/uploads/2026/06/magnitude-right.png",
+   "country": "",
+   "team": "Team Magnitude",
+   "team_photo": "https://battlebots.com/wp-content/uploads/2026/06/magnitude-team-2026-scaled.png",
+   "seed": 12,
+   "key": "magnitude",
+   "machines": [
+    {
+     "name": "Magnitude",
+     "weight": 250,
+     "competitor": true
+    }
+   ],
+   "weapon": ""
+  },
+  {
+   "name": "Malice",
+   "slug": "malice-wcvii",
+   "photo": "https://battlebots.com/wp-content/uploads/2026/06/malice-right.png",
+   "country": "",
+   "team": "Team Malice",
+   "team_photo": "https://battlebots.com/wp-content/uploads/2026/06/malice-team-2026-scaled.png",
+   "seed": 13,
+   "key": "malice",
+   "machines": [
+    {
+     "name": "Malice",
+     "weight": 250,
+     "competitor": true
+    }
+   ],
+   "weapon": "Horizontal Drum Spinner"
+  },
+  {
+   "name": "Manta",
+   "slug": "manta-fo",
+   "photo": "https://battlebots.com/wp-content/uploads/2026/06/manta-left.png",
+   "country": "",
+   "team": "Team Tanto",
+   "team_photo": "https://battlebots.com/wp-content/uploads/2026/06/manta-team-2026-scaled.png",
+   "seed": 14,
+   "key": "manta",
+   "machines": [
+    {
+     "name": "Manta",
+     "weight": 250,
+     "competitor": true
+    }
+   ],
+   "weapon": ""
+  },
+  {
+   "name": "Minotaur",
+   "slug": "minotaur-wcvii",
+   "photo": "https://battlebots.com/wp-content/uploads/2026/06/minotaur-right.png",
+   "country": "br",
+   "team": "RioBotz",
+   "team_photo": "https://battlebots.com/wp-content/uploads/2026/06/minotaur-team-2026-scaled.png",
+   "seed": 15,
+   "key": "minotaur",
+   "machines": [
+    {
+     "name": "Minotaur",
+     "weight": 250,
+     "competitor": true
+    }
+   ],
+   "weapon": "Drum spinner"
+  },
+  {
+   "name": "Orbitron",
+   "slug": "orbitron-fo",
+   "photo": "https://battlebots.com/wp-content/uploads/2026/06/orbitron-left.png",
+   "country": "ca",
+   "team": "Orbitron",
+   "team_photo": "https://battlebots.com/wp-content/uploads/2026/06/orbitron-team-2026-scaled.png",
+   "seed": 16,
+   "key": "orbitron",
+   "machines": [
+    {
+     "name": "Orbitron",
+     "weight": 250,
+     "competitor": true
+    }
+   ],
+   "weapon": ""
+  },
+  {
+   "name": "Ribbot",
+   "slug": "ribbot-wcvii",
+   "photo": "https://battlebots.com/wp-content/uploads/2026/06/ribbot-right.png",
+   "country": "",
+   "team": "Team Ribbot",
+   "team_photo": "https://battlebots.com/wp-content/uploads/2026/06/ribbot-team-2026-scaled.png",
+   "seed": 17,
+   "key": "ribbot",
+   "machines": [
+    {
+     "name": "Ribbot",
+     "weight": 250,
+     "competitor": true
+    }
+   ],
+   "weapon": "Modular"
+  },
+  {
+   "name": "Skorpios",
+   "slug": "skorpios-wcvii",
+   "photo": "https://battlebots.com/wp-content/uploads/2026/06/skorpios-right.png",
+   "country": "",
+   "team": "Bot Bash Party Crew",
+   "team_photo": "https://battlebots.com/wp-content/uploads/2026/06/skorpios-team-2026-scaled.png",
+   "seed": 18,
+   "key": "skorpios",
+   "machines": [
+    {
+     "name": "Skorpios",
+     "weight": 250,
+     "competitor": true
+    }
+   ],
+   "weapon": "Hammer Saw"
+  },
+  {
+   "name": "Switchback",
+   "slug": "switchback-wcvii",
+   "photo": "https://battlebots.com/wp-content/uploads/2026/06/switchback-right.png",
+   "country": "",
+   "team": "Midnight Invention",
+   "team_photo": "https://battlebots.com/wp-content/uploads/2026/06/switchback-team-2026-scaled.png",
+   "seed": 19,
+   "key": "switchback",
+   "machines": [
+    {
+     "name": "Switchback",
+     "weight": 250,
+     "competitor": true
+    }
+   ],
+   "weapon": "Articulated Drum Spinner"
+  },
+  {
+   "name": "TerrorTops",
+   "slug": "terrortops-wcvii",
+   "photo": "https://battlebots.com/wp-content/uploads/2026/06/terrortops-right.png",
+   "country": "",
+   "team": "Team TerrorTops",
+   "team_photo": "https://battlebots.com/wp-content/uploads/2026/06/terrortops-team-2026-scaled.png",
+   "seed": 20,
+   "key": "terrortops",
+   "machines": [
+    {
+     "name": "TerrorTops",
+     "weight": 250,
+     "competitor": true
+    }
+   ],
+   "weapon": "Lifter + Vertical Disk Spinner"
+  },
+  {
+   "name": "The Twins",
+   "slug": "the-twins",
+   "photo": "https://battlebots.com/wp-content/uploads/2026/06/the-twins-left.png",
+   "country": "",
+   "team": "Seems Reasonable",
+   "team_photo": "https://battlebots.com/wp-content/uploads/2026/06/theTwins-team-2026-scaled.png",
+   "seed": 21,
+   "key": "thetwins",
+   "machines": [
+    {
+     "name": "Twin A",
+     "weight": 125,
+     "competitor": true
+    },
+    {
+     "name": "Twin B",
+     "weight": 125,
+     "competitor": true
+    }
+   ],
+   "weapon": ""
+  },
+  {
+   "name": "Tombstone",
+   "slug": "tombstone-2021",
+   "photo": "https://battlebots.com/wp-content/uploads/2026/06/tombstone-right.png",
+   "country": "",
+   "team": "Hardcore Robotics",
+   "team_photo": "https://battlebots.com/wp-content/uploads/2026/06/tombstone-team-2026-scaled.png",
+   "seed": 22,
+   "key": "tombstone",
+   "machines": [
+    {
+     "name": "Tombstone",
+     "weight": 250,
+     "competitor": true
+    }
+   ],
+   "weapon": "Bar spinner (horizontal)"
+  },
+  {
+   "name": "Valkyrie",
+   "slug": "valkyrie-wcvii",
+   "photo": "https://battlebots.com/wp-content/uploads/2026/06/valkyrie-right.png",
+   "country": "",
+   "team": "Team VALKYRIE / Questionable Designs",
+   "team_photo": "https://battlebots.com/wp-content/uploads/2026/06/valkyrie-team-2026-scaled.png",
+   "seed": 23,
+   "key": "valkyrie",
+   "machines": [
+    {
+     "name": "Valkyrie",
+     "weight": 250,
+     "competitor": true
+    }
+   ],
+   "weapon": "Disc spinner (horizontal)"
+  },
+  {
+   "name": "Witch Doctor",
+   "slug": "witch-doctor-wcvii",
+   "photo": "https://battlebots.com/wp-content/uploads/2026/06/witch-doctor-right.png",
+   "country": "",
+   "team": "Team Witch Doctor",
+   "team_photo": "https://battlebots.com/wp-content/uploads/2026/06/witch-doctor-team-2026-scaled.png",
+   "seed": 24,
+   "key": "witchdoctor",
+   "machines": [
+    {
+     "name": "Witch Doctor",
+     "weight": 250,
+     "competitor": true
+    }
+   ],
+   "weapon": "Disc spinner (vertical)"
+  },
+  {
+   "name": "Banshee",
+   "slug": "banshee-wcvii",
+   "photo": "https://battlebots.com/wp-content/uploads/2026/06/banshee-right.png",
+   "country": "",
+   "team": "Team Small Robots",
+   "team_photo": "https://battlebots.com/wp-content/uploads/2026/06/banshee-team-2026-scaled.png",
+   "seed": 0,
+   "key": "banshee",
+   "machines": [
+    {
+     "name": "Banshee",
+     "weight": 250,
+     "competitor": true
+    }
+   ],
+   "weapon": "Flipper"
+  },
+  {
+   "name": "Calypso",
+   "slug": "calypso",
+   "photo": "https://battlebots.com/wp-content/uploads/2026/06/calypso-right.png",
+   "country": "",
+   "team": "Team Horizon",
+   "team_photo": "https://battlebots.com/wp-content/uploads/2026/06/calypso-team-2026-scaled.png",
+   "seed": 0,
+   "key": "calypso",
+   "machines": [
+    {
+     "name": "Calypso",
+     "weight": 250,
+     "competitor": true
+    }
+   ],
+   "weapon": ""
+  },
+  {
+   "name": "Nemesis",
+   "slug": "nemesis",
+   "photo": "https://battlebots.com/wp-content/uploads/2026/06/nemisis-right.png",
+   "country": "",
+   "team": "USC Advanced Robotic Combat",
+   "team_photo": "https://battlebots.com/wp-content/uploads/2026/06/nemisis-team-2026-scaled.png",
+   "seed": 0,
+   "key": "nemesis",
+   "machines": [
+    {
+     "name": "Nemesis",
+     "weight": 250,
+     "competitor": true
+    }
+   ],
+   "weapon": ""
+  }
+ ]
+}
