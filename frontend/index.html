@@ -104,6 +104,10 @@
   --hm-heavy:      clamp(62px, 10vw, 132px);
   --hm-massive:    clamp(78px, 13vw, 172px);
   --hm-size:       var(--hm-graze);            /* default tier */
+  /* The on-VIDEO marker is bigger than the on-bar one at every tier. It competes
+     with moving footage rather than sitting on a dark HUD panel, and it is the
+     one the eye should find — the bar burst is the secondary read. */
+  --arena-scale:   1.45;
   --strike-size:   clamp(180px, 36vmin, 440px);
   /* the crosshair parks below the broadcaster's band — push it down together
      with --safe-top if a clip's burned-in graphics run taller */
@@ -129,6 +133,11 @@
   --ghost-tween:   900ms;
   --shake-time:    420ms;
   --hm-life:       420ms;
+  /* Longer than --hm-life on purpose. The on-bar burst pops next to a number
+     that is already moving, so it only has to punctuate; the arena marker has to
+     be FOUND, over footage that is itself in motion. At 420ms it was ~139ms at
+     full opacity and was routinely missed entirely. */
+  --arena-life:    900ms;
   --strike-life:   720ms;
   /* fan comment dwell. Was 6000 when a scraped comment was a short quip; a
      pinned fight-card prediction runs the full MAX_LEN 180 chars, which is
@@ -398,6 +407,10 @@ body.over .perfect { display: none; }
   pointer-events: none; opacity: 0; z-index: 9; color: var(--hit-heavy); }
 #strike.on { animation: strikeIn var(--strike-life) steps(4, end) forwards; }
 #strike.t-massive { color: var(--hit-massive); }
+/* last, so it wins: an incidental blow goes grey here exactly as .hitmark.self
+   does. Without this the two markers for the SAME blow disagreed — the on-bar
+   burst grey, the crosshair in heavy orange with only its caption saying ARENA. */
+#strike.self { color: var(--hit-self); }
 @keyframes strikeIn {
   0% { opacity: 0; transform: scale(1.9) }
   20% { opacity: 1; transform: scale(1) }
@@ -464,6 +477,43 @@ body.over .perfect { display: none; }
   22% { opacity: 1; transform: scale(1.3) rotate(0deg) }
   55% { opacity: 1; transform: scale(1) }
   100% { opacity: 0; transform: scale(1.45) }
+}
+
+/* The SAME burst, out on the arena where the blow actually landed — and the one
+   the eye is meant to find. It had no rule at all for its whole life: the class
+   was a bare hook, so it rendered identically to the on-bar mark and was missed
+   on real footage. Three differences, each for its own reason:
+
+   COLOUR IS THE SIDE, not the tier. Out here there is no other cue for who
+   landed it — the bar burst sits next to a name and a coloured bar, so colour is
+   free there to carry tier. This is the rule the scrubber and the end card's hit
+   log already follow: colour is which bot, size is how hard. Set from `h.by` in
+   arenaMark(), the same value that decides the strip's above/below split, so the
+   two can never disagree.
+
+   SIZE steps with the tier via --arena-scale, so the tier still reads.
+
+   LIFETIME is --arena-life, read through lifeMs() like every other transient so
+   the removal timer and the animation cannot drift apart. */
+.hitmark.arena { color: var(--right-color);
+  --hm-size: calc(var(--hm-graze) * var(--arena-scale));
+  animation-name: arenaPop; animation-duration: var(--arena-life); }
+.hitmark.arena.l          { color: var(--left-color); }
+.hitmark.arena.t-solid    { --hm-size: calc(var(--hm-solid)   * var(--arena-scale)); }
+.hitmark.arena.t-heavy    { --hm-size: calc(var(--hm-heavy)   * var(--arena-scale)); }
+.hitmark.arena.t-massive  { --hm-size: calc(var(--hm-massive) * var(--arena-scale)); }
+/* the arena did it, so neither bot's colour is honest — last, so it beats .l */
+.hitmark.arena.self       { color: var(--hit-self); }
+.hitmark.arena::after     { filter: blur(11px); opacity: .9; }
+/* Holds at full opacity for over half its life where hmPop holds for a third:
+   the bar burst punctuates a number that is already moving, this one has to be
+   spotted over footage that is itself in motion. */
+@keyframes arenaPop {
+  0%   { opacity: 0; transform: scale(.4) rotate(-14deg) }
+  14%  { opacity: 1; transform: scale(1.25) rotate(0deg) }
+  30%  { opacity: 1; transform: scale(1) }
+  72%  { opacity: 1; transform: scale(1) }
+  100% { opacity: 0; transform: scale(1.35) }
 }
 .ember { position: absolute; width: 5px; height: 5px; border-radius: 1px;
   pointer-events: none; z-index: 9; animation: emberOut .7s ease-out forwards; }
@@ -1044,26 +1094,41 @@ const qs = new URLSearchParams(location.search);
 const CLIP = qs.get('clip') || 'madcatter-tombstone';
 const DEMO = qs.get('demo') === '1';
 
-/* on the backend's damage ladder: glance 4, solid 12, heavy 22, catastrophic 35 —
-   so solid+ shakes, heavy+ shakes hard and reads MASSIVE DAMAGE, glance does neither */
-const SHAKE_AT = 10, MASSIVE_AT = 20;
+/* Escalation is keyed to the TIER, never to the hp number. It used to be `dmg >=
+   10` / `dmg >= 20`, which worked only while a delta WAS a rung. Under normalised
+   damage a heavy sharing 85 points with ten other blows is worth ~8hp, so those
+   comparisons would have quietly demoted every blow in a long fight to a graze. */
+const SHAKE_TIERS = new Set(['solid', 'heavy', 'massive']);   // rattles the stage
+const HARD_TIERS  = new Set(['heavy', 'massive']);            // ... rattles it hard
 const CORES = 5, HP_PER_CORE = 100 / CORES;
 let EMBERS = [];
 
-/* ONE table decides what a blow is worth, and its rungs are the backend's damage
-   ladder — SEVERITY in analyze.py scores glance 4, solid 12, heavy 22 and
-   catastrophic 35, so every delta the model can produce lands squarely in one
-   tier. Keep the two in step: move a rung here and a whole category of hit
-   silently changes colour and size. Escalation is stepped — hitmarker on every
-   hit, shake at solid, crosshair and harder shake at heavy, fireball at KO. */
+/* ONE table decides what a blow LOOKS like. Its rungs are the backend's damage
+   ladder — SEVERITY in analyze.py rates glance / solid / heavy / catastrophic.
+   Keep the two in step: move a rung here and a whole category of hit silently
+   changes colour and size. Escalation is stepped — hitmarker on every hit, shake
+   at solid, crosshair and harder shake at heavy, fireball at KO. */
 const TIERS = [
   {at: 30, key: 'massive', word: 'MASSIVE DAMAGE', abbr: 'MASSIVE'},
   {at: 20, key: 'heavy',   word: 'HEAVY HIT',      abbr: 'HEAVY'},
   {at: 10, key: 'solid',   word: 'SOLID HIT',      abbr: 'SOLID'},
   {at: 1,  key: 'graze',   word: 'GRAZE',          abbr: 'GRAZE'},
 ];
+/* The backend's word, straight onto a tier. `hit.sev` is the ONLY honest source
+   once damage normalises: normalise() shares one target across every blow in
+   proportion to its rung, so the hp delta says how much bar and no longer how
+   hard. catastrophic and heavy are separate rungs there but one visual step
+   apart here, which is why this is a map and not an index. */
+const TIER_BY_SEV = {catastrophic: 'massive', heavy: 'heavy',
+                     solid: 'solid', glance: 'graze'};
 const tierOf = d => TIERS.find(t => d >= t.at) || TIERS[TIERS.length - 1];
+/* Prefer the stored rung; fall back to banding the delta for synthfight, demo/
+   and every timeline judged before `sev` existed — all of which are still on the
+   fixed-budget pipeline where a delta IS a rung, so the fallback is exact. */
+const tierFor = (sev, dmg) =>
+  TIERS.find(t => t.key === TIER_BY_SEV[sev]) || tierOf(dmg);
 const BIG = new Set(['heavy', 'massive']);     // earns the full-stage crosshair
+const RANK = k => TIERS.length - TIERS.findIndex(t => t.key === k);
 
 /* The timeline contract keeps only the fan_comment TEXT, so everything else a
    comment knows — who said it, its score, whether it was a pre-fight pick — is
@@ -1445,7 +1510,7 @@ function deriveHits(evs) {
     for (const to of ['L', 'R']) {
       const dmg = drop[to];
       if (dmg <= 0 || to === drained) continue;
-      const h = {i, t: ev.t, to, dmg, tier: tierOf(dmg),
+      const h = {i, t: ev.t, to, dmg, sev: '', tier: tierOf(dmg),
                  by: to === 'L' ? 'R' : 'L',      // deterministic: the other bot
                  weapon: '', clean: true, self: false, at: null,
                  caption: ev.caption || '', ko: !!ev.ko};
@@ -1459,6 +1524,12 @@ function deriveHits(evs) {
         // `at` belongs to the blow the model described, not to whichever side
         // happens to have lost hp — same reason `weapon` is set in here
         h.at = Array.isArray(raw.at) && raw.at.length === 2 ? raw.at : null;
+        /* ... and so does the rung. Under normalised damage `dmg` is a share of
+           the bar, not a rung, so this is the only thing that still knows how
+           hard the blow was. The second victim of an exchange keeps tierOf(dmg),
+           which is all the arithmetic can honestly say about it. */
+        h.sev = TIER_BY_SEV[raw.sev] ? raw.sev : '';
+        h.tier = tierFor(h.sev, dmg);
       }
       out.push(h);
     }
@@ -1546,12 +1617,17 @@ function fire(ev, prev) {
 
   if (ev.caption) typeCaption(ev.caption);
 
-  const top = hs.reduce((a, b) => (!a || b.dmg > a.dmg) ? b : a, null);
+  /* the biggest blow of the event, by RUNG first — the hp delta only breaks a
+     tie now, since normalised damage makes it a share of the bar rather than a
+     measure of how hard the blow was */
+  const top = hs.reduce((a, b) => (!a || RANK(b.tier.key) > RANK(a.tier.key)
+                                   || (b.tier.key === a.tier.key && b.dmg > a.dmg))
+                                  ? b : a, null);
   if (top) {
     showHits(applied, top, true);
     sfx('hit');                                  // every hit is audible, even a graze
     // two-tier shake: solid rattles the stage, heavy+ reuses the KO's harder keyframes
-    if (top.dmg >= SHAKE_AT) shake(top.dmg >= MASSIVE_AT);
+    if (SHAKE_TIERS.has(top.tier.key)) shake(HARD_TIERS.has(top.tier.key));
     if (BIG.has(top.tier.key)) crosshair(top);   // full-stage, heavy and up
     if (top.tier.key === 'massive') spawnEmbers(top.to, 8);
   }
@@ -1658,6 +1734,15 @@ function frameToStage(at) {
                       Math.max(pc('--mark-min-top'), y * 100)) + '%'};
 }
 
+/* "SELF / ARENA" covered two different things because the contract cannot tell
+   them apart: an incidental hit is `clean: false` with `by` naming the victim,
+   whether the screws did it or the bot cooked itself. The weapon string is the
+   one thing that does know — the model is asked to name the hazard in it — so
+   read the blame off that and say ARENA when it says so. Falls back to the old
+   pair when the weapon is null or unhelpful, which is the honest answer then. */
+const ARENA_RE = /screw|saw|wall|hazard|pulveri|shelf|deck|floor|spike|rail/i;
+const blameFor = h => ARENA_RE.test(h.weapon || '') ? 'ARENA' : 'SELF / ARENA';
+
 let strikeTimer = null;
 function crosshair(h) {
   const el = $('strike'), word = $('massive'), f = $('flash');
@@ -1669,7 +1754,8 @@ function crosshair(h) {
   if (p) el.style.setProperty('--strike-y', p.y);
   else el.style.removeProperty('--strike-y');
   el.classList.toggle('t-massive', h.tier.key === 'massive');
-  $('strikeby').textContent = (h.self ? 'SELF / ARENA' : botName(h.by).toUpperCase()) +
+  el.classList.toggle('self', !!h.self);
+  $('strikeby').textContent = (h.self ? blameFor(h) : botName(h.by).toUpperCase()) +
                               (h.weapon ? ' · ' + h.weapon.toUpperCase() : '');
   word.textContent = h.tier.word;
   el.classList.remove('on'); word.classList.remove('on'); f.classList.remove('tap');
@@ -1737,10 +1823,14 @@ function arenaMark(h) {
   const p = h.at ? frameToStage(h.at) : null;
   if (!p) return;
   const el = document.createElement('div');
-  el.className = 'hitmark arena t-' + h.tier.key + (h.self ? ' self' : '');
+  // `h.by` — WHO LANDED IT, the same value the hit strip takes its colour and its
+  // above/below split from. The CSS default is the right side, so only the left
+  // needs a class; `.self` overrides both, because a hazard is neither bot.
+  el.className = 'hitmark arena t-' + h.tier.key +
+                 (h.by === 'L' ? ' l' : '') + (h.self ? ' self' : '');
   el.style.left = p.x;
   el.style.top = p.y;
-  spawn(el, lifeMs('--hm-life') + 80);
+  spawn(el, lifeMs('--arena-life') + 80);
 }
 
 function floatDamage(s, dmg) {
@@ -1897,9 +1987,10 @@ function pairsFrom(cs) {
 function scheduleExchanges(pairs) {
   const at = {};
   if (!pairs.length) return at;
-  HITS.filter(h => h.dmg >= SHAKE_AT)
+  HITS.filter(h => SHAKE_TIERS.has(h.tier.key))
       .sort((a, b) => (!!events[a.i].fan_comment) - (!!events[b.i].fan_comment)
-                      || b.dmg - a.dmg || a.t - b.t)
+                      || RANK(b.tier.key) - RANK(a.tier.key) || b.dmg - a.dmg
+                      || a.t - b.t)
       .filter((h, k, all) => all.findIndex(o => o.i === h.i) === k)   // one per event
       .slice(0, pairs.length)
       .sort((a, b) => a.t - b.t)
@@ -2090,11 +2181,17 @@ function breakdown() {
     (self ? ` · ${self} SELF-INFLICTED / ARENA` : '') +
     (counted ? ' · FINISHED BY COUNT-OUT' : '');
 
-  const big = HITS.reduce((a, h) => (!a || h.dmg > a.dmg) ? h : a, null);
+  /* BEST BLOW is the hardest hit, not the one that happened to take the biggest
+     bite out of the bar. Those were the same number under the fixed budget and
+     are not under normalisation, where a heavy in a busy fight can cost less
+     than a graze in a quiet one. Rung first, hp only to break the tie. */
+  const big = HITS.reduce((a, h) => (!a || RANK(h.tier.key) > RANK(a.tier.key)
+                                     || (h.tier.key === a.tier.key && h.dmg > a.dmg))
+                                    ? h : a, null);
   $('bdBig').innerHTML = big ? `
     <div class="dmg">−${big.dmg}</div>
     <div class="meta">
-      <div>${escapeHTML(big.self ? 'SELF / ARENA' : botName(big.by))} →
+      <div>${escapeHTML(big.self ? blameFor(big) : botName(big.by))} →
            ${escapeHTML(botName(big.to))}
            ${big.weapon ? `<span class="wpn">${escapeHTML(big.weapon)}</span>` : ''}</div>
       <div>${big.tier.abbr} · ${mmss(big.t)}${big.ko ? ' · KNOCKOUT BLOW' : ''}</div>
