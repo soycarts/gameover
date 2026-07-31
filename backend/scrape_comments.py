@@ -16,7 +16,8 @@
 
 Pulls the episode's pinned fight-card thread plus keyword-discovered r/battlebots
 threads via Bright Data, routes each comment to this matchup, and normalises to
-records carrying text, author, score, thread ids and a cached prediction label.
+records carrying text, an opaque author token, score, thread ids and a
+cached prediction label.
 
 The PRIMARY source is the fight card — see FIGHT_CARD below. Keyword discovery
 can only ever find posts written after the fight; a fight card is where the crowd
@@ -404,7 +405,7 @@ def mock(query: str, card: dict | None = None) -> list[dict]:
     out = [{"text": t, "source": s,
             "url": (f"https://reddit.com/r/battlebots/comments/mock{i}" if s == "reddit"
                     else f"https://youtube.com/watch?v=mock&lc={i}"),
-            "author": f"mockfan{i}", "score": 40 - i, "id": f"m{i}", "parent": "",
+            "by": crowd.author_hash(f"mockfan{i}"), "score": 40 - i, "id": f"m{i}", "parent": "",
             "post": "mock", "rival": False, "phase": "post", "kind": "reaction",
             "pick": ""}
            for i, (t, s) in enumerate(picks[:MAX_COMMENTS])]
@@ -414,7 +415,7 @@ def mock(query: str, card: dict | None = None) -> list[dict]:
         rec = {"text": tmpl.format(bot=bot) if bot else tmpl.replace("{bot} ", ""),
                "source": "reddit",
                "url": f"https://reddit.com/r/battlebots/comments/mock/pre{k}",
-               "author": f"mockpredictor{k}", "score": 30 - k, "id": f"p{k}",
+               "by": crowd.author_hash(f"mockpredictor{k}"), "score": 30 - k, "id": f"p{k}",
                "parent": "", "post": "mock", "pinned": True, "rival": False,
                "phase": "pre", "kind": "prediction",
                "pick": crowd.bot_key(bot) if bot else ""}

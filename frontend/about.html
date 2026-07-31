@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>GAMEOVER — about</title>
+<!-- same rule as the app: discoverable by invitation, not by search -->
+<meta name="robots" content="noindex, nofollow">
+<meta name="googlebot" content="noindex, nofollow">
+<link rel="stylesheet" href="/frontend/page.css">
+
+<main>
+  <h1>GAMEOVER</h1>
+  <p class="lede">A fan-built analytics layer for robot combat footage. It watches a
+    clip, works out where the blows land, and draws a retro arcade HUD over the top.</p>
+
+  <h2>What it does</h2>
+  <p>A vision model reads the frames of a short fight clip and rates what it can see —
+    which machine took a blow, how hard, and roughly where on the frame it landed.
+    Everything after that is ordinary deterministic code: the damage totals, the hit
+    count, the knockout count-out and the health bars are arithmetic, not model output.
+    The result is a JSON timeline, and the page animates the HUD from it in sync with
+    the video.</p>
+  <p>Alongside that it shows aggregated crowd sentiment — how the r/battlebots thread
+    for a given episode was leaning before the fight, and a couple of representative
+    takes. Comments are shown as quotes and are credited to the subreddit.
+    <strong>No usernames are stored or displayed.</strong> Where the pipeline needs to
+    tell two commenters apart it uses an opaque salted token, and the salt is not in
+    the repository.</p>
+
+  <h2>The footage is not ours</h2>
+  <p>Footage © BattleBots Inc. It appears here for fan analysis, in short clips, with a
+    link on every one of them back to the original video at the moment the clip was cut
+    from. This project is <strong>unaffiliated with BattleBots Inc.</strong> and is not
+    endorsed by or connected to them in any way. Please watch the full fights at the
+    official source — the link on each clip goes straight there.</p>
+  <p>If you are BattleBots Inc., or anyone else with a claim to material shown here, see
+    the <a href="/takedown">takedown page</a>. Content comes down within 24 hours,
+    no argument and no process to navigate.</p>
+
+  <h2>Contact</h2>
+  <p>Anything at all, including takedowns:
+    <a href="mailto:abuse@gameover.fyi">abuse@gameover.fyi</a></p>
+
+  <h2>Not commercial</h2>
+  <p>There is nothing to buy, no advertising, no affiliate links, no donations and no
+    accounts. Nothing about you is collected, and there is no analytics or tracking on
+    this site.</p>
+
+  <p class="back"><a href="/">← back to the fights</a></p>
+</main>
+</html>

@@ -1,0 +1,4 @@
+# COMPLIANCE.md, "Search visibility": the goal is discoverable by people you send
+# here, not by people searching for BattleBots. There is no sitemap on purpose.
+User-agent: *
+Disallow: /

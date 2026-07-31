@@ -5,12 +5,31 @@ arcade fighting-game HUD. Read this before changing anything.
 
 **[COMPLIANCE.md](COMPLIANCE.md) governs anything touching the footage, the Reddit
 data, or where the site is hosted, and it OUTRANKS this file where the two disagree.**
-They currently do disagree, on purpose and in writing: the sharing section below says a
-clip must be committed to git or the public site 404s it, and COMPLIANCE's hard rule 3
-says no video may be committed at all. Both are true — the second is where the project
-is going and the first is how it works today, and closing the gap means moving the clips
-to object storage behind `CLIP_BASE_URL` *before* the ignore rule lands, or the demo
-goes dark. The audit at the bottom of COMPLIANCE.md lists every other open item.
+They still disagree on exactly one thing, on purpose and in writing: the sharing section
+below says a clip must be committed to git or the public site 404s it, and COMPLIANCE's
+hard rule 3 says no video may be committed at all. Both are true — the second is where
+the project is going and the first is how it works today. `CLIP_BASE_URL` is already
+plumbed (`frontend/config.js`), so closing the gap is: bucket → upload → point
+`CLIP_BASE` at it → *then* the ignore rule. **That order is load-bearing** — reversing
+it takes the site down, because a git-connected build only sees committed files.
+
+Everything else in that file is implemented. The consequences worth knowing here:
+
+- **No Reddit username is ever stored or displayed.** `crowd.author_hash()` salts and
+  truncates at scrape time and refuses to run without `GAMEOVER_AUTHOR_SALT` in `.env`,
+  rather than emit a hash that is reversible by hashing a candidate list. Records carry
+  an opaque `by` token; `pair_exchanges()` is its only consumer. The HUD credits
+  `r/battlebots`. Do not reintroduce an author field — the old attribution feature is
+  gone deliberately, and it is the one item on that page with a UK GDPR flavour.
+- **`serve.py` and `vercel.json` declare the same rewrites** (`/`, `/about`,
+  `/takedown`) and must stay in step. A route that works in dev and 404s in production
+  is how the `sprites.js` path bug survived; here it would be the takedown page.
+- **`scripts/check_no_video.sh` fails today, correctly**, and is deliberately not wired
+  into a build until the clips move.
+- **`scripts/killswitch.sh off`** flips every route to a static offline page. It is a
+  rewrite rather than the `SITE_ENABLED` env var the doc asks for, because a pure static
+  deploy has nothing running at request time to read one, and giving it one would mean
+  adding the build step this file rules out.
 
 If a request conflicts with a rule in there, say so rather than quietly implementing it.
 That includes requests that look purely cosmetic: putting a Reddit username on screen or

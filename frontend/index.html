@@ -1,6 +1,14 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>GAMEOVER</title>
+<!-- COMPLIANCE.md, "Search visibility": discoverable by people you send here, not
+     by people searching for BattleBots. robots.txt at the deploy root says the
+     same thing to crawlers that respect it; this says it to the ones that fetch
+     the page anyway. Deliberately NO og:video and no structured data — a video
+     card is the single most effective way to surface unlicensed footage in a
+     feed. A plain og:image of our own UI would be fine to add. -->
+<meta name="robots" content="noindex, nofollow">
+<meta name="googlebot" content="noindex, nofollow">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@600;800;900&family=JetBrains+Mono:wght@400;500;700&family=Press+Start+2P&display=swap" rel="stylesheet">
@@ -10,6 +18,8 @@
      working perfectly in local dev. Every other asset here climbs with ../ for
      exactly this reason, and .. from / harmlessly stays at /. -->
 <script src="../frontend/sprites.js"></script>
+<!-- where the clips are hosted, and the only place that is named. See the file. -->
+<script src="../frontend/config.js"></script>
 
 <style>
 /* ===================================================================
@@ -548,6 +558,28 @@ body.over .perfect { display: none; }
    anything in the flow shifts every other block by half its height */
 .pickhint { position: absolute; left: 0; right: 0; bottom: var(--hud-pad);
   pointer-events: none; }
+
+/* ---------------- attribution (COMPLIANCE.md) ----------------
+   Above every screen (.screen is z-index 5, #ko 7, #crt 8, .hitmark 10) so the
+   credit is never covered by the fight card or a fireball, and permanent rather
+   than fading with the control bar — a credit that only appears on hover is not
+   a visible credit line. pointer-events stay OFF on the strip so it can never
+   swallow the click that starts the fight, and back ON for the links alone. */
+#legal { position: absolute; z-index: 11; left: var(--hud-pad); bottom: 3px;
+  max-width: min(92vw, 900px); pointer-events: none;
+  font-family: var(--font-mono); font-size: clamp(8px, 1vw, 11px);
+  letter-spacing: .04em; color: var(--ink-dim); opacity: .62;
+  text-shadow: 0 1px 3px #000, 0 0 8px #000; }
+#legal a { pointer-events: auto; color: inherit; margin-left: .9em;
+  text-decoration: underline; text-underline-offset: 2px; }
+#legal a:hover { color: var(--ink); }
+#legal a[hidden] { display: none; }
+#legal .dis { display: block; opacity: .78; }
+/* the fight is the product — step further back while it is actually playing,
+   and come back up on the title and GAME OVER cards where there is room */
+body.playing #legal { opacity: .34; }
+body.playing #legal .dis { display: none; }
+@media (max-width: 700px) { #legal .dis { display: none; } }
 @keyframes blink { 0%,49% { opacity: 1 } 50%,100% { opacity: 0 } }
 
 .vs { display: flex; align-items: center; gap: clamp(14px, 4vw, 48px);
@@ -1103,6 +1135,22 @@ body.rainbow .core-fill { background: linear-gradient(90deg,#ff2e63,#ffd23f,#3ff
   </div>
 
   <div id="crt"></div>
+
+  <!-- COMPLIANCE.md, "Attribution": one element, rendered on EVERY surface that
+       shows a clip. It sits inside #stage and outside #hud and .screen, so it
+       survives the title card, the fight and the GAME OVER card alike rather than
+       being three copies that can drift apart.
+       #src is filled in from clips/<clip>.source.json, which already carries the
+       url and the start offset — so the link lands on the original video at the
+       moment this clip was cut from, which is the form the doc asks for. -->
+  <footer id="legal">
+    Footage © BattleBots Inc. Used here for fan analysis.
+    <a id="src" href="#" target="_blank" rel="noopener noreferrer nofollow" hidden>SOURCE ↗</a>
+    <a href="/about">ABOUT</a>
+    <a href="/takedown">TAKEDOWN</a>
+    <span class="dis">Unaffiliated fan project. Not endorsed by or affiliated with
+      BattleBots Inc.</span>
+  </footer>
 </div>
 
 <script>
@@ -1111,6 +1159,15 @@ const $ = id => document.getElementById(id);
 const qs = new URLSearchParams(location.search);
 const CLIP = qs.get('clip') || 'madcatter-tombstone';
 const DEMO = qs.get('demo') === '1';
+
+/* Every clip asset resolves through here, so storage is swapped in ONE place —
+   frontend/config.js. COMPLIANCE.md requires that; the reason it matters is that
+   a DMCA notice follows the file, so whoever serves the video bytes is who gets
+   the complaint, and the day those bytes move off Vercel must not be the day you
+   grep the codebase for hard-coded paths. Falls back to the committed clips so a
+   missing config.js degrades rather than blanking the video. */
+const clipUrl = name =>
+  `${(window.GAMEOVER_CONFIG?.CLIP_BASE || '../clips').replace(/\/+$/, '')}/${name}`;
 
 /* Escalation is keyed to the TIER, never to the hp number. It used to be `dmg >=
    10` / `dmg >= 20`, which worked only while a delta WAS a rung. Under normalised
@@ -1311,6 +1368,7 @@ async function boot() {
       renderPredictions();
     })
     .catch(() => { /* optional */ });
+  sourceLink();         // COMPLIANCE.md attribution — fire and forget, never awaited
   loadVoice();          // the one sampled cue, decoded while the page settles
 
   /* ---- weapon sigils -------------------------------------------------------
@@ -1419,7 +1477,7 @@ async function boot() {
   setName('nameR', nr, 'right');
   showHits(-1, null, false);              // the readout explains itself before t=0
 
-  const src = `../clips/${timeline.clip || CLIP + '.mp4'}`;
+  const src = clipUrl(timeline.clip || CLIP + '.mp4');
   const v = $('video');
   v.addEventListener('error', fallbackClock);
   v.addEventListener('loadedmetadata', () => {
@@ -1970,11 +2028,15 @@ function hideComments() {
 function showComment(side, c, reply) {
   const el = $('cmt' + side);
   const rec = typeof c === 'string' ? (credits[norm(c)] || {text: c}) : c;
+  /* Credited to the SUBREDDIT, never to a person. COMPLIANCE.md: usernames are
+     neither stored nor displayed — the operator is UK-based, so a retained
+     username is personal data under UK GDPR. The records carry an opaque `by`
+     token for the one thing that needs per-author equality (pair_exchanges()
+     rejecting a reply to yourself), and nothing on screen may resolve it. */
   const label = rec.source === 'youtube' ? 'via YouTube comments' : 'via r/battlebots';
-  const who = rec.author ? `<b>u/${escapeHTML(rec.author)}</b> · ` : '';
   el.classList.toggle('reply', !!reply);
   el.innerHTML = `${reply ? '↳ ' : ''}“${escapeHTML(rec.text)}”`
-               + `<span class="src">${who}${label}</span>`;
+               + `<span class="src">${label}</span>`;
   el.classList.add('on');
   clearTimeout(el._t);
   // CLAUDE.md: a transient's lifetime lives in its CSS variable, not a JS timer.
@@ -2266,9 +2328,34 @@ function crowdCall() {
           quote: {L: loudest('L'), R: loudest('R')}};
 }
 
+/* COMPLIANCE.md, "Attribution": a visible link on every clip back to the original
+   video at its start timestamp. `clips/<clip>.source.json` already carries both —
+   it is written by ingest.py and backfilled by hand for the three demo clips — so
+   this needs no new field and no re-judge, just one more small fetch.
+
+   `t0` is preferred over `start` where present: -ss snaps the cut to the nearest
+   keyframe, so t0 is the second the clip ACTUALLY begins and start is only what
+   was asked for. On manta the two differ by 1.02s. Rounded down, because a link
+   that lands a moment early shows the blow and one that lands late misses it.
+
+   Silent on failure: no source file means no link, and the credit line stands on
+   its own. A clip with no recorded provenance should not invent one. */
+async function sourceLink() {
+  if (DEMO) return;                      // synthetic; there is no source video
+  try {
+    const s = await loadJSON(clipUrl(`${CLIP}.source.json`));
+    const id = (String(s.url || '').match(/[?&]v=([\w-]{6,})/) || [])[1];
+    if (!id) return;
+    const at = Math.max(0, Math.floor(Number(s.t0 ?? s.start ?? 0)));
+    const a = $('src');
+    a.href = `https://www.youtube.com/watch?v=${id}&t=${at}s`;
+    a.hidden = false;
+  } catch (e) { /* no provenance recorded — the credit line still stands */ }
+}
+
+/* the subreddit, never the person — see showComment() */
 const quoteHTML = c => c ? `<blockquote>“${escapeHTML(c.text)}”` +
-  `<cite>${c.author ? `u/${escapeHTML(c.author)}` : 'r/battlebots'}</cite></blockquote>`
-  : '<blockquote></blockquote>';
+  `<cite>r/battlebots</cite></blockquote>` : '<blockquote></blockquote>';
 
 function renderPredictions() {
   const cc = crowdCall();
@@ -2387,6 +2474,7 @@ function start() {
   if (started || !booted) return;
   started = true;
   sfx('coin');
+  document.body.classList.add('playing');   // dims the attribution — see #legal
   $('title').classList.remove('on');
   $('hud').classList.add('on');
   applied = -1;
@@ -2650,7 +2738,12 @@ addEventListener('keydown', e => {
   // and Space during play already means play/pause, so the two agree
   if (!started && e.key === ' ') { e.preventDefault(); start(); }
 });
-addEventListener('click', e => { if (e.target.tagName !== 'INPUT' && !started) start(); });
+/* A too, not just INPUT: the attribution footer's SOURCE / ABOUT / TAKEDOWN links
+   are clickable on the title card, and without this every one of them would also
+   drop the viewer into a fight on the way out. */
+addEventListener('click', e => {
+  if (!['INPUT', 'A'].includes(e.target.tagName) && !started) start();
+});
 
 $('muted').addEventListener('click', e => {
   e.stopPropagation();

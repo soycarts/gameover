@@ -15,6 +15,11 @@ BRIGHTDATA_NAMES = ("BRIGHTDATA_API_KEY", "BRIGHTDATA_KEY")
 ANTHROPIC_NAMES = ("ANTHROPIC_API_KEY", "ANTHROPIC_KEY")
 OPENAI_NAMES = ("OPENAI_API_KEY", "OPENAI_KEY")
 ELEVENLABS_NAMES = ("ELEVENLABS_API_KEY", "ELEVENLABS_KEY")
+# Not a credential — the salt that makes crowd.author_hash() irreversible. It
+# lives here for the same reason the keys do: .env is gitignored AND
+# vercelignored, so it is the one place in the project that is outside the repo
+# by construction. COMPLIANCE.md requires the salt be held outside the repo.
+AUTHOR_SALT_NAMES = ("GAMEOVER_AUTHOR_SALT", "AUTHOR_SALT")
 
 
 def load_env(path: Path | None = None) -> None:
@@ -65,3 +70,7 @@ def openai_key() -> str | None:
 
 def elevenlabs_key() -> str | None:
     return get(ELEVENLABS_NAMES)
+
+
+def author_salt() -> str | None:
+    return get(AUTHOR_SALT_NAMES)

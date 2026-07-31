@@ -15,7 +15,13 @@ import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-BLOCKED = {".env", ".git", ".venv", ".ssh", ".aws", ".DS_Store"}
+BLOCKED = {".env", ".git", ".venv", ".ssh", ".aws", ".DS_Store",
+           # The same three .vercelignore keeps off the public site. This server
+           # binds 0.0.0.0, so "local dev" means everyone on the wifi — and
+           # COMPLIANCE.md in particular states in writing that the footage is
+           # unlicensed and lists what is not yet fixed. Not dotfiles, so the
+           # rule above does not reach them.
+           "CLAUDE.md", "HANDOVER.md", "COMPLIANCE.md", "transcripts"}
 
 
 class _Slice:
@@ -42,6 +48,21 @@ class Handler(http.server.SimpleHTTPRequestHandler):
     def __init__(self, *a, **kw):
         super().__init__(*a, directory=str(ROOT), **kw)
 
+    # The same rewrites vercel.json declares. Kept in step ON PURPOSE: a route
+    # that exists in production and 404s in dev is how the sprites.js path bug
+    # survived — it worked perfectly locally and was broken on the public site.
+    # Here it would be the reverse, and the takedown page is the last thing that
+    # should be discovered broken.
+    REWRITES = {"/": "/frontend/index.html",
+                "/about": "/frontend/about.html",
+                "/takedown": "/frontend/takedown.html"}
+
+    def _rewrite(self) -> None:
+        path, sep, query = self.path.partition("?")
+        dest = self.REWRITES.get(path.rstrip("/") or "/")
+        if dest:
+            self.path = dest + sep + query      # the query survives, as on Vercel
+
     def _blocked(self) -> bool:
         parts = Path(self.path.split("?")[0]).parts
         return any(p in BLOCKED or p.startswith(".") for p in parts if p != "/")
@@ -57,6 +78,7 @@ class Handler(http.server.SimpleHTTPRequestHandler):
     # ranges already, so this only ever bit local dev — which is where demos get
     # rehearsed.
     def send_head(self):
+        self._rewrite()
         if self._blocked():
             self.send_error(404, "Not Found")
             return None

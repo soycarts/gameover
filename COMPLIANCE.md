@@ -154,109 +154,95 @@ remains regardless of how many of these boxes are ticked.
 # Where the repo actually stands
 
 **Everything above this line is the target. Everything below is an audit of the repo
-against it, taken on 31 Jul 2026 at commit `c99f17a`. The two do not currently agree,
-and several of the gaps are things the codebase does deliberately and documents as
-required — so they are conflicts to resolve, not oversights to tidy.**
+against it, re-taken on 31 Jul 2026 after the first implementation pass.**
 
 Re-run the audit rather than trusting this list once anything moves.
 
-## Already holds
+## Holds
 
-| Rule | State |
+| Rule | How |
 |---|---|
-| No monetization | Holds. No ads, affiliate links, donation button, paid tier or crypto anywhere. |
-| No accounts / paywall / email capture | Holds. The only input on the site is the era B URL box, which posts nowhere. |
-| Clip source metadata | Substantially holds. `clips/<clip>.source.json` carries `url`, `start`, `duration`, plus `t0`/`span` for the keyframe the cut actually landed on. Field names differ from the spec (`duration` not `end_seconds`, video id embedded in `url` rather than separate) but nothing is missing. |
-| Scraper separated from analytics | Substantially holds. `ingest.py`, `scrape_comments.py` and `crowd.py` are separate modules from `analyze.py` and the frontend. |
-| Licence covers code only | Partially. MIT `LICENSE` exists but carries no note excluding third-party media. |
+| No monetization | No ads, affiliate links, donation button, paid tier or crypto. |
+| No accounts / paywall / email capture | The only input is the era B URL box, which posts nowhere. |
+| No usernames stored or displayed | `crowd.author_hash()` salts and truncates at scrape time; the plaintext never enters a record. `backend/scrub_authors.py` migrated the 57 already committed. The UI credits `r/battlebots` on both render paths. **Git history still holds the old names** — see below. |
+| Salt held outside the repo | `GAMEOVER_AUTHOR_SALT` in `.env`, which is gitignored *and* vercelignored. `author_hash()` refuses to run without it rather than emitting a reversible hash. |
+| noindex / nofollow | On all three pages, plus `googlebot`. |
+| `robots.txt` with `Disallow: /` | At the deploy root. No sitemap. |
+| No `og:video`, no structured data | None present. |
+| Visible credit line | `#legal`, on every surface — one element inside `#stage`, above every screen, so the title card, the fight and the GAME OVER card cannot drift apart. |
+| Link back to the source at its timestamp | `sourceLink()` builds it from `clips/<clip>.source.json`. Prefers `t0` over `start` — the keyframe the cut actually landed on, 1.02s apart on manta. |
+| Persistent unaffiliated footer | In `#legal`, hidden only on narrow screens and dimmed during play. |
+| `/about` and `/takedown` | Real pages, rewritten in `vercel.json` **and** in `serve.py` so dev matches production. |
+| Takedown contact + 24h commitment | `abuse@gameover.fyi`, on both pages and in the README. |
+| Kill switch | `scripts/killswitch.sh off` — verified to round-trip and restore the config exactly. It is a rewrite, not an env var; see the script for why a static deploy cannot have one without gaining a build step. |
+| `scripts/teardown.sh` | Written. **Never run against a real bucket, because there isn't one yet.** Defaults to `--dry-run`. |
+| Single `CLIP_BASE_URL` | `frontend/config.js`, read through `clipUrl()`. Every clip asset — video and `source.json` — resolves through it. |
+| No-video build check | `scripts/check_no_video.sh`, and its `.vercelignore` prune logic is verified both ways. **Deliberately not wired in: it fails today, correctly.** |
+| Licence covers code only | Note appended to `LICENSE` disclaiming any rights in third-party media or marks. |
+| README states the input policy | Says the pipeline expects your own inputs, and flags the committed clips as the exception being removed. |
+| Scraper separated from analytics | `ingest.py` / `scrape_comments.py` / `crowd.py` are separate from `analyze.py` and the frontend. |
+| Analytics survive a clip takedown | Already true and now load-bearing: `?demo=1` and a missing clip both fall back to the rAF clock, so the HUD, the timeline and the crowd card run with no video at all. |
 
 ## Does not hold
 
-Ordered by how sharp the exposure is, not by how hard the fix is.
-
 ### 1. Four clips are committed to git and served by Vercel — 26 MB
 
-This is the central conflict, and it is deliberate. `.gitignore` is `clips/*` plus a `!`
-exception per clip, and `CLAUDE.md` documents this as **required**: *"A git-connected
-build only sees committed files, so any new clip you want on the public site needs its
-own exception."* The live site serves the bytes from `gameover-nine.vercel.app/clips/`.
+Unchanged, and still the central conflict. `.gitignore` is `clips/*` plus a `!` exception
+per clip, and `CLAUDE.md` documents this as **required** for a git-connected build. This
+breaks hard rule 3 and the whole *Deployment and hosting separation* section.
 
-Against the doc this breaks hard rule 3, the whole *Deployment and hosting separation*
-section, and *No clip files… anywhere inside the deployment bundle*.
+**Everything needed to fix it is now in place except the bucket.** `CLIP_BASE_URL` is
+plumbed, the teardown script is written, the build check is written and verified. The
+remaining steps need credentials and account creation, which is not something an agent
+should be doing on your behalf:
 
-Adding `*.mp4` to `.gitignore` in isolation would **take the public site down** — the
-HUD falls back to a placeholder arena with no video. The clips have to move to R2 and
-`CLIP_BASE_URL` has to exist before the ignore rule can land. Doing it in the other
-order breaks the demo.
+1. Create the Cloudflare R2 account under a project-specific email, and a bucket.
+2. Upload the four clips and the `.source.json` files.
+3. Point `clips.gameover.fyi` at the bucket.
+4. Set `CLIP_BASE` in `frontend/config.js` to that host.
+5. **Only then**: drop the `!` exceptions, add `*.mp4` etc. to `.gitignore`, add
+   `clips/` to `.vercelignore`, and wire `check_no_video.sh` into `buildCommand`.
 
-Note also that removing the files from the working tree does not remove them from
-history; a genuine purge needs a rewrite of every commit that touched `clips/`.
+Doing 5 before 4 takes the site down. Order matters.
 
-### 2. Reddit usernames are stored and displayed
+### 2. Git history still holds the 57 usernames
 
-50 distinct usernames across three files, and the UI renders them as `u/<name>` in two
-places — `index.html:1974` (the in-fight fan comment) and `:2270` (the crowd card
-quotes). Attribution is a shipped, documented feature.
+The working tree is clean and every future scrape hashes at source, but
+`git log -p comments/` still shows the names, and the repo is on GitHub. Scrubbing that
+needs a `git filter-repo` pass over every commit touching `comments/`, which rewrites
+every hash on the branch and requires a force-push. Worth doing before the repo is ever
+made public; not worth doing silently.
 
-This is the sharpest item on the page: the doc puts it under UK GDPR, and *"dropping
-identifiers is what keeps the controller obligations off the table."* Unlike the clips
-it is cheap to fix — the salted hash the doc describes preserves the per-author
-deduplication the pool actually uses, and the on-screen credit degrades to
-`r/battlebots`, which the card already renders when `author` is absent.
+The same is true of the clips: removing them from the tree will not remove them from
+history.
 
-The comment records also keep the full `text` body. The UI does display it, so this sits
-inside the doc's carve-out, but `created_utc` is absent where the spec asks for it.
+### 3. `created_utc` is not stored on comment records
 
-### 3. The site is fully indexable
+The spec lists it. The pool carries `id`, `url`, `score`, `text` and the derived labels
+but no timestamp, and adding one means re-scraping — Bright Data spend, and a re-scrape
+can return a *worse* pool, which the zero-rows guard does not catch. Left as-is
+deliberately; it is the least consequential item on this page.
 
-No `<meta name="robots">` anywhere in `index.html`, and no `robots.txt` at all. Nothing
-has been submitted to Search Console, but nothing prevents crawling either. No `og:`
-tags of any kind at present, so the *no `og:video`* rule holds by absence rather than by
-decision — worth pinning before anyone adds a share preview.
+### 4. Contact addresses and the domain are aspirational
 
-### 4. No attribution surface exists
-
-No credit line, no link back to the source video, no footer, no `/about`, no
-`/takedown`. The source URL and start timestamp needed to build the link are already on
-disk in `clips/<clip>.source.json`, so the data side is done and only the rendering is
-missing.
-
-### 5. No takedown machinery
-
-No `SITE_ENABLED` kill switch, no `scripts/teardown.sh`, no project contact address. The
-"remove within 24 hours" commitment cannot be honoured at speed without at least the
-kill switch.
-
-### 6. No `CLIP_BASE_URL`, no prebuild check
-
-Clip URLs are hard-coded as `../clips/<clip>.mp4` relative paths in `index.html`. There
-is no build step at all — the site is a pure static deploy — so the `prebuild` video-
-extension check has nowhere to hook until one exists.
-
-### 7. README claims the opposite of the doc's requirement
-
-The doc asks for a section stating the repo contains **no** BattleBots footage. It
-currently contains four clips, so that section cannot be written truthfully until item 1
-is done. Writing it before then would be worse than leaving it out.
+`abuse@gameover.fyi` is written into the pages, the README and this file, but the domain
+is not registered and the mailbox does not exist. **A takedown route that bounces is
+worse than none**, so this is the one item to close before anything is shared publicly —
+ahead of the clip migration, because it is cheap and it is what the outreach sequencing
+depends on.
 
 ## The honest summary
 
-The two rules that are fully satisfied — no monetization and no accounts — are the two
-that were never going to be violated. Every rule that constrains how the footage and the
-Reddit data are handled is currently unmet, and the two that matter most (clips in the
-deployment bundle, usernames on screen) are load-bearing features rather than
-accidents.
+Every rule that could be satisfied by code is satisfied. What remains needs an account,
+a domain, or a history rewrite — decisions with money or irreversibility attached, which
+is the right place for an implementation pass to stop.
 
-Sequencing that follows from the dependencies rather than from the doc's ordering:
+Two of the four are blockers for going public, in this order:
 
-1. **Usernames.** Independent of everything else, cheap, and the only item with a
-   regulatory rather than a takedown flavour.
-2. **`robots.txt` + noindex.** One file and one meta tag. Directly serves the stated
-   goal of being discoverable by invitation rather than by search.
-3. **Attribution, `/about`, `/takedown`, kill switch.** All additive, none of them break
-   anything, and they are what turn a complaint into an email.
-4. **Move the clips to R2 behind `CLIP_BASE_URL`.** The largest change, and the one that
-   must land before `*.mp4` can enter `.gitignore` without taking the site down.
+1. **Register the domain and the mailbox.** Cheap, fast, and everything else assumes it.
+2. **Move the clips to R2.** The rest of the work for this is already done.
+3. Scrub git history, if the repo is ever to be public.
+4. `created_utc`, if a re-scrape happens anyway for another reason.
 
 None of this is legal advice, and the note above the line applies to the audit as much
 as to the checklist: ticking every box leaves the core exposure from self-hosting the

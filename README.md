@@ -3,6 +3,32 @@
 A vision model watches BattleBots clips and drives a retro arcade fighting-game HUD:
 health bars, damage captions, fan comments, screen shake, K.O.
 
+## Footage, licensing and data
+
+**This is an unaffiliated fan project. It is not endorsed by or connected to
+BattleBots Inc.** Footage © BattleBots Inc.
+
+The [`LICENSE`](LICENSE) covers this project's own code and nothing else — it conveys
+no rights in BattleBots footage or marks. The pipeline expects you to **supply your own
+inputs**: `ingest.py` takes a URL you provide, and nothing here grants you the right to
+redistribute what it downloads. `?clip=synthfight` is a generated test clip with no
+third-party content in it, and `?demo=1` needs no video at all, so both the HUD and the
+whole judging pipeline can be developed without touching anyone's footage.
+
+> **The four clips currently committed under `clips/` are the exception, and they are
+> being removed.** They predate this policy. [`COMPLIANCE.md`](COMPLIANCE.md) records why
+> that is the project's largest open item and the order the fix has to happen in — the
+> clips move to separate object storage behind `CLIP_BASE_URL` *before* `*.mp4` enters
+> `.gitignore`, or the site goes dark. Note that deleting them from the tree does not
+> remove them from git history.
+
+No Reddit usernames are stored or displayed anywhere. Where the pipeline needs to tell
+two commenters apart it uses a salted hash, with the salt held outside the repository —
+see `crowd.author_hash()`. Read [`COMPLIANCE.md`](COMPLIANCE.md) before changing anything
+that touches the footage, the scraped data, or where the site is hosted.
+
+Takedowns: **abuse@gameover.fyi**, removed within 24 hours.
+
 Two independent halves joined by **one JSON contract**. The backend turns a video
 into `timelines/<clip>.json`; the frontend plays the clip and animates the HUD from
 that file, synced to video time. No websockets, no build step, no framework.

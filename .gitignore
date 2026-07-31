@@ -30,3 +30,6 @@ __pycache__/
 .claude/
 comments/.titles-backup/
 frontend/_spritecheck.html
+
+# scripts/killswitch.sh parks the live config here while the site is dark
+vercel.json.live

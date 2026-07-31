@@ -16,8 +16,14 @@ money and 15-30 minutes, and the crowd's opinion has nothing to do with the
 frames. Everything downstream of the labels — the tallies, the percentages, the
 "did the crowd call it" verdict — is plain counting, in Python and in the HUD.
 """
+import hashlib
 import json
 import re
+import sys
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import config  # noqa: E402
 import subprocess
 import sys
 from pathlib import Path
@@ -249,6 +255,37 @@ def clean_text(raw: str) -> str:
     return t
 
 
+def author_hash(author: str) -> str:
+    """A Reddit username reduced to an opaque, per-deployment token.
+
+    COMPLIANCE.md: usernames are neither stored nor displayed. The operator is
+    UK-based, so a retained username is personal data under UK GDPR and drags in
+    a lawful-basis assessment and an Article 14 notice; dropping the identifier
+    is what keeps those obligations off the table.
+
+    Hashed rather than dropped because one thing genuinely needs it:
+    pair_exchanges() rejects a reply to yourself, since "the two-beat only reads
+    as an exchange when two people are actually arguing". Equality within a
+    single file is the whole requirement, so 12 hex chars is ample and the
+    plaintext is never written anywhere.
+
+    The salt lives in .env — gitignored AND vercelignored — never in the repo,
+    because an unsalted hash of a username is trivially reversible by hashing a
+    candidate list. Losing the salt costs nothing: a fresh one still gives equal
+    hashes for equal authors, which is all any caller compares.
+    """
+    salt = config.author_salt()
+    if not salt:
+        # Refuse rather than emit an unsalted hash that LOOKS anonymised. A
+        # missing salt is a setup error, and the failure mode of guessing is a
+        # file that is quietly reversible.
+        raise SystemExit(
+            "no GAMEOVER_AUTHOR_SALT in .env or the environment — refusing to write\n"
+            "author hashes that would be reversible. Generate one with:\n"
+            "  python3 -c \"import secrets;print('GAMEOVER_AUTHOR_SALT='+secrets.token_hex(32))\" >> .env")
+    return hashlib.sha256((salt + "\x00" + author.lower()).encode()).hexdigest()[:12]
+
+
 def enrich(row: dict, rec: dict) -> dict:
     """Copy author / score / thread ids off a raw Bright Data row onto a record."""
     post, cid = ids_from_url(rec.get("url", ""))
@@ -258,7 +295,9 @@ def enrich(row: dict, rec: dict) -> dict:
     rec["parent"] = "" if parent in ("", post, rec["id"]) else parent
     author = _first(row, AUTHOR_FIELDS)
     if author and author.lower() not in DROP_EXACT:
-        rec["author"] = re.sub(r"^/?u/", "", author)
+        # never rec["author"] — the plaintext does not enter the record at all,
+        # so there is no window in which a file on disk carries it
+        rec["by"] = author_hash(re.sub(r"^/?u/", "", author))
     raw = _first(row, SCORE_FIELDS)
     try:
         rec["score"] = int(float(raw))
@@ -446,7 +485,8 @@ def pair_exchanges(recs: list[dict], limit: int = 3) -> None:
         p = by_id.get(r.get("parent") or "")
         if not p or p is r or r.get("rival") or p.get("rival"):
             continue
-        if p.get("author") and p.get("author") == r.get("author"):
+        # the opaque per-author token, never a username — see author_hash()
+        if p.get("by") and p.get("by") == r.get("by"):
             continue
         # `meta` is show-and-schedule chatter, the same thing join_comments()
         # skips. "No tombstone this season" answered by "a real shame" is a

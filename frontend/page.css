@@ -1,0 +1,36 @@
+/* Shared by about.html and takedown.html — the two prose pages.
+   Deliberately NOT the app's stylesheet: index.html's :root block is a single
+   self-contained theme and lifting a copy of it here would give the project two
+   palettes that drift. These pages need eight rules, so they get eight rules. */
+:root {
+  --bg:     #07080b;
+  --ink:    #e8ecf4;
+  --dim:    #8a94a3;
+  --accent: #ffd23f;
+  --edge:   #1c2129;
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0; padding: clamp(28px, 6vw, 72px) clamp(20px, 6vw, 40px);
+  background: var(--bg); color: var(--ink);
+  font-family: ui-monospace, SFMono-Regular, "JetBrains Mono", Menlo, monospace;
+  font-size: clamp(14px, 1.6vw, 16px); line-height: 1.65;
+  -webkit-font-smoothing: antialiased;
+}
+main { max-width: 62ch; margin: 0 auto; }
+h1 {
+  font-size: clamp(28px, 6vw, 44px); letter-spacing: .08em; margin: 0 0 .3em;
+  color: var(--accent); text-transform: uppercase;
+}
+h2 {
+  font-size: 1em; letter-spacing: .12em; text-transform: uppercase;
+  color: var(--dim); margin: 2.4em 0 .5em;
+  border-top: 1px solid var(--edge); padding-top: 1.4em;
+}
+.lede { font-size: 1.12em; color: var(--ink); margin-bottom: 2em; }
+p { margin: 0 0 1.1em; color: #c3cad6; }
+strong { color: var(--ink); }
+a { color: var(--accent); text-underline-offset: 3px; }
+a:hover { color: #fff; }
+.back { margin-top: 3em; border-top: 1px solid var(--edge); padding-top: 1.4em; }
+@media (prefers-reduced-motion: no-preference) { html { scroll-behavior: smooth; } }
