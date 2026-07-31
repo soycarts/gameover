@@ -271,6 +271,32 @@ html, body { margin: 0; height: 100%; background: var(--bg); color: var(--ink);
 .side.right .comment { border-left: 0; border-right: 3px solid var(--accent);
   text-align: right; }
 .comment.on { opacity: 1; transform: translateY(0); }
+
+/* PERFECT — the arcade flourish for a bot that finished on zero damage taken.
+   z-index 8 because #ko's fireball is 7 and covers the whole frame for the
+   stamp's life; .bars is positioned but has no z-index, so it opens no stacking
+   context and this lifts the badge alone rather than the health bars with it.
+   The [hidden] rule is NOT optional: `display` here is an author declaration and
+   would beat the UA's [hidden] rule outright — which is exactly the bug that
+   made #preds unhideable. */
+/* align-self, not align-items: .side is a column flex whose default `stretch`
+   would blow the badge out to the full width of the panel */
+.perfect { position: relative; z-index: 8; align-self: flex-start;
+  display: inline-block; padding: 2px 10px 4px;
+  font-family: var(--font-pixel); font-size: var(--fs-status);
+  letter-spacing: .18em; color: var(--accent);
+  background: #000; border: 2px solid var(--accent);
+  text-shadow: 2px 2px 0 var(--accent-2);
+  box-shadow: 0 0 18px var(--accent-2), inset 0 0 12px #ffd23f22;
+  transform-origin: center bottom; }
+.side.right .perfect { align-self: flex-end; }
+.perfect[hidden] { display: none; }
+.perfect.pop { animation: perfectIn 460ms cubic-bezier(.2,1.6,.4,1) both; }
+@keyframes perfectIn {
+  0%   { transform: scale(0) rotate(-8deg); opacity: 0 }
+  60%  { transform: scale(1.18) rotate(2deg); opacity: 1 }
+  100% { transform: scale(1) rotate(0); opacity: 1 }
+}
 .comment .src { display: block; margin-top: 6px; color: var(--ink-dim);
   font-size: .82em; overflow-wrap: anywhere; }
 .comment .src b { color: var(--ink); font-weight: 700; }
@@ -451,7 +477,13 @@ html, body { margin: 0; height: 100%; background: var(--bg); color: var(--ink);
 .vs { display: flex; align-items: center; gap: clamp(14px, 4vw, 48px);
   border: 3px solid var(--panel-edge); background: var(--panel);
   padding: clamp(12px, 2.4vw, 26px) clamp(16px, 4vw, 44px); }
+/* min-height reserves the sprite before it exists. .vsart is
+   clamp(72px,13vw,148px) wide at 16:12, so it lands ~0.75x that tall on top of a
+   name line — without the reservation the panel grew by ~60-120px in one frame
+   and .screen's justify-content:center threw the whole card up and down. */
 .vs .bot { display: flex; flex-direction: column; align-items: center; gap: .6em;
+  justify-content: flex-end;
+  min-height: calc(clamp(72px, 13vw, 148px) * .75 + var(--fs-name) * 1.4 + .6em);
   font-family: var(--font-display); font-weight: 800;
   font-size: var(--fs-name); letter-spacing: .06em; max-width: 30vw; }
 .vs .bot.l { color: var(--left-color); }
@@ -466,6 +498,12 @@ html, body { margin: 0; height: 100%; background: var(--bg); color: var(--ink);
    so nothing of the burned-in match clock is underneath it. */
 #preds { display: flex; flex-direction: column; align-items: center; gap: 10px;
   width: min(86vw, 720px); }
+/* Load-bearing. `display` above is an AUTHOR declaration and beats the UA's
+   [hidden] rule outright, so without this the block could never be hidden: it
+   painted its header and empty bar from the first frame on every clip, grew by
+   the height of two quotes when they landed, and on a clip with no picks
+   (synthfight, ?demo=1) just sat there empty forever. */
+#preds[hidden] { display: none; }
 #preds .ph { font-family: var(--font-pixel); font-size: var(--fs-eyebrow);
   letter-spacing: .18em; color: var(--ink-dim); }
 .pbar { display: flex; width: 100%; height: var(--pred-h); background: #000;
@@ -476,8 +514,11 @@ html, body { margin: 0; height: 100%; background: var(--bg); color: var(--ink);
 .pbar i:last-child  { background: var(--right-color); }
 .pq { display: grid; grid-template-columns: 1fr 1fr; gap: var(--bd-gap);
   width: 100%; text-align: left; }
+/* min-height reserves the typical two lines + cite, so the card is laid out at
+   its final size on the first paint instead of growing when the quotes arrive */
 .pq blockquote { margin: 0; font-size: var(--fs-comment); line-height: 1.6;
-  color: var(--ink); border-left: 3px solid var(--panel-edge); padding: 6px 10px; }
+  color: var(--ink); border-left: 3px solid var(--panel-edge); padding: 6px 10px;
+  min-height: calc(1.6em * 3 + 12px); }
 .pq blockquote:empty { display: none; }
 .pq blockquote:last-child { border-left: 0; border-right: 3px solid var(--panel-edge);
   text-align: right; }
@@ -493,8 +534,11 @@ html, body { margin: 0; height: 100%; background: var(--bg); color: var(--ink);
 #picker button, #pmenu button, #omenu button {
   font-family: var(--font-pixel); font-size: var(--fs-comment);
   letter-spacing: .08em; text-transform: uppercase; color: var(--ink-dim); background: #000;
+  /* the label is relabelled from the slug once each timeline lands; a min-width
+     stops that changing the button's size and re-wrapping the row under it */
   border: 2px solid var(--panel-edge); padding: 10px 14px; cursor: pointer;
   transition: color 120ms, border-color 120ms; }
+#picker button { min-width: 22ch; }
 #picker button:hover, #pmenu button:hover, #omenu button:hover {
   color: var(--ink); border-color: var(--steel); }
 #picker button[aria-current='true'] { color: var(--accent); border-color: var(--accent);
@@ -607,6 +651,10 @@ html, body { margin: 0; height: 100%; background: var(--bg); color: var(--ink);
 .bd-bot { display: grid; gap: 6px; }
 .bd-bot .who { font-family: var(--font-display); font-weight: 800;
   font-size: var(--fs-name); letter-spacing: .06em; }
+.bd-perfect { margin-left: .6em; padding: 1px 7px 3px; vertical-align: middle;
+  font-family: var(--font-pixel); font-size: var(--fs-eyebrow);
+  letter-spacing: .14em; color: var(--accent); background: #000;
+  border: 2px solid var(--accent); text-shadow: 1px 1px 0 var(--accent-2); }
 .bd-bot.l .who { color: var(--left-color); }
 .bd-bot.r .who { color: var(--right-color); }
 .bd-nums { display: flex; gap: clamp(12px,2.4vw,28px); font-family: var(--font-mono); }
@@ -779,6 +827,7 @@ body.rainbow .core-fill { background: linear-gradient(90deg,#ff2e63,#ffd23f,#3ff
   <div id="hud">
     <div class="bars">
       <div class="side left" id="sideL">
+        <div class="perfect" id="perfL" hidden>PERFECT</div>
         <div class="name" id="nameL">—</div>
         <div class="cores" id="coresL"></div>
         <div class="readout">
@@ -790,6 +839,7 @@ body.rainbow .core-fill { background: linear-gradient(90deg,#ff2e63,#ffd23f,#3ff
       </div>
       <div id="caption"><div class="prev" id="capPrev"></div><div class="cur" id="capCur"></div></div>
       <div class="side right" id="sideR">
+        <div class="perfect" id="perfR" hidden>PERFECT</div>
         <div class="name" id="nameR">—</div>
         <div class="cores" id="coresR"></div>
         <div class="readout">
@@ -899,7 +949,8 @@ body.rainbow .core-fill { background: linear-gradient(90deg,#ff2e63,#ffd23f,#3ff
       <button data-act="replay">Replay</button>
       <button data-act="home">Home</button>
     </div>
-    <div class="hint">ESC — BACK TO THE FIGHT &nbsp;·&nbsp; R — REPLAY &nbsp;·&nbsp; C — CRT</div>
+    <div class="hint">ESC — BACK TO THE FIGHT &nbsp;·&nbsp; R — REPLAY &nbsp;·&nbsp; H — HOME
+      &nbsp;·&nbsp; C — CRT</div>
   </div>
 
   <div class="screen" id="pause">
@@ -909,7 +960,8 @@ body.rainbow .core-fill { background: linear-gradient(90deg,#ff2e63,#ffd23f,#3ff
       <button data-act="replay">Replay</button>
       <button data-act="home">Home</button>
     </div>
-    <div class="hint">ESC — RESUME &nbsp;·&nbsp; SPACE — PLAY/PAUSE &nbsp;·&nbsp; ← → — 10s</div>
+    <div class="hint">ESC — RESUME &nbsp;·&nbsp; SPACE — PLAY/PAUSE &nbsp;·&nbsp; ← → — 10s
+      &nbsp;·&nbsp; R — REPLAY &nbsp;·&nbsp; H — HOME</div>
   </div>
 
   <div id="pbar" aria-label="playback controls">
@@ -1096,6 +1148,7 @@ async function boot() {
       <div class="hint">run: python backend/analyze.py ${CLIP}.mp4</div>`;
     return;
   }
+  labelSelf.forEach(fn => fn(timeline));       // the picker's own button, no refetch
   events = (timeline.events || []).slice().sort((a, b) => a.t - b.t);
   events.forEach((ev, i) => { ev._i = i; });   // render() looks its count up by index
   HITS = deriveHits(events);
@@ -1103,13 +1156,21 @@ async function boot() {
   COUNTS = deriveCount(events);
   duration = (events.length ? events[events.length - 1].t : 30) + 4;
 
-  // the comment pool behind the contract's text-only fan_comment
-  try {
-    COMMENTS = await loadJSON(`../comments/${DEMO ? 'fight1' : CLIP}.json`);
-    COMMENTS.forEach(c => { credits[norm(c.text)] = c; });
-    EX_AT = scheduleExchanges(pairsFrom(COMMENTS));
-    renderPredictions();
-  } catch (e) { /* optional */ }
+  /* The comment pool behind the contract's text-only fan_comment. Started here
+     but NOT awaited until after the VS card is drawn: the sprites and names need
+     nothing from this file, and awaiting it put the single biggest element on the
+     title screen behind a second serial round-trip — which is why the crowd call
+     used to appear before the bot art and the whole card re-centred twice.
+     Nothing it sets up (credits, EX_AT) is read until the fight starts. */
+  const commentsReady = loadJSON(`../comments/${DEMO ? 'fight1' : CLIP}.json`)
+    .then(cs => {
+      COMMENTS = cs;
+      COMMENTS.forEach(c => { credits[norm(c.text)] = c; });
+      EX_AT = scheduleExchanges(pairsFrom(COMMENTS));
+      renderPredictions();
+    })
+    .catch(() => { /* optional */ });
+  loadVoice();          // the one sampled cue, decoded while the page settles
 
   /* ---- weapon sigils -------------------------------------------------------
      Which silhouette a bot gets, so the HUD side can be matched to the machine
@@ -1236,6 +1297,7 @@ async function boot() {
   v.src = src;
   render(events[0] || {left_hp: 100, right_hp: 100});
   sizeCaption();          // reserve this clip's caption space before it is needed
+  await commentsReady;    // the crowd call lands last; nothing above it waits
 }
 
 const norm = s => (s || '').toLowerCase().replace(/[^a-z0-9 ]/g, '').trim();
@@ -1369,7 +1431,7 @@ function reseat(i) {
   $('video').removeEventListener('ended', outEnded);
   $('ko').classList.remove('on'); $('over').classList.remove('on');
   // recounted from HITS, not zeroed — zeroing is what made it under-report
-  showHits(i, null, false); hideComments(); clearTransients();
+  showHits(i, null, false); hideComments(); clearTransients(); clearPerfect();
   ['L','R'].forEach(s => $('cores' + s).classList.remove('dead'));
   if (i >= 0) { render(events[i]); showCaptionAt(i); }
   else { render({left_hp: 100, right_hp: 100}); clearCaption(); }
@@ -1785,6 +1847,36 @@ function playExchange(pair, side) {
 }
 const escapeHTML = s => s.replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 
+/* Did this bot finish the fight without being hit once?
+
+   tally(s).in is the same number the fight card prints as DMG TAKEN, so the HUD
+   and the card cannot disagree — the whole reason tally() exists. It also already
+   excludes the count-out `drain` (deriveHits() skips the drained side), so a bot
+   that won by knockout is not credited with the bar it bled, and a knockout win
+   still qualifies. HITS.length guards a timeline with no damage at all, which
+   would otherwise hand both bots a perfect. */
+function isPerfect(s) { return HITS.length > 0 && tally(s).in === 0; }
+
+/* Beside the winner's panel, at the knockout — the arcade beat. finish() can be
+   many seconds later once the celebration plays out, and by then #over covers
+   the HUD entirely. `quiet` is the scrub-past-the-KO path: land the badge, but
+   no pop and no announcer, exactly as the fireball is already carved out. */
+function showPerfect(s, quiet) {
+  if (!isPerfect(s)) return;
+  const el = $('perf' + s);
+  el.hidden = false;
+  if (quiet) return;
+  el.classList.remove('pop'); void el.offsetWidth;
+  el.classList.add('pop');
+  say();
+}
+function clearPerfect() {
+  ['L', 'R'].forEach(s => {
+    const el = $('perf' + s);
+    el.hidden = true; el.classList.remove('pop');
+  });
+}
+
 /* ---------------- KO / game over ----------------
    `quiet` lands the end state with no blast: a seek past the KO has to arrive at
    the same place as playing through it, but the fireball belongs to the moment it
@@ -1803,6 +1895,7 @@ function koSequence(loser, quiet) {
       spawnEmbers(s, 22);
       shake(true);
     }
+    showPerfect(s === 'L' ? 'R' : 'L', quiet);
     playOut(loser);
   };
   if (quiet) return land();
@@ -1902,7 +1995,9 @@ function botRow(s) {
     `<span class="bd-tier t-${t.key} ${b.tiers[k] ? 'on' : 'n0'}">` +
     `${b.tiers[k]}&nbsp;${t.abbr}</span>`).join('');
   return `<div class="bd-bot ${s === 'L' ? 'l' : 'r'}">
-    <div class="who">${escapeHTML(botName(s))}</div>
+    <div class="who">${escapeHTML(botName(s))}` +
+    // the same test the HUD badge uses, so the card cannot claim a different result
+    `${isPerfect(s) ? '<span class="bd-perfect">PERFECT</span>' : ''}</div>
     <div class="bd-nums">
       <div><k>HITS</k><v>${b.n}</v></div>
       <div><k>DMG DEALT</k><v>${b.out}</v></div>
@@ -2025,8 +2120,24 @@ function crowdCard() {
   $('bdCrowd').hidden = false;
 }
 
-/* ---------------- audio (synthesized, no asset files needed) ---------------- */
-function ac() { return audio || (audio = new (window.AudioContext || window.webkitAudioContext)()); }
+/* ---------------- audio ----------------
+   Everything here is synthesized from oscillators, with ONE exception: the
+   announcer's "PERFECT" at sfx/perfect.mp3. A spoken word cannot be faked with a
+   square wave, and browser speech synthesis hands you whatever voice the
+   viewer's OS happens to have. It is rendered once by backend/say.py, committed,
+   and served statically — no key in the browser and no API call at runtime.
+   It routes through this same AudioContext rather than a bare <audio> element,
+   so there is one audio path and one place that can be muted or gain-staged. */
+/* Resumes on every use. It used to be enough that the FIRST ac() call was
+   sfx('coin') inside the start gesture, so the context was born running — but
+   loadVoice() now decodes at boot, which creates it before any gesture and
+   therefore suspended. A suspended context plays nothing, silently. Outside a
+   gesture resume() just rejects, which is why the catch is not optional. */
+function ac() {
+  if (!audio) audio = new (window.AudioContext || window.webkitAudioContext)();
+  if (audio.state === 'suspended') audio.resume().catch(() => {});
+  return audio;
+}
 function tone(freq, dur, type = 'square', gain = .18, slideTo = null) {
   const c = ac(), o = c.createOscillator(), g = c.createGain();
   o.type = type; o.frequency.setValueAtTime(freq, c.currentTime);
@@ -2051,7 +2162,34 @@ function sfx(kind) {
     if (kind === 'hit')   { noise(.22, .32); tone(90, .18, 'sawtooth', .22, 40); }
     if (kind === 'ko')    { tone(180, .9, 'sawtooth', .25, 55); noise(.5, .25); }
     if (kind === 'coin')  { tone(988, .08); setTimeout(() => tone(1319, .22), 90); }
+    // the fanfare under the voice, and the whole cue if the sample never loaded
+    if (kind === 'perfect') { tone(523, .1); setTimeout(() => tone(659, .1), 110);
+                              setTimeout(() => tone(784, .1), 220);
+                              setTimeout(() => tone(1047, .5, 'square', .22), 330); }
   } catch (e) { /* audio blocked, fine */ }
+}
+
+/* The one sampled cue. Fetched and decoded once at boot so the knockout does not
+   wait on a network round-trip, and it degrades in two steps: no sample decoded
+   -> the synth fanfare alone; no audio at all -> silence and the badge still
+   lands. `sfx()`'s swallow-everything shape, kept. */
+let voiceBuf = null;
+async function loadVoice() {
+  try {
+    const r = await fetch('../sfx/perfect.mp3', {cache: 'force-cache'});
+    if (!r.ok) return;
+    voiceBuf = await ac().decodeAudioData(await r.arrayBuffer());
+  } catch (e) { /* no sample: sfx('perfect') alone still plays */ }
+}
+function say() {
+  sfx('perfect');                       // the fanfare plays either way
+  try {
+    if (!voiceBuf) return;
+    const c = ac(), s = c.createBufferSource(), g = c.createGain();
+    s.buffer = voiceBuf; g.gain.value = .9;
+    s.connect(g).connect(c.destination);
+    s.start(c.currentTime + .22);       // let the fanfare open before the voice
+  } catch (e) { /* fine */ }
 }
 
 /* ---------------- start / keys ---------------- */
@@ -2086,7 +2224,7 @@ function reset() {
   $('over').classList.remove('on'); $('ko').classList.remove('on');
   $('pause').classList.remove('on');
   document.body.classList.remove('controls');
-  showHits(-1, null, false); hideComments(); clearTransients();
+  showHits(-1, null, false); hideComments(); clearTransients(); clearPerfect();
   clearCaption();
   ['L','R'].forEach(s => $('cores' + s).classList.remove('dead'));
   if (useVideo) { $('video').pause(); $('video').currentTime = 0; }
@@ -2282,6 +2420,9 @@ addEventListener('keydown', e => {
   // gated on `started`: replay() ends in start(), so an ungated `r` starts the
   // fight from the title screen no matter what the start key is
   if (k === 'r' && started) { replay(); return; }
+  // gated the same way, and it reaches the fight card because this block sits
+  // OUTSIDE the `started && !overDone` guard that wraps the transport keys
+  if (k === 'h' && started) { home(); return; }
   // SPACE, not any key — a stray keystroke should not drop you into the fight,
   // and Space during play already means play/pause, so the two agree
   if (!started && e.key === ' ') { e.preventDefault(); start(); }
@@ -2300,6 +2441,10 @@ $('muted').addEventListener('click', e => {
    carries no casing, and its order isn't the arena order — jackpot-copperhead
    fights Copperhead on the left. */
 const FIGHTS = ['madcatter-tombstone', 'jackpot-copperhead', 'manta-skorpios'];
+/* The picker is built before boot() runs, so the current clip's button has no
+   timeline to name itself from yet. It waits here instead of fetching its own
+   copy; boot() drains this the moment `timeline` lands. */
+const labelSelf = [];
 
 FIGHTS.forEach(slug => {
   const b = document.createElement('button');
@@ -2315,11 +2460,14 @@ FIGHTS.forEach(slug => {
     if (slug !== CLIP) location.search = '?clip=' + slug;
   });
   $('picker').appendChild(b);
-  loadJSON(`../timelines/${slug}.json`)
-    .then(t => {
-      if (t.bots?.left && t.bots?.right) b.textContent = `${t.bots.left} vs ${t.bots.right}`;
-    })
-    .catch(() => { /* keep the slug label */ });
+  const label = t => {
+    if (t?.bots?.left && t.bots?.right) b.textContent = `${t.bots.left} vs ${t.bots.right}`;
+  };
+  // boot() is already fetching THIS clip's timeline, and loadJSON is no-store so
+  // the browser cannot reuse the response — fetching it twice is a wasted
+  // round-trip competing with the one the whole page is waiting on
+  if (slug === CLIP) labelSelf.push(label);
+  else loadJSON(`../timelines/${slug}.json`).then(label).catch(() => { /* keep the slug */ });
 });
 
 /* era B: show the ingest command, no backend server */

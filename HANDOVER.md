@@ -91,7 +91,15 @@ can see. Damage, victim and tier stay derived, never stored.
 - **GAME OVER is no longer a dead end.** Esc steps back into the fight (paused, so
   it can be rewound) and the card carries BACK TO FIGHT / REPLAY / HOME.
 - **Hit ticks read as bot identity** — blue/orange on both strips, tier as height.
-- **Space starts the fight**, not any key.
+- **Space starts the fight**, not any key. `h` goes home from the fight card.
+- **PERFECT.** A bot that finishes on zero damage taken gets an arcade badge beside its
+  HUD panel at the K.O. and on the fight card, with a generated announcer line
+  (`sfx/perfect.mp3`, the repo's only audio asset — see `backend/say.py`). It fires on
+  `manta-skorpios` only; on the other three both bots take damage, which is what makes
+  the shutout worth marking.
+- **The title card no longer jitters between fights** — measured, the VS panel is now
+  the same height with and without its sprite. Fixing it also uncovered that `#preds`
+  could never be hidden at all, so every clip painted an empty CROWD CALL header.
 - **Three false hits on Manta are gone.** Two were reported by eye (t=7.5 "Skorpios
   forks lift Manta" and t=14.5 "Skorpios nudges stuck Manta" — the frames show
   Skorpios settling after being lifted, and both machines apart and still); a third

@@ -148,6 +148,10 @@ python backend/analyze.py fight1.mp4 --regrade      # re-grade each blow's sever
 python backend/analyze.py fight1.mp4 --stop-pass    # re-ask when the LOSER stopped
 python backend/analyze.py fight1.mp4 --verify       # re-ask WHO landed each blow
 
+# the one sampled sound. Regenerating is a deliberate act — the file is committed.
+python backend/say.py --list                        # voices on the account
+python backend/say.py perfect "Perfect." --voice Adam --pitch 0.82 --room 0.30
+
 # where did a blow land? probe first — writes nothing, and the frame with no
 # impact in it MUST come back null before hit.at is worth paying to judge
 python backend/probe_at.py manta-skorpios --at 2.0 15.5 23.0 --repeat 2
@@ -227,8 +231,8 @@ settles it — "Dream is already over for Skorpios in this fight, in just 24 sec
 
 Keys in the page: `space` starts the fight and then toggles play/pause · `←`/`→` ∓10s ·
 `esc` pause menu mid-fight (RESUME / REPLAY / HOME), and on the GAME OVER card steps
-back INTO the fight so it can be rewound · `r` replay · `c` CRT filter · `g` rainbow
-bars. A control bar with play/pause, a scrubber, skip buttons, a clock and mute fades
+back INTO the fight so it can be rewound · `r` replay · `h` home · `c` CRT filter ·
+`g` rainbow bars. A control bar with play/pause, a scrubber, skip buttons, a clock and mute fades
 in on mouse movement and stays up while paused. The fight card also carries
 BACK TO FIGHT / REPLAY / HOME buttons.
 
@@ -696,6 +700,35 @@ python3 backend/serve.py     # -> http://localhost:40911/frontend/index.html?cli
   uses `showCaptionAt(i)`, which walks BACK to the last two events that actually said
   something: live playback only types on a non-empty caption, and a count-out is ten
   seconds of blank ones.
+- **PERFECT is `tally(s).in === 0`, and nothing else.** `tally()` is the same function
+  the fight card prints `DMG TAKEN` from, so the HUD badge and the card cannot claim
+  different results — that is the whole reason `tally()` exists. It already excludes
+  the count-out `drain` (`deriveHits()` skips the drained side), so a knockout winner
+  is not credited with the bar the loser bled and still qualifies. `HITS.length > 0`
+  guards a timeline with no damage at all, which would otherwise perfect both bots. It
+  fires at the K.O. stamp inside `koSequence()`'s `land()`, not at GAME OVER — by then
+  `#over` covers the HUD — and honours the existing `quiet` flag so a scrub past the
+  knockout lands the badge with no pop and no announcer. Today it fires on
+  `manta-skorpios` only.
+- **`.perfect` needs `z-index: 8` and its own `[hidden]` rule, for two different
+  reasons.** `#ko`'s fireball is `z-index: 7` and covers the whole frame for the
+  stamp's life, so the badge would sit under it; `.bars` is positioned but has no
+  `z-index`, so it opens no stacking context and lifting the badge alone works. And
+  `display` in an author rule beats the UA's `[hidden]` — the same trap that made
+  `#preds` unhideable for its entire life, painting an empty CROWD CALL header on every
+  clip and never hiding on the ones with no picks. Any new element that is both styled
+  with `display` and toggled with `hidden` needs `[hidden] { display: none }`.
+- **One sampled sound, and one only.** Everything else is oscillators; `sfx/perfect.mp3`
+  is an announcer line generated once by `backend/say.py` (ElevenLabs, then pitched down
+  and given a room with ffmpeg — resampling drops the formants too, which is what makes
+  it read as a big voice rather than a slowed-down small one). It is committed and
+  served statically: no key in the browser, no API call at runtime. It decodes through
+  the same `AudioContext` as everything else and degrades in two steps — no sample, the
+  synth fanfare alone; no audio, silence and the badge still lands. **`ac()` now resumes
+  on every call**: `loadVoice()` decodes at boot, which creates the context before any
+  user gesture and therefore suspended, and a suspended context plays nothing silently.
+  The key lives in `.env` as `ELEVENLABS_KEY` — and a worktree has its OWN `.env`, so a
+  key added to the main checkout is invisible from `.claude/worktrees/<name>/`.
 - **A hit tick's colour is WHICH bot, its height is HOW HARD.** Both strips — the
   end card's hit log and the scrubber — take `--left-color` / `--right-color` from
   `h.by`, the same value that decides the end card's above/below split, so colour and
@@ -705,6 +738,17 @@ python3 backend/serve.py     # -> http://localhost:40911/frontend/index.html?cli
   which the scrubber never had: every tick there was a flat 14px, so colour was its
   only channel and it had to gain `--tick-h` steps to keep saying both at once. Tier
   colour still lives in `.hitmark`, `#strike`, `#hits .hl` and the chips.
+- **The title card reserves its space too, and the order of `boot()`'s awaits is part
+  of it.** Switching fights was visibly jittery: `boot()` awaited the timeline, then
+  awaited `comments/<clip>.json`, and only *then* called `setVs()` — so the biggest
+  element on the screen sat behind a second serial round-trip it needed nothing from,
+  and the crowd call rendered before the bot art. The comments fetch is now started and
+  not awaited until the end (nothing it sets up is read before the fight starts), and
+  `.vs .bot` / `.pq blockquote` carry `min-height` so the card is laid out at its final
+  size on the first paint — measured, the VS panel is now the same height with and
+  without its sprite. The picker also stopped re-fetching the current clip's timeline:
+  `loadJSON` is `no-store`, so that duplicate could never be served from cache and
+  competed with the one request the whole page was waiting on.
 - **The caption block reserves measured space, not a guessed line count.**
   `sizeCaption()` renders every caption in this timeline once at load and reserves the
   tallest, per slot, as `--cur-h` / `--prev-h`, so the block is the same height for a

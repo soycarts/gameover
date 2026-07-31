@@ -14,6 +14,7 @@ ROOT = Path(__file__).resolve().parent.parent
 BRIGHTDATA_NAMES = ("BRIGHTDATA_API_KEY", "BRIGHTDATA_KEY")
 ANTHROPIC_NAMES = ("ANTHROPIC_API_KEY", "ANTHROPIC_KEY")
 OPENAI_NAMES = ("OPENAI_API_KEY", "OPENAI_KEY")
+ELEVENLABS_NAMES = ("ELEVENLABS_API_KEY", "ELEVENLABS_KEY")
 
 
 def load_env(path: Path | None = None) -> None:
@@ -49,3 +50,7 @@ def anthropic_key() -> str | None:
 
 def openai_key() -> str | None:
     return get(OPENAI_NAMES)
+
+
+def elevenlabs_key() -> str | None:
+    return get(ELEVENLABS_NAMES)
