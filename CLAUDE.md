@@ -191,6 +191,12 @@ python backend/scrape_comments.py madcatter-tombstone "q" --bots "L,R" --reclass
 # a better comments file into an EXISTING timeline — no frames, no model, free
 python backend/analyze.py manta-skorpios --rejoin --bots "Manta,Skorpios"
 
+# re-share the SURVIVOR's bar over an existing timeline — ~1 call, not 76.
+# hit.sev stores every blow's rung, so the weights normalise() shared out are
+# exactly recoverable and only the end-condition reading has to be re-asked.
+python backend/analyze.py jackpot-copperhead --renorm --backend openai \
+    --bots "Copperhead,Jackpot" --looks "<left>|<right>"
+
 # era B, any fight video
 python backend/ingest.py "https://www.youtube.com/watch?v=..."
 
@@ -721,8 +727,8 @@ python3 backend/serve.py     # -> http://localhost:40911/frontend/index.html?cli
   purely *how much bar*; the rung is *how hard*. Getting those two apart is the whole
   trick — do not put them back together by making the HUD band the delta again.
 - **The surviving bot's bar is half looks, half counting.** `winner_target()` blends
-  `CONDITION[rung]` from `condition_pass()` — one extra call over the closing frames
-  rating each bot pristine / scuffed / damaged / wrecked, `--no-condition` to skip it —
+  `CONDITION[rung]` from `condition_pass()` — one extra call rating each bot pristine /
+  scuffed / damaged / wrecked, `--no-condition` to skip it —
   with `KO_BLOW_TOTAL × min(1, intense_in(winner) / intense_in(loser))`. Neither half
   is trustworthy alone: a robot can be gutted underneath and look fine from above, and
   a count of hard blows is blind to what they achieved. The ratio is **clamped at 1**
@@ -730,6 +736,25 @@ python3 backend/serve.py     # -> http://localhost:40911/frontend/index.html?cli
   *winner* took more raw damage (240 vs 164) and still won. With no condition reading
   the intensity half carries the whole thing, so a skipped or failed pass degrades
   instead of breaking the run.
+  **`condition_pass()` must read frames near the FINISH, not the tail of the file.**
+  Every clip is deliberately cut past the KO to the broadcast interstitial card, so
+  the literal last frames contain no robots: reading `stamped[-6:]` got
+  `"No competitors visible"` on `jackpot-copperhead`, the blind half carried the whole
+  blend, and the bot that **drives away** finished on 15hp. It now samples
+  `CONDITION_FRAMES` evenly back over `CONDITION_WINDOW` from the finish, spread rather
+  than adjacent so one crowd shot cannot blind it. Both bots are asked though only the
+  winner's answer is used — the loser's is a free cross-check, and on jackpot
+  *"Jackpot smoking burning; Copperhead mostly intact"* is an independent confirmation
+  of identity on the one clip where getting that wrong has already cost a run.
+- **`--renorm` re-shares the survivor's bar without re-judging.** ~1 model call against
+  76. `hit.sev` stores every blow's rung, so `SEVERITY[sev]` recovers the exact weights
+  `normalise()` shared out and only the condition reading has to be re-asked — verified
+  by running it with `--no-condition` and reproducing the original run's 85/15 and its
+  `12v9` intensity to the point. It rebuilds **both** sides' weights even though it
+  only rewrites the winner's: the loser's hard-blow count is the ratio's denominator,
+  and leaving it empty pins that ratio at its clamp, which looks plausible while
+  meaning nothing. The loser is never rewritten — its total is pinned by the fight and
+  its count-out is already scheduled.
 - **The ladder and the HUD's `TIERS` table are one design in two halves.** `SEVERITY`
   rates glance / solid / heavy / catastrophic and `TIERS` in `index.html` bands the
   same four. They no longer meet at the hp delta — they meet at **`hit.sev`**, mapped

@@ -156,11 +156,24 @@ Every clip is now 2 fps, judged with `--bots`, `--looks`, `--regrade` and
 `--stop-pass`, on commentary remapped through the corrected `t0`, and all three pass
 `python backend/check_timelines.py`:
 
-| clip | events | drain | hits | `at` | deltas | result |
-|---|---|---|---|---|---|---|
-| `manta-skorpios`      | 17 | 12 | 3 | 3/3 | 22,22,22 | KO, Skorpios |
-| `madcatter-tombstone` | 31 | 16 | 9 | 9/9 | 4,12,22  | KO, Tombstone |
-| `jackpot-copperhead`  | 38 |  5 | 7 | 6/7 | 4,22     | TAP OUT, Jackpot |
+| clip | era | events | drain | hits | `at` | one blow every | result |
+|---|---|---|---|---|---|---|---|
+| `manta-skorpios`      | ladder     | 17 | 12 |  3 | 3/3   |  9.0s | KO, Skorpios |
+| `madcatter-tombstone` | ladder     | 31 | 16 |  9 | 9/9   |  8.3s | KO, Tombstone |
+| `jackpot-copperhead`  | normalised | 34 |  5 | 26 | 22/26 |  5.4s | TAP OUT, Jackpot |
+
+**Only jackpot is on normalised damage**, and that is deliberate — it is the clip
+the fixed budget was failing (7 blows across 140s, one every 20.1s). The other two
+were already landing a blow every 8–9s, so they were left alone rather than spend a
+re-judge to change a number that was not wrong. Both `check_timelines.py` branches
+are therefore live. **If you re-judge madcatter or manta, they move era**, their
+`--ko` bot drops to exactly 85hp of blows, and their tiers start coming from `sev`
+— all fine, but check the HUD after rather than assuming.
+
+jackpot's fingerprint: final 46/0, deltas 2..12, tiers 5 graze / 12 solid / 9
+heavy by `sev`, Copperhead's 54 = condition `scuffed` (22) blended with intensity
+12v9 (85). Every hazard moment scores now — 5 incidental hits including
+`Copperhead shoved into screws` at t=104.0.
 
 **`jackpot-copperhead` had silently regressed.** `cf5f191` re-judged it onto the
 severity ladder; `f7f9ecb` then took *main's* side of the file in a merge and the
@@ -328,6 +341,17 @@ alone deliberately; dropping the number would lose the more useful of the two.
   resolved key before any paid run.** `sha256`, first 8 chars — `e3b0c442` is the
   hash of the empty string, and seeing it is the whole diagnosis. Never print the
   key itself. The one-liner is in CLAUDE.md's commands block.
+- **The end-condition pass read the tail of the FILE, which is not the end of the
+  FIGHT.** Every clip is cut past the KO to the broadcast interstitial card, so the
+  last frames hold no robots — `condition_pass()` answered "No competitors visible",
+  the winner's bar fell to its blind half, and Copperhead, which drives away, finished
+  on **15hp**. Fixed by sampling back from the finish. The general lesson: anything
+  reading "the end of the clip" on these three clips is reading the card, not the
+  fight. `finish_at()` and `immobile_from()` already knew that; this did not.
+- **A wrong number does not always mean another re-judge.** The winner's total is half
+  a judgement call, so `--renorm` re-derives it from the stored rungs for ~1 call
+  instead of 76. Worth reaching for before paying for a full run again — and worth
+  extending if some other late-stage number turns out to want tuning.
 - **`python … > log 2>&1` block-buffers, so a long run's log stays 0 bytes.** It
   looks exactly like a hung process. Use `python -u`, or check `ps -o etime=` on
   the pid rather than the log, before concluding anything is wrong.
