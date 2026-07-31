@@ -17,3 +17,6 @@ CLAUDE.md
 __pycache__/
 *.pyc
 frontend/DESIGN_ARTIFACT.html
+# make_sprites.py --check output: a few MB of base64'd studio photos, and a dev
+# tool. Gitignored too, but .vercelignore REPLACES .gitignore for CLI uploads.
+frontend/_spritecheck.html

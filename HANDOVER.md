@@ -248,6 +248,16 @@ predictions shown during the fight. `join_comments()` ranks `phase: "post"` abov
 `"pre"` for exactly this reason, but there is nothing post-fight in that pool to
 rank. A post-episode discussion thread pinned alongside the card would close it.
 
+**`jackpot-copperhead` has 0 exchange pairs, and that is a pool fact, not a bug.**
+All 9 of its records have `parent: ""` — the reply chains in EP2 are about the
+other two matchups, and `focus_segment()` routes by which robots a span names.
+`scheduleExchanges()` returns `{}` and degrades gracefully; nothing is broken.
+The same pinned thread gives manta 27 comments with 3 pairs and madcatter 22 with
+1. Do **not** re-scrape the same thread hoping for more: it is near-certain to
+return the same 9 records, and the zero-rows guard only protects against nothing
+coming back, not against a *worse* pool. The only thing that closes this is a
+second, post-episode thread via `--post-url`, which is a discovery problem.
+
 Do **not** loosen `is_showable()` / `names_a_rival()` — see the content warning in
 CLAUDE.md. ~80% filtering on a fight-card scrape is expected, because one card
 covers three fights.
