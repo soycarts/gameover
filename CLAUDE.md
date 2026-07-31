@@ -320,10 +320,14 @@ invert the fight on any re-judge that followed it. The source video's own commen
 settles it — "Dream is already over for Skorpios in this fight, in just 24 seconds"
 (clip t≈23.6s), which is now in `transcripts/manta-skorpios.json`.
 
-Keys in the page: `space` starts the fight and then toggles play/pause · `←`/`→` change
+Keys in the page: `space` starts the fight and then toggles play/pause · arrows change
 fight on the title card and seek ∓10s once it is running — one key, two jobs, split on
 `started`, and the title-screen branch sits ABOVE the `BUTTON` guard (like `esc`) so a
-focused picker button cannot swallow the keys meant to move off it ·
+focused picker button cannot swallow the keys meant to move off it. `←`/`→` step the
+list and wrap; `↑`/`↓` move between the rows the picker has actually WRAPPED into,
+measured off the boxes in `pickMove()` rather than assumed — three buttons are one row
+on a wide screen, two-then-one at 1280 and three on a phone, so a hard-coded grid would
+be wrong at every width but the one it was written at ·
 `esc` pause menu mid-fight (RESUME / POST MATCH / REPLAY / HOME), and on the GAME OVER card steps
 back INTO the fight so it can be rewound · `r` replay · `h` home · `c` CRT filter ·
 `g` rainbow bars. A control bar with play/pause, a scrubber, skip buttons, a clock and mute fades
@@ -1288,6 +1292,17 @@ python3 backend/serve.py     # -> http://localhost:40911/frontend/index.html?cli
 Every colour, font and size is a CSS variable in the `:root` block at the top of
 `frontend/index.html`. Reskinning should not require touching anything below that
 block.
+
+**The title card does not fit a 720p viewport with the crowd call in it.** Measured
+at 1280×720 it is 744px, and `.screen` is `justify-content: center`, so the overflow
+clips at BOTH ends — the GAMEOVER title off the top and the era B input off the
+bottom. `@media (max-height: 760px) { #preds { display: none } }` is the release
+valve, and its comment states the intent: *drop the predictions rather than clip the
+card*. It was set at 700px, which is below the most common laptop viewport there is,
+so it never fired on the screens it was written for. Without `#preds` the card is
+591px. Anything added to the title card must be checked against this — and the fight
+picker's key hint is `position: absolute` at the bottom precisely so it does not
+count, because in the flow it would have pushed the card 45px further over.
 
 **The top-left of the frame belongs to the broadcaster.** Real fight footage burns
 in its own graphics there — the match clock and a `KNOCKOUT : 72sec` banner that
