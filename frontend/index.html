@@ -61,12 +61,14 @@
   --fs-hp:         clamp(13px, 2vw, 26px);
   --fs-status:     clamp(7px, 1vw, 13px);
   --fs-caption:    clamp(10px, 1.8vw, 20px);
-  --fs-comment:    clamp(8px, 1.1vw, 12px);
+  /* the small-label size: hit readout, card descriptions, picker, .pq quotes.
+     12px was fine for a dense web page, marginal for a HUD read at a glance. */
+  --fs-comment:    clamp(8px, 1.1vw, 14px);
   --fs-fan:        clamp(10px, 1.35vw, 16px);  /* fan comment — must read on video */
   --sigil-size:    clamp(14px, 2.1vw, 26px);   /* weapon icon beside each name */
   --fs-stamp:      clamp(26px, 7vw, 92px);
   --fs-hits-tot:   clamp(12px, 1.7vw, 20px);   /* the running hit total */
-  --fs-eyebrow:    clamp(8px, .95vw, 11px);    /* breakdown stat labels, axis, note */
+  --fs-eyebrow:    clamp(8px, .95vw, 13px);    /* breakdown stat labels, axis, note */
   --fs-card-title: clamp(13px, 1.7vw, 19px);
   --fs-stat:       clamp(15px, 2.2vw, 26px);
 
@@ -107,6 +109,7 @@
   --bd-gap:        clamp(10px, 1.6vw, 20px);
   --strip-h:       clamp(46px, 8vh, 74px);
   --pbar-h:        clamp(38px, 5vh, 46px);    /* .bars lifts by this while shown */
+  --pred-h:        10px;       /* crowd split bar, title card and breakdown */
 
   /* motion */
   --tween:         400ms;      /* health drain tween (spec) */
@@ -114,6 +117,11 @@
   --shake-time:    420ms;
   --hm-life:       420ms;
   --strike-life:   720ms;
+  /* fan comment dwell. Was 6000 when a scraped comment was a short quip; a
+     pinned fight-card prediction runs the full MAX_LEN 180 chars, which is
+     ~32 words and does not read in six seconds. */
+  --comment-life:  9000ms;
+  --exchange-gap:  3000ms;     /* parent quote -> reply, the two-beat exchange */
 }
 
 * { box-sizing: border-box; }
@@ -258,6 +266,10 @@ html, body { margin: 0; height: 100%; background: var(--bg); color: var(--ink);
 .comment.on { opacity: 1; transform: translateY(0); }
 .comment .src { display: block; margin-top: 6px; color: var(--ink-dim);
   font-size: .82em; overflow-wrap: anywhere; }
+.comment .src b { color: var(--ink); font-weight: 700; }
+/* second beat of an exchange — the reply someone posted under the quote already
+   on screen. Dimmer accent and the ↳ so it reads as an answer, not a new take. */
+.comment.reply { border-color: var(--ink-dim); }
 
 /* caption — centre column of the bottom row.
    flex-basis MUST stay 0, not auto. With `auto` the caption's base size is its own
@@ -430,6 +442,34 @@ html, body { margin: 0; height: 100%; background: var(--bg); color: var(--ink);
 .vs .bot.r { color: var(--right-color); }
 .vs .mid { font-family: var(--font-pixel); font-size: clamp(18px,3.4vw,40px);
   color: var(--accent); text-shadow: 3px 3px 0 var(--accent-2); }
+
+/* ---------- crowd call — shared by the title card and breakdown card 04 ----
+   The split bar and the quoted takes are the same component in two places, so
+   they are styled once here. Note the top-left broadcaster rule does NOT apply
+   to #preds: .screen is a full-frame overlay over a PAUSED video, not the HUD,
+   so nothing of the burned-in match clock is underneath it. */
+#preds { display: flex; flex-direction: column; align-items: center; gap: 10px;
+  width: min(86vw, 720px); }
+#preds .ph { font-family: var(--font-pixel); font-size: var(--fs-eyebrow);
+  letter-spacing: .18em; color: var(--ink-dim); }
+.pbar { display: flex; width: 100%; height: var(--pred-h); background: #000;
+  border: 1px solid var(--panel-edge); overflow: hidden; }
+.pbar.big { height: calc(var(--pred-h) * 1.6); }
+.pbar i { display: block; height: 100%; transition: width 400ms; }
+.pbar i:first-child { background: var(--left-color); }
+.pbar i:last-child  { background: var(--right-color); }
+.pq { display: grid; grid-template-columns: 1fr 1fr; gap: var(--bd-gap);
+  width: 100%; text-align: left; }
+.pq blockquote { margin: 0; font-size: var(--fs-comment); line-height: 1.6;
+  color: var(--ink); border-left: 3px solid var(--panel-edge); padding: 6px 10px; }
+.pq blockquote:empty { display: none; }
+.pq blockquote:last-child { border-left: 0; border-right: 3px solid var(--panel-edge);
+  text-align: right; }
+.pq cite { display: block; margin-top: 6px; font-style: normal;
+  color: var(--ink-dim); overflow-wrap: anywhere; }
+/* a title card already carrying h1 + 2 subs + VS + coin + picker + url box has
+   no room left on a laptop — drop the predictions rather than clip the card */
+@media (max-height: 700px) { #preds { display: none } }
 
 /* fight select — one button per clip, current fight highlighted */
 #picker { pointer-events: auto; display: flex; flex-wrap: wrap; justify-content: center;
@@ -604,20 +644,34 @@ html, body { margin: 0; height: 100%; background: var(--bg); color: var(--ink);
 .bd-note { margin-top: 12px; padding-top: 10px; border-top: 1px dashed var(--hairline);
   font-family: var(--font-mono); font-size: var(--fs-eyebrow);
   letter-spacing: .14em; color: var(--ink-dim); }
+
+/* crowd card — the split bar and .pq quotes are shared with the title card */
+#bdCrowd .pbar { margin-bottom: 12px; }
+#bdCrowd .bd-nums { margin-bottom: 12px; }
+.cw-verdict { font-family: var(--font-pixel); font-size: var(--fs-card-title);
+  letter-spacing: .1em; text-shadow: 2px 2px 0 #000; margin-bottom: 12px; }
+.cw-verdict.right { color: var(--ok); }
+.cw-verdict.wrong { color: var(--accent-2); }
+.cw-verdict.split { color: var(--accent); }
 .hint { color: var(--ink-dim); font-size: var(--fs-comment); letter-spacing: 1px; }
 
 /* ---------- playback controls ----------
    z-index 4: above the video, BELOW .screen (5), so the title card, GAME OVER and
-   the pause menu all cover it without a single extra rule. Revealed by body.pbar,
+   the pause menu all cover it without a single extra rule. Revealed by body.controls,
    which also lifts .bars clear of it — a permanent --safe-bottom would move the HUD
-   even while the bar is hidden. */
+   even while the bar is hidden.
+
+   The state class is `controls`, NOT `pbar`: `.pbar` is already the crowd card's
+   split bar, and a bare class selector matches <body class="pbar"> too — which set
+   the whole page to display:flex, height:10px, background:#000 the moment the
+   controls appeared. `#pbar` the id is fine; only the body class had to move. */
 #pbar { position: absolute; z-index: 4; opacity: 0; pointer-events: none;
   left: var(--hud-pad); right: var(--hud-pad); bottom: calc(var(--hud-pad) * .5);
   height: var(--pbar-h); display: flex; align-items: center; gap: 10px;
   padding: 0 12px; background: var(--panel); border: 2px solid var(--panel-edge);
   backdrop-filter: blur(4px); transition: opacity 180ms; }
-body.pbar #pbar { opacity: 1; pointer-events: auto; }
-body.pbar .bars { bottom: calc(var(--hud-pad) + var(--pbar-h)); }
+body.controls #pbar { opacity: 1; pointer-events: auto; }
+body.controls .bars { bottom: calc(var(--hud-pad) + var(--pbar-h)); }
 .bars { transition: bottom 180ms; }
 
 #pbar button { flex: 0 0 auto; font-family: var(--font-pixel);
@@ -735,6 +789,14 @@ body.rainbow .core-fill { background: linear-gradient(90deg,#ff2e63,#ffd23f,#3ff
       <div class="mid">VS</div>
       <div class="bot r" id="vsR">BOT B</div>
     </div>
+    <!-- what r/battlebots predicted before the fight aired, from the episode's
+         fight-card thread. Hidden unless the comments file carries enough
+         labelled picks to be worth a percentage. -->
+    <div id="preds" hidden>
+      <div class="ph">CROWD CALL · PRE-FIGHT</div>
+      <div class="pbar"><i id="pbL"></i><i id="pbR"></i></div>
+      <div class="pq" id="pqs"></div>
+    </div>
     <div id="coin">INSERT COIN — PRESS ANY KEY</div>
     <div id="picker" aria-label="select fight"></div>
     <div id="erab">
@@ -778,6 +840,18 @@ body.rainbow .core-fill { background: linear-gradient(90deg,#ff2e63,#ffd23f,#3ff
         </div>
         <div class="bd-strip" id="bdStrip"></div>
         <div class="bd-axis"><span>0:00</span><span id="bdEnd"></span></div>
+      </section>
+      <section class="bd bd-wide" id="bdCrowd" hidden>
+        <div class="bd-head">
+          <div>
+            <div class="bd-title">Did the crowd call it</div>
+          </div>
+          <div class="bd-desc">Picks counted from the pre-fight <b>fight card</b> thread.</div>
+        </div>
+        <div class="pbar big"><i id="cwL"></i><i id="cwR"></i></div>
+        <div class="bd-nums" id="cwNums"></div>
+        <div class="cw-verdict" id="cwVerdict"></div>
+        <div class="pq" id="cwQuotes"></div>
       </section>
     </div>
     <div class="hint">R — REPLAY &nbsp;·&nbsp; C — CRT</div>
@@ -838,7 +912,15 @@ const TIERS = [
 const tierOf = d => TIERS.find(t => d >= t.at) || TIERS[TIERS.length - 1];
 const BIG = new Set(['heavy', 'massive']);     // earns the full-stage crosshair
 
-let timeline = null, events = [], sources = {},   // comment text -> source label
+/* The timeline contract keeps only the fan_comment TEXT, so everything else a
+   comment knows — who said it, its score, whether it was a pre-fight pick — is
+   recovered here by looking the string up in comments/<clip>.json. That lookup
+   is why attribution, the crowd call and the exchanges cost no re-judge: the
+   contract never had to grow a field. */
+let COMMENTS = [], credits = {},          // norm(text) -> the full comment record
+    EX_AT = {}, exTimer = null;           // event index -> exchange pair to play
+const MIN_VOTES = 3;                      // below this a percentage is a lie
+let timeline = null, events = [],
     applied = -1, started = false, koDone = false, overDone = false,
     virtualClock = false, vStart = 0, useVideo = true, duration = 60,
     userPaused = false,        // a deliberate pause, not a blocked one — watchdog()
@@ -976,10 +1058,12 @@ async function boot() {
   COUNTS = deriveCount(events);
   duration = (events.length ? events[events.length - 1].t : 30) + 4;
 
-  // source labels for fan comments (contract keeps only the text)
+  // the comment pool behind the contract's text-only fan_comment
   try {
-    const cs = await loadJSON(`../comments/${DEMO ? 'fight1' : CLIP}.json`);
-    cs.forEach(c => { sources[norm(c.text)] = c.source; });
+    COMMENTS = await loadJSON(`../comments/${DEMO ? 'fight1' : CLIP}.json`);
+    COMMENTS.forEach(c => { credits[norm(c.text)] = c; });
+    EX_AT = scheduleExchanges(pairsFrom(COMMENTS));
+    renderPredictions();
   } catch (e) { /* optional */ }
 
   /* ---- weapon sigils -------------------------------------------------------
@@ -1253,7 +1337,7 @@ function tick() {
   requestAnimationFrame(tick);
   if (!started || !events.length) return;
   const t = now(), i = indexAt(t);
-  if (document.body.classList.contains('pbar')) pbFrame();
+  if (document.body.classList.contains('controls')) pbFrame();
 
   /* A JUMP is anything but a single step forward. Firing each crossed event would
      stack N sounds, N shakes and N captions into one frame and schedule the KO
@@ -1300,7 +1384,9 @@ function fire(ev, prev) {
   const side = top ? top.to
              : (ev.ko || ev.drain) === 'right' ? 'R'
              : (ev.ko || ev.drain) === 'left' ? 'L' : 'L';
-  if (ev.fan_comment) showComment(side, ev.fan_comment);
+  const ex = EX_AT[applied];
+  if (ex) playExchange(ex, side);
+  else if (ev.fan_comment) showComment(side, ev.fan_comment);
   if (ev.ko) koSequence(ev.ko);
 }
 
@@ -1552,15 +1638,74 @@ function typeCaption(text) {
   }, step);
 }
 
-function hideComments() { ['L','R'].forEach(s => $('cmt' + s).classList.remove('on')); }
-function showComment(side, text) {
+function hideComments() {
+  // the pending dwell timer has to die with the panel. Left running, it fires
+  // seconds later and hides a comment shown after the scrub — and an orphan
+  // reply arriving with no parent on screen reads as a bug in the exchange.
+  clearTimeout(exTimer); exTimer = null;
+  ['L','R'].forEach(s => {
+    const el = $('cmt' + s);
+    clearTimeout(el._t);
+    el.classList.remove('on', 'reply');
+  });
+}
+
+/* `c` is a comment record, or the bare text the timeline carries — in which case
+   the record is recovered from the pool by its normalised text. */
+function showComment(side, c, reply) {
   const el = $('cmt' + side);
-  const source = sources[norm(text)] || 'reddit';
-  const label = source === 'youtube' ? 'via YouTube comments' : 'via r/battlebots';
-  el.innerHTML = `“${escapeHTML(text)}”<span class="src">${label}</span>`;
+  const rec = typeof c === 'string' ? (credits[norm(c)] || {text: c}) : c;
+  const label = rec.source === 'youtube' ? 'via YouTube comments' : 'via r/battlebots';
+  const who = rec.author ? `<b>u/${escapeHTML(rec.author)}</b> · ` : '';
+  el.classList.toggle('reply', !!reply);
+  el.innerHTML = `${reply ? '↳ ' : ''}“${escapeHTML(rec.text)}”`
+               + `<span class="src">${who}${label}</span>`;
   el.classList.add('on');
   clearTimeout(el._t);
-  el._t = setTimeout(() => el.classList.remove('on'), 6000);
+  // CLAUDE.md: a transient's lifetime lives in its CSS variable, not a JS timer.
+  el._t = setTimeout(() => el.classList.remove('on'), lifeMs('--comment-life'));
+}
+
+/* ---- crowd exchanges ------------------------------------------------------
+   A reply chain is crowd structure, not something the vision model saw, so it
+   lives in comments/<clip>.json and is placed HERE. Putting it in the contract
+   would make every wording change cost a re-judge. */
+function pairsFrom(cs) {
+  const out = [];
+  cs.filter(c => c.ex && !c.rival).forEach(c => {
+    const n = parseInt(c.ex, 10) - 1;
+    if (!(n >= 0)) return;
+    out[n] = out[n] || [];
+    out[n][String(c.ex).endsWith('a') ? 0 : 1] = c;
+  });
+  return out.filter(p => p && p[0] && p[1]);
+}
+
+/* Exchanges land on the biggest hits, preferring beats the backend's comment
+   join left empty — but taking an occupied one rather than not playing at all.
+   A two-person argument is worth more than one generic reaction, and fire()
+   already gives the exchange precedence, so a displaced fan_comment is simply
+   not shown rather than shown twice. Scheduled once at boot off HITS, never
+   re-derived per frame — same rule as deriveHits(). */
+function scheduleExchanges(pairs) {
+  const at = {};
+  if (!pairs.length) return at;
+  HITS.filter(h => h.dmg >= SHAKE_AT)
+      .sort((a, b) => (!!events[a.i].fan_comment) - (!!events[b.i].fan_comment)
+                      || b.dmg - a.dmg || a.t - b.t)
+      .filter((h, k, all) => all.findIndex(o => o.i === h.i) === k)   // one per event
+      .slice(0, pairs.length)
+      .sort((a, b) => a.t - b.t)
+      .forEach((h, k) => { at[h.i] = pairs[k]; });
+  return at;
+}
+
+function playExchange(pair, side) {
+  const other = side === 'L' ? 'R' : 'L';
+  showComment(side, pair[0]);
+  clearTimeout(exTimer);
+  // the reply lands on the OTHER side, so the disagreement reads across the arena
+  exTimer = setTimeout(() => showComment(other, pair[1], true), lifeMs('--exchange-gap'));
 }
 const escapeHTML = s => s.replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 
@@ -1628,12 +1773,26 @@ function playOut(loser) {
   }, 250);
 }
 
+/* ONE definition of who lost, for the same reason deriveHits() is one definition
+   of a hit — finish() and the crowd card must never disagree about the result.
+   The contract's `ko` is the evidence: analyze.py's finish_at() cross-checks it
+   against --ko and against accumulated damage, and it is set for a tap-out just
+   as much as a knockout. Final hp is only the backstop for a timeline where the
+   model never flagged a finish at all; a genuine tie returns null rather than
+   guessing a winner. */
+function loserSide(explicit) {
+  if (explicit === 'left' || explicit === 'right') return explicit;
+  const ko = events.find(e => e.ko === 'left' || e.ko === 'right');
+  if (ko) return ko.ko;
+  const last = events[events.length - 1] || {left_hp: 100, right_hp: 100};
+  if (last.left_hp === last.right_hp) return null;
+  return last.left_hp < last.right_hp ? 'left' : 'right';
+}
+
 function finish(loser) {
   if (overDone) return;                     // 'ended' and the fallback timer race
   overDone = true;
-  const last = events[events.length - 1] || {left_hp: 100, right_hp: 100};
-  if (!loser) loser = last.left_hp === last.right_hp ? null
-                    : (last.left_hp < last.right_hp ? 'left' : 'right');
+  loser = loserSide(loser);
   const names = {left: timeline.bots?.left || 'BOT A', right: timeline.bots?.right || 'BOT B'};
   const winner = loser ? (loser === 'left' ? names.right : names.left) : 'DRAW';
   $('winner').textContent = loser ? `WINNER: ${winner}` : 'DRAW';
@@ -1641,7 +1800,7 @@ function finish(loser) {
   $('over').classList.add('on');
   $('ko').classList.remove('on');
   $('pause').classList.remove('on');
-  document.body.classList.remove('pbar');    // the fight card owns the screen now
+  document.body.classList.remove('controls');    // the fight card owns the screen now
   clearTimeout(pbTimer);
   if (useVideo) $('video').pause();
 }
@@ -1722,6 +1881,70 @@ function breakdown() {
   $('bdEnd').textContent = mmss(end);
   $('bdKeyL').textContent = botName('L');
   $('bdKeyR').textContent = botName('R');
+  crowdCard();
+}
+
+/* ---------------- crowd call ----------------
+   The predicted-winner label on each comment was cached into
+   comments/<clip>.json at scrape time by a model; everything below is plain
+   counting, the same split as SEVERITY -> pay() on the backend. */
+const botKey = s => (s || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+
+function crowdCall() {
+  const k = {L: botKey(timeline?.bots?.left), R: botKey(timeline?.bots?.right)};
+  if (!k.L || !k.R) return null;
+  // a pre-fight thread keeps collecting replies after the episode airs, so a
+  // pick is only a PREDICTION if it was made before the result was known
+  const votes = COMMENTS.filter(c => c.pick && c.phase !== 'post');
+  const n = {L: votes.filter(c => botKey(c.pick) === k.L).length,
+             R: votes.filter(c => botKey(c.pick) === k.R).length};
+  const total = n.L + n.R;
+  if (total < MIN_VOTES) return null;         // a percentage off n=2 is a lie
+  const pL = Math.round(n.L / total * 100);
+  const loudest = s => votes.filter(c => botKey(c.pick) === k[s] && !c.rival)
+    .sort((a, b) => (b.score || 0) - (a.score || 0))[0] || null;
+  return {total, n, p: {L: pL, R: 100 - pL},
+          favourite: n.L === n.R ? null : (n.L > n.R ? 'L' : 'R'),
+          quote: {L: loudest('L'), R: loudest('R')}};
+}
+
+const quoteHTML = c => c ? `<blockquote>“${escapeHTML(c.text)}”` +
+  `<cite>${c.author ? `u/${escapeHTML(c.author)}` : 'r/battlebots'}</cite></blockquote>`
+  : '<blockquote></blockquote>';
+
+function renderPredictions() {
+  const cc = crowdCall();
+  if (!cc) return;                            // stays hidden — synthetic clips have no picks
+  $('pbL').style.width = cc.p.L + '%';
+  $('pbR').style.width = cc.p.R + '%';
+  $('pqs').innerHTML = quoteHTML(cc.quote.L) + quoteHTML(cc.quote.R);
+  $('preds').hidden = false;
+}
+
+function crowdCard() {
+  const cc = crowdCall();
+  if (!cc) return;
+  const loser = loserSide(null);
+  const won = loser === 'left' ? 'R' : loser === 'right' ? 'L' : null;
+  $('cwL').style.width = cc.p.L + '%';
+  $('cwR').style.width = cc.p.R + '%';
+  $('cwNums').innerHTML =
+    `<div><k>PICKS</k><v>${cc.total}</v></div>` +
+    `<div><k>${escapeHTML(botName('L'))}</k><v>${cc.n.L} · ${cc.p.L}%</v></div>` +
+    `<div><k>${escapeHTML(botName('R'))}</k><v>${cc.n.R} · ${cc.p.R}%</v></div>`;
+
+  const v = $('cwVerdict');
+  v.className = 'cw-verdict';
+  if (!cc.favourite)  { v.classList.add('split'); v.textContent = 'THE CROWD WAS SPLIT'; }
+  else if (!won)      { v.textContent = 'NO DECISION'; }
+  else if (won === cc.favourite) { v.classList.add('right'); v.textContent = 'THE CROWD CALLED IT'; }
+  else                { v.classList.add('wrong'); v.textContent = 'THE CROWD GOT IT WRONG'; }
+
+  // the take that got it wrong is the payoff, so it is shown next to the one
+  // that got it right rather than quietly dropped
+  const order = won ? [won, won === 'L' ? 'R' : 'L'] : ['L', 'R'];
+  $('cwQuotes').innerHTML = order.map(s => quoteHTML(cc.quote[s])).join('');
+  $('bdCrowd').hidden = false;
 }
 
 /* ---------------- audio (synthesized, no asset files needed) ---------------- */
@@ -1783,7 +2006,7 @@ function reset() {
   $('video').removeEventListener('ended', outEnded);
   $('over').classList.remove('on'); $('ko').classList.remove('on');
   $('pause').classList.remove('on');
-  document.body.classList.remove('pbar');
+  document.body.classList.remove('controls');
   showHits(-1, null, false); hideComments(); clearTransients();
   clearCaption();
   ['L','R'].forEach(s => $('cores' + s).classList.remove('dead'));
@@ -1861,7 +2084,7 @@ function pbBuildTicks() {
 let pbTimer = null, pbOver = false;
 function pbShow() {
   if (!started || overDone) return;
-  document.body.classList.add('pbar');
+  document.body.classList.add('controls');
   clearTimeout(pbTimer);
   // never fade out from under the pointer, and never while paused — a paused video
   // with no visible controls is a dead end
@@ -1869,7 +2092,7 @@ function pbShow() {
 }
 function pbHide() {
   if (pbOver || pbPaused()) return;
-  document.body.classList.remove('pbar');
+  document.body.classList.remove('controls');
 }
 
 $('stage').addEventListener('mousemove', pbShow);

@@ -99,21 +99,26 @@ def download(url: str, name: str, start: float, duration: float, source: str,
     return final
 
 
-def fetch_comments(query: str) -> list[dict]:
+def fetch_comments(query: str, card: dict | None = None,
+                   pinned: list[str] | None = None) -> list[dict]:
     """Real Bright Data when a key is configured, mock otherwise.
 
     scrape() swallows per-source failures and can return [], so an empty list
     counts as failure too — otherwise a clip silently ships with no comments.
+
+    `card` is what lets a comment be routed to this matchup and a prediction be
+    attributed to a side; `pinned` is the episode's fight-card thread, if the
+    caller knows one.
     """
     if config.brightdata_key():
         try:
-            got = scrape_comments.scrape(query)
+            got = scrape_comments.scrape(query, card, pinned)
             if got:
                 return got
             print("  ! bright data returned nothing", file=sys.stderr)
         except Exception as e:
             print(f"  ! bright data: {e}", file=sys.stderr)
-    return scrape_comments.mock(query)
+    return scrape_comments.mock(query, card)
 
 
 def main() -> None:
@@ -128,6 +133,11 @@ def main() -> None:
     ap.add_argument("--bots", metavar='"Left,Right"',
                     help="force HUD names instead of reading them off the broadcast")
     ap.add_argument("--query", help="comment search text (default: bot names, else title)")
+    ap.add_argument("--post-url", metavar="URL",
+                    help="pin the episode's fight-card thread (comma-separated for several) "
+                         "— pre-fight predictions, which no post-hoc search can find")
+    ap.add_argument("--ko", choices=("left", "right"),
+                    help="pin the losing side for a clip you have actually watched")
     ap.add_argument("--backend", default="api", choices=("api", "cli", "openai"),
                     help="which vision judge analyze.py should use (default api)")
     ap.add_argument("--fps", type=float, default=extract_frames.FPS, metavar="N",
@@ -189,7 +199,9 @@ def main() -> None:
             print(f"  ! transcription failed, judging on frames alone: "
                   f"{str(e)[:200]}", file=sys.stderr)
 
-    comments = fetch_comments(query)
+    pinned = [u.strip() for u in (args.post_url or "").split(",") if u.strip()] \
+        or ([scrape_comments.FIGHT_CARD[name]] if name in scrape_comments.FIGHT_CARD else [])
+    comments = fetch_comments(query, bots, pinned)
     (ROOT / "comments").mkdir(exist_ok=True)
     (ROOT / "comments" / f"{name}.json").write_text(json.dumps(comments, indent=2) + "\n")
     print(f"{len(comments)} comments for {query!r}")

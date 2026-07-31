@@ -103,15 +103,12 @@ raw source, or measure it as `start + (file_duration - requested_duration)`.
 `manta-skorpios` is current (2 fps, commentary, `--regrade`, `--stop-pass`, and the
 count-start fix — 3 hits for Manta, count from t=16.0).
 `madcatter-tombstone` predates `--regrade` and `--stop-pass` and has never had the
-count-start fix applied; it is ~14 min to bring level, and worth doing before the
-demo since it is the no-`?clip=` default.
+count-start fix applied; it is ~14 min to bring level.
 `jackpot-copperhead` has **not** been re-judged at all — only limited API spend was
-authorised. Its timeline is still hp-number output from before the merge, so on it:
-
-- the winner's bar barely moves (Copperhead pinned at 100 for 140s);
-- there are no `hit` fields, so no weapon labels and no attribution — the HUD
-  falls back to "the other bot", which is correct but plain;
-- deltas are not ladder values, so they land in tiers a bit arbitrarily.
+authorised. It is still pre-merge output: the winner's bar barely moves (Copperhead
+pinned at 100 for 140s), there are no `hit` fields so no weapon labels, and deltas
+are not ladder values so they land in tiers a bit arbitrarily. Its `ko` side is
+correct, so the crowd card is safe on it.
 
 **Lead the demo with `manta-skorpios`** — it is the only clip judged by the current
 pipeline end to end. When you do re-judge the other two:
@@ -135,9 +132,32 @@ comparison is inclusive, so `merge_blows()` folds them into one blow with a
 follow-through. That is the function doing its job — the caption survives, the second
 hp drop does not. Do not chase it.
 
-**`--ko` names the LOSER.** This file previously said `manta-skorpios` "must" have
-`--ko left`, which is backwards — Skorpios loses, so it is `--ko right`. The
-commentary settles it: "Dream is already over for Skorpios ... in just 24 seconds".
+`analyze()` runs the comment join itself, so a re-judge needs no follow-up
+`--rejoin`; only a re-*scrape* does.
+
+### 1a. `manta-skorpios` was re-judged `--ko left` on a branch. That is backwards.
+
+**Do not repeat it.** A branch merged here re-judged the clip with `--ko left`,
+producing `Manta 0 / Skorpios 78` — Manta losing — and wrote a handover asserting
+the committed `ko: right` had been "the KO on the wrong robot". It is the other way
+round, and three independent sources agree:
+
+- **The footage.** `frames/manta-skorpios/0041.jpg` (t=20) and `0051.jpg` (t=25)
+  are the same machine in the same spot, motionless: a copper forked wedge with a
+  teal vertical blade and teal wheels. That is *Skorpios*, matching the verified
+  `--looks` string. Manta is the low blue wedge with the yellow drum.
+- **The commentary.** t≈23.6s: "Dream is already over for Skorpios in this fight,
+  in just 24 seconds", against the burned-in `KNOCKOUT : 24sec`.
+- **The crowd.** `comments/manta-skorpios.json` has 10 pre-fight picks for Manta
+  against 4 for Skorpios. With the inverted timeline the new crowd card would have
+  told visitors the crowd called it wrong.
+
+`--ko` names the **LOSER**, and Skorpios loses, so it is `--ko right`. The
+`! KO flagged on right, but --ko says left` line that run logged was the model
+being right and the flag being wrong — the cross-check firing is a reason to check
+the frames, not proof the flag wins. The resolved timeline here is the `--ko right`
+re-judge, verified frame by frame.
+
 
 ### 2. A 30-second caption gap on madcatter-tombstone
 
@@ -157,12 +177,25 @@ Still a neutral red body rather than a wrong mechanism, because nobody confirmed
 what weapon Jackpot runs. Fix the rows in the `ART` table in `frontend/index.html`
 — a 16x12 character grid, no rebuild. Same table is where a new bot gets added.
 
-### 4. Fan comments are thin on two clips
+### 4. Fan comments — fixed, with one thing left
 
-`jackpot-copperhead` has 1, `manta-skorpios` has 2. Discovery searches the whole
-subreddit, so genuine moment-by-moment reactions are rare. Options: a tighter
-scrape query, or raise `POSTS_FOR_COMMENTS` in `scrape_comments.py`. Do **not**
-loosen `is_showable()` / `names_a_rival()` — see the content warning in CLAUDE.md.
+The thin pools are gone. The episode's fight-card thread is now **pinned** per
+clip (`FIGHT_CARD` in `scrape_comments.py`), replies are flattened out of the
+nested `replies` field, and a comment covering all three matchups is routed to
+the right one by `focus_segment()` rather than dropped. `madcatter-tombstone`
+went from *zero* episode comments (14 rows of "Season 7 Rumor Mill" plus an old
+SawBlaze thread) to the real thread, and records now carry author, score and
+reply structure.
+
+What is still thin is genuine **moment-by-moment reaction** — a fight card is
+pre-fight by construction, so `jackpot-copperhead`'s in-fight quotes are all
+predictions shown during the fight. `join_comments()` ranks `phase: "post"` above
+`"pre"` for exactly this reason, but there is nothing post-fight in that pool to
+rank. A post-episode discussion thread pinned alongside the card would close it.
+
+Do **not** loosen `is_showable()` / `names_a_rival()` — see the content warning in
+CLAUDE.md. ~80% filtering on a fight-card scrape is expected, because one card
+covers three fights.
 
 ### 5. `frontend/index.html` is ~1390 lines against a ~700 target
 
