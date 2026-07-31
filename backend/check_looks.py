@@ -31,6 +31,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 import analyze
+import roster
 import transcribe
 
 # CONTENTLESS — no distinctive token at all, so resolving one to a side is always
@@ -47,11 +48,39 @@ CONTENTLESS = ("the robot", "a robot", "a bot", "a machine", "it has stopped",
 SHAPE = ("a wedge", "a spinner", "a drum", "a disc", "a bar", "a flipper")
 
 
+def machines(bots: dict) -> None:
+    """What each side actually puts in the arena, and what a count-out needs.
+
+    Printed here because this is the screen someone looks at before paying for a
+    re-judge, and `need` silently changing from 1 to 2 would otherwise only show
+    up as a count-out that never starts.
+    """
+    table = roster.load()
+    if not table:
+        print("machines: no backend/roster.json — run `python backend/roster.py`")
+        return
+    for side in analyze.SIDES:
+        entry = table.get(roster.bot_key(bots[side]))
+        if not entry:
+            print(f"machines {side:<5}: {bots[side]} is not in the Pro League roster "
+                  f"— assumed a single machine")
+            continue
+        ms = entry["machines"]
+        total = sum(m["weight"] for m in ms)
+        need = roster.min_down(ms)
+        listed = ", ".join(f"{m['name']} {m['weight']}lb"
+                           f"{'' if m['competitor'] else ' (minibot)'}" for m in ms)
+        heaviest = max(m["weight"] for m in ms) / total
+        print(f"machines {side:<5}: {listed}  -> count needs {need} of {len(ms)} down "
+              f"(heaviest alone is {heaviest:.0%}, rule 7.5.4 wants 60%)")
+
+
 def report(bots: dict, looks: dict) -> bool:
     others = analyze.others_for(bots)
     owners = transcribe.weapon_owners(looks)
     print(f"left  ({bots['left']}): {looks['left']}")
     print(f"right ({bots['right']}): {looks['right']}")
+    machines(bots)
     print(f"minibots in this fight: {', '.join(others) or 'none in the roster'}")
     print(f"weapon owners: {owners or 'none — the garble guard will be inert'}")
 
