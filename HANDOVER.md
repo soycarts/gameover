@@ -99,7 +99,11 @@ can see. Damage, victim and tier stay derived, never stored.
   `manta-skorpios` only; on the other three both bots take damage, which is what makes
   the shutout worth marking. The HUD badge stands down while the fight card is up
   (`body.over`) so PERFECT is only ever on screen once, and comes back on a rewind.
-- **The GAME OVER exits sit above the breakdown**, not below four stacked panels.
+- **The GAME OVER exits sit above the breakdown**, not below four stacked panels; the
+  key list stays at the bottom, where reference belongs.
+- **POST MATCH** in the pause menu skips to the fight card without watching the rest of
+  the clip — it seeks and lets `reseat()` land the end state quietly, so BACK TO FIGHT
+  off it still rewinds normally.
 - **The title card is held until it is complete, then shown in one paint.** Reserving
   heights was not enough: measured with the fetches lagged, `#preds` goes 0 → 195px and
   re-centres the whole card, and whether it appears at all is unknowable until the

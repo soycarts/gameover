@@ -231,7 +231,7 @@ settles it — "Dream is already over for Skorpios in this fight, in just 24 sec
 (clip t≈23.6s), which is now in `transcripts/manta-skorpios.json`.
 
 Keys in the page: `space` starts the fight and then toggles play/pause · `←`/`→` ∓10s ·
-`esc` pause menu mid-fight (RESUME / REPLAY / HOME), and on the GAME OVER card steps
+`esc` pause menu mid-fight (RESUME / POST MATCH / REPLAY / HOME), and on the GAME OVER card steps
 back INTO the fight so it can be rewound · `r` replay · `h` home · `c` CRT filter ·
 `g` rainbow bars. A control bar with play/pause, a scrubber, skip buttons, a clock and mute fades
 in on mouse movement and stays up while paused. The fight card also carries
@@ -726,9 +726,18 @@ python3 backend/serve.py     # -> http://localhost:40911/frontend/index.html?cli
   fireball ordering, which is the whole reason the 8 is there; `body.over .perfect`
   costs one class, set in `finish()` and cleared in `showFight()` and `reset()`. The
   badge deliberately comes back on a rewind — the fight really did end that way.
-- **The GAME OVER exits live ABOVE the breakdown.** Four stacked panels put the last
-  of them below the fold on a laptop, so BACK TO FIGHT / REPLAY / HOME parked underneath
-  could only be reached by scrolling past everything you might want to skip.
+- **The GAME OVER exits live ABOVE the breakdown; the key list stays at the bottom.**
+  Four stacked panels put the last of them below the fold on a laptop, so BACK TO FIGHT /
+  REPLAY / HOME parked underneath could only be reached by scrolling past everything you
+  might want to skip. The `.hint` line is reference, not an exit, so it reads last.
+- **POST MATCH seeks, it does not jump to `finish()`.** The pause menu's skip-to-the-end
+  goes through `pbSeek(lastEvent.t + 0.2)` (which already handles both clocks) and then
+  calls `tick()` **by hand**, so `reseat()` re-derives the bars, the caption and the hit
+  count for that moment and re-applies the knockout **quietly** — the fireball, the shake
+  and the announcer belong to the instant the KO is crossed, and this is the one path
+  that deliberately skips it. Calling `tick()` inline matters: left to the next frame,
+  `finish()` would already have read the state `reseat()` was meant to produce. BACK TO
+  FIGHT off a skipped card lands at the end of the clip and rewinds normally.
 - **One sampled sound, and one only.** Everything else is oscillators; `sfx/perfect.mp3`
   is an announcer line. **The shipping take was picked by ear in the ElevenLabs studio**
   (a voice clone the API's voice list does not offer) and dropped in whole — it is not

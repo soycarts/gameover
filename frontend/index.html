@@ -924,8 +924,6 @@ body.rainbow .core-fill { background: linear-gradient(90deg,#ff2e63,#ffd23f,#3ff
       <button data-act="replay">Replay</button>
       <button data-act="home">Home</button>
     </div>
-    <div class="hint">ESC — BACK TO THE FIGHT &nbsp;·&nbsp; R — REPLAY &nbsp;·&nbsp; H — HOME
-      &nbsp;·&nbsp; C — CRT</div>
     <div id="breakdown">
       <section class="bd">
         <div class="bd-head">
@@ -969,12 +967,17 @@ body.rainbow .core-fill { background: linear-gradient(90deg,#ff2e63,#ffd23f,#3ff
         <div class="pq" id="cwQuotes"></div>
       </section>
     </div>
+    <!-- the BUTTONS stay above the breakdown, where they can be reached without
+         scrolling; the key list is reference, not an exit, so it sits at the end -->
+    <div class="hint">ESC — BACK TO THE FIGHT &nbsp;·&nbsp; R — REPLAY &nbsp;·&nbsp; H — HOME
+      &nbsp;·&nbsp; C — CRT</div>
   </div>
 
   <div class="screen" id="pause">
     <h2>PAUSED</h2>
     <div id="pmenu">
       <button data-act="resume">Resume</button>
+      <button data-act="end">Post match</button>
       <button data-act="replay">Replay</button>
       <button data-act="home">Home</button>
     </div>
@@ -2416,6 +2419,23 @@ function showFight() {
   pbSync(); pbShow();
 }
 
+/* PAUSE MENU -> POST MATCH: the fight card without sitting through the rest of the
+   clip. It lands the end state the way playing through would rather than jumping
+   straight to finish() — seek past the last event and let tick()'s jump rule hand
+   off to reseat(), which re-derives the bars, the caption and the hit count for
+   that moment and re-applies the knockout QUIETLY. Quietly is the point: the
+   fireball, the shake and the announcer belong to the instant the KO is crossed,
+   and this is the one path that deliberately skips it. tick() is called by hand
+   because reseat() would otherwise not run until the next frame — after finish()
+   had already read the state it was meant to produce. */
+function skipToEnd() {
+  if (!started || overDone) return;
+  const last = events[events.length - 1];
+  if (last) pbSeek(last.t + 0.2);
+  tick();
+  finish();
+}
+
 /* one handler shape for both menus — the traps are identical */
 function menuClick(hide) {
   return e => {
@@ -2426,6 +2446,7 @@ function menuClick(hide) {
     e.stopPropagation();
     $(hide).classList.remove('on');
     if (act === 'resume') pbSetPaused(false);
+    if (act === 'end')    skipToEnd();
     if (act === 'rewind') showFight();
     if (act === 'replay') replay();
     if (act === 'home')   home();
