@@ -1,4 +1,4 @@
-# Handover — 29 Jul 2026
+# Handover — 31 Jul 2026
 
 State of play, what is trustworthy, and what to pick up next. Read
 [CLAUDE.md](CLAUDE.md) first for architecture and commands; this file is only the
@@ -32,14 +32,16 @@ can see. Damage, victim and tier stay derived, never stored.
 
 ## Works and verified
 
-- **Both health bars move.** `madcatter-tombstone` re-judged against the merged
-  prompt: MaDCaTTer 100 → 92, Tombstone 100 → 0. It used to be pinned at 100 for
-  all 79s, which was the top outstanding problem in the previous handover.
+- **Both health bars move on every clip.** `madcatter-tombstone` finishes
+  MaDCaTTer 100 → 46 against Tombstone 100 → 0, and `jackpot-copperhead`
+  Copperhead 100 → 52 against Jackpot 100 → 0. Both used to have the winner pinned
+  at 100 for the whole fight, which was the top outstanding problem in the previous
+  two handovers.
 - **The enriched path has now been seen in a browser** — it never had been. Real
   weapon labels on both sides (MaDCaTTer "vertical spinner", Tombstone "horizontal
   bar"), 9 of 10 hits labelled, all four tiers exercised.
-- **The two hit-count paths agree**: live counter, per-side split and the breakdown
-  panel all read 8 + 2 = 10.
+- **The two hit-count paths agree**: on madcatter the live counter, per-side split
+  and breakdown panel all read 4 + 5 = 9; on jackpot 4 + 3 = 7.
 - **The fallback path still works.** `?clip=synthfight` carries no `hit` fields at
   all and still derives 15 hits with correct tiers — that is the regression test
   for era B and the demo timeline, so keep it that way.
@@ -133,40 +135,49 @@ can see. Damage, victim and tier stay derived, never stored.
 
 ## Outstanding — highest value first
 
-### 1. One clip is still judged by the OLD pipeline
+### 1. All three clips are on the current pipeline — done
 
-`manta-skorpios` is current (2 fps, commentary on the corrected `t0` timing,
-`--regrade`, `--stop-pass`, and the count-start fix — 3 hits for Manta, count from
-t=16.0).
-`madcatter-tombstone` predates `--regrade`, `--stop-pass`, `--verify`, the count-start
-fix and the caption-timing fix; its captions were **0.81s** early. Its `source.json` now
-carries the right `t0`, so a re-transcribe (`--force`, **with `--looks`** — the garble
-guard is inert without it) plus a ~14 min re-judge brings it level. Worth doing before
-any demo. Scanned for the same garble class and it is clean: neither
-`madcatter-tombstone` (39 cues) nor `jackpot-copperhead` (75) contains a single passive
-`"<bot> got hit"` cue, so the guard is targeted rather than a broad filter and should
-change nothing on either clip.
-`jackpot-copperhead` has **not** been re-judged at all — only limited API spend was
-authorised. It is still pre-merge output: the winner's bar barely moves (Copperhead
-pinned at 100 for 140s), there are no `hit` fields so no weapon labels, and deltas
-are not ladder values so they land in tiers a bit arbitrarily. Its `ko` side is
-correct, so the crowd card is safe on it.
+Every clip is now 2 fps, judged with `--bots`, `--looks`, `--regrade` and
+`--stop-pass`, on commentary remapped through the corrected `t0`, and all three pass
+`python backend/check_timelines.py`:
 
-**Lead the demo with `manta-skorpios`** — it is the only clip judged by the current
-pipeline end to end. When you do re-judge the other two:
+| clip | events | drain | hits | `at` | deltas | result |
+|---|---|---|---|---|---|---|
+| `manta-skorpios`      | 17 | 12 | 3 | 3/3 | 22,22,22 | KO, Skorpios |
+| `madcatter-tombstone` | 31 | 16 | 9 | 9/9 | 4,12,22  | KO, Tombstone |
+| `jackpot-copperhead`  | 38 |  5 | 7 | 6/7 | 4,22     | TAP OUT, Jackpot |
 
-```bash
-nohup /Users/carter/dev/gameover/.venv/bin/python -u backend/analyze.py jackpot-copperhead.mp4 \
-    --backend openai --bots "Copperhead,Jackpot" --regrade --stop-pass > /tmp/jc.log 2>&1 &
-```
+**`jackpot-copperhead` had silently regressed.** `cf5f191` re-judged it onto the
+severity ladder; `f7f9ecb` then took *main's* side of the file in a merge and the
+pre-ladder version was back at every commit for three days. Nobody noticed, because a
+reverted timeline still loads, still validates and still plays. That is what
+`check_timelines.py` now exists to catch: the model never emits hp, it rates a damage
+word that becomes 4/12/22/35, so a non-drain delta of 10 or 15 or 7 is arithmetically
+impossible from the current pipeline and proves the file is stale. **Run it after
+every merge, before pushing.**
 
-Extract at 2 fps first (`extract_frames.py <clip>.mp4 --fps 2`) and transcribe
-(`transcribe.py <clip> --bots "..."`), or it judges on stale 0.5 fps frames with no
-commentary. Jackpot's frames are also still cut to the OLD shorter clip — it was
-re-cut to 149.4s and never re-extracted. It is the slow one: ~299 frames at 2 fps.
+**`jackpot-copperhead` needs `--ko right`, and the reason is worth reading.**
+Copperhead took *more* raw damage than Jackpot (240 vs 164) and still won. The damage
+cross-check's "the more-damaged bot loses" rule is simply wrong for a fight decided by
+immobilisation rather than damage, and on the first attempt it inverted the whole
+fight — putting the referee count on the winner and writing a timeline whose own last
+caption read "Jackpot taps out" above `ko: left`. `KO_MARGIN` now stops it overruling
+the model's flag on anything less than a decisive margin (it did this on 4.5%), but the
+pin is still the right call here.
 
-**Back the timeline up before any re-judge.** `analyze()` refuses to overwrite only
-when a *batch failed*; a clean run that comes back worse still lands on the good file.
+Pinning trips the "may be inverted — check --looks" warning, so it was checked against
+the footage rather than assumed: frames 263 and 281 both show the green chassis with
+red forks and the RAPID AXIS / makerX decals — Jackpot — smoking, a wheel gone,
+immobile at the wall, and the celebration shot at t=140 is a kid in a COPPERHEAD
+shirt. Identity is correct. Do not "fix" this by flipping the sides.
+
+**Known cosmetic inaccuracy on this clip:** the HUD writes `COUNT 1…10` into the
+loser's status line for any run of `drain` events, and the fight card prints FINISHED
+BY COUNT-OUT — but jackpot ends on a **TAP OUT** graphic, which is a team conceding,
+not a referee count. The contract has no field distinguishing the two, and this only
+became visible now that the clip has `drain` events at all. The bar drain itself is
+right; only the label is imprecise. Fixing it means growing the contract, so it is
+left as a deliberate, recorded inaccuracy.
 
 **Not a bug: `~ dropped unusable hit at t=5.5s` on manta.** "Manta drum sparks
 Skorpios wedge" sits exactly `MERGE_WINDOW` (1.0s) from the solid at t=6.5 and the
