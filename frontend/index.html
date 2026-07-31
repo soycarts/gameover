@@ -544,6 +544,10 @@ body.over .perfect { display: none; }
 #title .rule { color: var(--accent); opacity: .75; margin-top: -14px; }
 #coin { font-family: var(--font-pixel); font-size: var(--fs-comment); color: var(--ink);
   animation: blink 900ms steps(1) infinite; }
+/* wraps on a narrow screen rather than overflowing — it is two independent
+   phrases, so a second line there costs nothing that a squashed one would not */
+.coinrow { display: flex; flex-wrap: wrap; align-items: baseline;
+  justify-content: center; gap: 6px clamp(10px, 2vw, 22px); }
 @keyframes blink { 0%,49% { opacity: 1 } 50%,100% { opacity: 0 } }
 
 .vs { display: flex; align-items: center; gap: clamp(14px, 4vw, 48px);
@@ -985,7 +989,20 @@ body.rainbow .core-fill { background: linear-gradient(90deg,#ff2e63,#ffd23f,#3ff
       <div class="pbar"><i id="pbL"></i><i id="pbR"></i></div>
       <div class="pq" id="pqs"></div>
     </div>
-    <div id="coin">INSERT COIN — PRESS SPACE</div>
+    <!-- the arrows ride on the COIN line rather than getting a row of their own.
+         Measured: this card is already 798px against a 720px viewport, so #erab
+         sits below the fold before anything is added to it — a new row costs a
+         further 45px and pushes the picker itself down there too. -->
+    <!-- One ROW, not two. Measured: this card is already 798px against a 720px
+         viewport, so #erab sits below the fold before anything is added — a new
+         row costs a further 45px and pushes the picker down there too.
+         The hint is a SIBLING of #coin rather than a child because #coin blinks,
+         and an opacity animation takes its whole subtree with it: a reference
+         line you have to read cannot be flashing on and off. -->
+    <div class="coinrow">
+      <div id="coin">INSERT COIN — PRESS SPACE</div>
+      <span class="hint">← → CHANGE FIGHT</span>
+    </div>
     <div id="picker" aria-label="select fight"></div>
     <div id="erab">
       <input id="url" placeholder="paste a YouTube fight URL (era B)" autocomplete="off">
@@ -2603,6 +2620,15 @@ addEventListener('keydown', e => {
     else pauseMenu(!$('pause').classList.contains('on'));
     return;
   }
+  /* The fight picker, and ABOVE the BUTTON guard for the same reason Escape is:
+     a picker button that has focus would otherwise swallow the very keys meant to
+     move off it. Title screen only — once the fight is running the arrows are the
+     transport, handled below, and the two can never both fire. */
+  if (!started && (e.key === 'ArrowLeft' || e.key === 'ArrowRight')) {
+    e.preventDefault();
+    pickFight(e.key === 'ArrowRight' ? 1 : -1);
+    return;
+  }
   // a focused picker button owns Enter/Space, or it would navigate AND start
   if (e.target.tagName === 'INPUT' || e.target.tagName === 'BUTTON') return;
   if (started && !overDone) {
@@ -2637,6 +2663,21 @@ $('muted').addEventListener('click', e => {
    carries no casing, and its order isn't the arena order — jackpot-copperhead
    fights Copperhead on the left. */
 const FIGHTS = ['madcatter-tombstone', 'jackpot-copperhead', 'manta-skorpios'];
+
+/* ← / → on the title screen. Navigation, not a highlight-then-confirm cursor:
+   choosing a fight IS a navigation here (each button just sets ?clip=), so an
+   arrow does exactly what clicking the next button does and there is no second
+   selection state that could disagree with `aria-current`.
+   Wraps, because three fights make a dead end at either end pure annoyance. A
+   CLIP that is not in the list — synthfight, or a typo'd slug — has no
+   neighbours, so either arrow lands on the first real fight rather than on the
+   -1 index arithmetic would otherwise produce. */
+function pickFight(step) {
+  const i = FIGHTS.indexOf(CLIP);
+  const next = i < 0 ? FIGHTS[0]
+                     : FIGHTS[(i + step + FIGHTS.length) % FIGHTS.length];
+  if (next !== CLIP) location.search = '?clip=' + next;
+}
 /* The picker is built before boot() runs, so the current clip's button has no
    timeline to name itself from yet. It waits here instead of fetching its own
    copy; boot() drains this the moment `timeline` lands. */

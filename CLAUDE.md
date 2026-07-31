@@ -320,7 +320,10 @@ invert the fight on any re-judge that followed it. The source video's own commen
 settles it — "Dream is already over for Skorpios in this fight, in just 24 seconds"
 (clip t≈23.6s), which is now in `transcripts/manta-skorpios.json`.
 
-Keys in the page: `space` starts the fight and then toggles play/pause · `←`/`→` ∓10s ·
+Keys in the page: `space` starts the fight and then toggles play/pause · `←`/`→` change
+fight on the title card and seek ∓10s once it is running — one key, two jobs, split on
+`started`, and the title-screen branch sits ABOVE the `BUTTON` guard (like `esc`) so a
+focused picker button cannot swallow the keys meant to move off it ·
 `esc` pause menu mid-fight (RESUME / POST MATCH / REPLAY / HOME), and on the GAME OVER card steps
 back INTO the fight so it can be rewound · `r` replay · `h` home · `c` CRT filter ·
 `g` rainbow bars. A control bar with play/pause, a scrubber, skip buttons, a clock and mute fades
