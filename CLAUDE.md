@@ -311,6 +311,14 @@ in the browser. Three pieces make it work, and none of them should be "cleaned u
   domain. Vercel preserves the query string through the rewrite, so `/?demo=1` still
   arrives as `location.search`. The deploy root stays the **repo root** — `index.html`
   reaches up to `../clips/`, `../timelines/` and `../comments/`.
+  **Every asset path in `index.html` must start `../`, including ones in `frontend/`
+  itself.** A rewrite is not a redirect: the browser's URL stays `/`, so a
+  same-directory `src="sprites.js"` resolves to `/sprites.js` and 404s on the public
+  site while working perfectly in local dev, where the URL really is
+  `/frontend/index.html`. `../frontend/sprites.js` resolves to `/frontend/sprites.js`
+  from both bases, because `..` from `/` harmlessly stays at `/` — the same reason
+  `../sfx/perfect.mp3` has always worked. This one degrades **silently**: a missing
+  `sprites.js` just drops every bot back to its weapon sigil.
 - **`.vercelignore`** keeps `.env`, `backend/`, `frames/`, `.venv/` and `CLAUDE.md` off
   the public site. Without it, static hosting would serve `/backend/analyze.py` as
   readable plaintext to anyone who guessed the path. Note it **replaces** `.gitignore`

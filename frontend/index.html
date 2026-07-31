@@ -4,7 +4,12 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@600;800;900&family=JetBrains+Mono:wght@400;500;700&family=Press+Start+2P&display=swap" rel="stylesheet">
-<script src="sprites.js"></script>
+<!-- ../frontend/, not the bare filename: vercel.json REWRITES / to
+     /frontend/index.html, so the browser's URL stays / and a same-directory
+     relative path resolves to /sprites.js and 404s on the public site while
+     working perfectly in local dev. Every other asset here climbs with ../ for
+     exactly this reason, and .. from / harmlessly stays at /. -->
+<script src="../frontend/sprites.js"></script>
 
 <style>
 /* ===================================================================
