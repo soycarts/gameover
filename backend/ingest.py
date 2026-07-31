@@ -63,6 +63,89 @@ def probe_title(url: str) -> str:
     return json.loads(out.stdout).get("title", "fight")
 
 
+def raw_path(source: str) -> Path:
+    """The cached full download. Dotted dir: serve.py 404s dotfiles, so it is
+    never served, and .gitignore's clips/* already covers it."""
+    return ROOT / "clips" / ".raw" / f"{source}.mp4"
+
+
+def media_seconds(p: Path) -> float | None:
+    if not p.exists():
+        return None
+    out = subprocess.run([tool("ffprobe"), "-v", "error", "-show_entries",
+                          "format=duration", "-of", "csv=p=0", str(p)],
+                         capture_output=True, text=True)
+    try:
+        return float(out.stdout.strip())
+    except ValueError:
+        return None
+
+
+def keyframe_before(src: Path, t: float, look_back: float = 12.0) -> float | None:
+    """Where a stream-copy cut at `t` will ACTUALLY start: the last video
+    keyframe at or before it. Only the interval around `t` is read, so this
+    costs milliseconds even on a 6-minute source.
+
+    The interval end is ABSOLUTE (`lo%hi`), not a duration (`lo%+n`): ffprobe
+    measures `+n` from wherever its seek landed, which is a keyframe before
+    `lo`, so the window closes early and the real answer falls outside it. That
+    silently returned a keyframe 3s too early on manta-skorpios.
+    """
+    if not src.exists():
+        return None
+    lo = max(0.0, t - look_back)
+    out = subprocess.run(
+        [tool("ffprobe"), "-v", "error",
+         "-read_intervals", f"{lo}%{t + 1}",
+         "-select_streams", "v:0", "-show_entries", "packet=pts_time,flags",
+         "-of", "csv=p=0", str(src)],
+        capture_output=True, text=True)
+    if out.returncode != 0:
+        return None
+    keys = []
+    for line in out.stdout.splitlines():
+        pts, _, flags = line.partition(",")
+        if "K" not in flags:
+            continue
+        try:
+            v = float(pts)
+        except ValueError:
+            continue
+        if v <= t + 1e-6:
+            keys.append(v)
+    return max(keys) if keys else None
+
+
+def cut_window(raw: Path, final: Path, start: float, duration: float) -> dict:
+    """Where the cut clip TRULY sits in the source video.
+
+    `-ss` before `-i` with `-c copy` snaps back to the nearest keyframe, and
+    `-avoid_negative_ts make_zero` then rebases the segment — so clip t=0 is
+    that keyframe, not `--start`, and the file runs longer than `--duration` by
+    the same amount. transcribe.cut() maps every caption from this origin;
+    taking it from `--start` instead put every caption ~1s early (1.02s on
+    manta-skorpios), which is a real error in what the judge is shown.
+    """
+    span = media_seconds(final) or duration
+    # Independent estimate: the output is longer than requested by exactly the
+    # snap-back, so this recovers the origin to within a frame without ffprobe
+    # packet parsing. It is the fallback AND the cross-check — a keyframe answer
+    # that disagrees with it means the probe window missed the real keyframe.
+    guess = start - max(0.0, span - duration)
+    t0, how = keyframe_before(raw, start), "keyframe"
+    if t0 is None:
+        t0, how = guess, "duration"
+    elif abs(t0 - guess) > 0.5:
+        print(f"  ! keyframe probe says t0={t0:.3f} but the cut's own length says "
+              f"{guess:.3f} — trusting the length", file=sys.stderr)
+        t0, how = guess, "duration"
+    t0 = min(t0, start)                  # a cut can only ever snap BACKWARDS
+    if start - t0 > 0.005:
+        print(f"  cut snapped back {start - t0:.3f}s to t={t0:.3f}s in the source "
+              f"(via {how}) — captions map from there, not from --start")
+    return {"t0": round(t0, 3), "span": round(span, 3)}
+
+
 def download(url: str, name: str, start: float, duration: float, source: str,
              recut: bool = False) -> Path:
     clips = ROOT / "clips"
@@ -73,11 +156,10 @@ def download(url: str, name: str, start: float, duration: float, source: str,
         return final
 
     # Keep the full download around so cutting a second fight out of the same
-    # video costs nothing. Dotted dir: serve.py 404s dotfiles, so it is never
-    # served, and .gitignore's clips/* already covers it.
-    raw_dir = clips / ".raw"
-    raw_dir.mkdir(exist_ok=True)
-    raw = raw_dir / f"{source}.mp4"
+    # video costs nothing.
+    raw = raw_path(source)
+    raw_dir = raw.parent
+    raw_dir.mkdir(parents=True, exist_ok=True)
     if raw.exists():
         print(f"reusing cached {raw.name}")
     else:
@@ -169,8 +251,14 @@ def main() -> None:
     query = args.query or (f"{bots['left']} {bots['right']}" if bots else title)
     print(f"» {title}  ->  {name}")
 
-    download(args.url, name, args.start, args.duration, slug(title), args.recut)
+    final = download(args.url, name, args.start, args.duration, slug(title), args.recut)
     source_json = ROOT / "clips" / f"{name}.source.json"
+
+    # What the clip was cut from, so transcribe.py can slice the source video's
+    # captions to this window later without re-deriving the offset by hand.
+    # t0/span are where the cut LANDED; start/duration are what was asked for.
+    record = {"url": args.url, "start": args.start, "duration": args.duration}
+    record.update(cut_window(raw_path(slug(title)), final, args.start, args.duration))
 
     # --recut only lengthens the TAIL. -ss is applied before -i and is independent
     # of -t, so a longer cut is byte-identical at the front — every timestamp in an
@@ -178,20 +266,14 @@ def main() -> None:
     # Re-extracting frames or re-judging would spend money to re-describe a
     # celebration nobody is judging.
     if args.recut:
-        source_json.write_text(json.dumps(
-            {"url": args.url, "start": args.start, "duration": args.duration},
-            indent=2) + "\n")
+        source_json.write_text(json.dumps(record, indent=2) + "\n")
         print(f"re-cut only — frames, transcript and timeline left alone. "
               f"{source_json.name} updated.")
         return
 
     extract_frames.extract(f"{name}.mp4", fps=args.fps)
 
-    # What the clip was cut from, so transcribe.py can slice the source video's
-    # captions to this window later without re-deriving the offset by hand.
-    source_json.write_text(json.dumps(
-        {"url": args.url, "start": args.start, "duration": args.duration},
-        indent=2) + "\n")
+    source_json.write_text(json.dumps(record, indent=2) + "\n")
     if not args.no_audio:
         try:
             transcribe.transcribe(f"{name}.mp4", bots=bots)

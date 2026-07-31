@@ -81,29 +81,29 @@ can see. Damage, victim and tier stay derived, never stored.
   from 69px to 27px and rewrapping the fan comments; the caption now keeps its
   previous line faded above the current one.
 
+- **The caption offset is fixed** (was item 0 here). `ingest.cut_window()` records
+  the keyframe the cut actually landed on as `t0` in `source.json` and
+  `transcribe()` maps cues from it, so the judge no longer sees commentary ~1s
+  ahead of the frames. Verified before spending anything: every manta cue moved
+  **+1.02s** and "Dream is already over for Skorpios" now lands at 24.6s against
+  the broadcast's own `KNOCKOUT : 24sec`. `manta-skorpios` was re-judged on the
+  corrected transcript — same winner, Manta still 3 hits, count still from t=16.0.
+- **GAME OVER is no longer a dead end.** Esc steps back into the fight (paused, so
+  it can be rewound) and the card carries BACK TO FIGHT / REPLAY / HOME.
+- **Hit ticks read as bot identity** — blue/orange on both strips, tier as height.
+- **Space starts the fight**, not any key.
+
 ## Outstanding — highest value first
-
-### 0. `transcribe.cut()` places every caption ~1s early
-
-Found while re-cutting, deliberately **not** fixed in the same run. `-ss` before
-`-i` with `-c copy` snaps the cut back to a keyframe, so clip `t=0` is 185.977s on
-`manta-skorpios`, not the 187 in `source.json` — and `cut()` maps captions with
-`s["start"] - start`. Every manta caption is therefore **1.02s** early (madcatter
-0.81s, jackpot 0.10s). It partly cancels, because commentators lag the action by
-about a second and `window()` already leads 1.0s / lags 1.5s, but it is a real
-error in what the judge is shown.
-
-Fix it **on its own**. Changing it shifts what the model sees, so folding it into a
-run that also changes the prompt makes every result unattributable. The keyframe
-time is `ffprobe -select_streams v:0 -show_entries packet=pts_time,flags` on the
-raw source, or measure it as `start + (file_duration - requested_duration)`.
 
 ### 1. One clip is still judged by the OLD pipeline
 
-`manta-skorpios` is current (2 fps, commentary, `--regrade`, `--stop-pass`, and the
-count-start fix — 3 hits for Manta, count from t=16.0).
-`madcatter-tombstone` predates `--regrade` and `--stop-pass` and has never had the
-count-start fix applied; it is ~14 min to bring level.
+`manta-skorpios` is current (2 fps, commentary on the corrected `t0` timing,
+`--regrade`, `--stop-pass`, and the count-start fix — 3 hits for Manta, count from
+t=16.0).
+`madcatter-tombstone` predates `--regrade`, `--stop-pass`, the count-start fix and the
+caption-timing fix; its captions were **0.81s** early. Its `source.json` now carries the
+right `t0`, so a re-transcribe (`--force`, free) plus a ~14 min re-judge brings it
+level. Worth doing before any demo.
 `jackpot-copperhead` has **not** been re-judged at all — only limited API spend was
 authorised. It is still pre-merge output: the winner's bar barely moves (Copperhead
 pinned at 100 for 140s), there are no `hit` fields so no weapon labels, and deltas

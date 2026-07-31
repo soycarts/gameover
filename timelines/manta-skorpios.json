@@ -21,163 +21,172 @@
         "weapon": "drum spinner",
         "clean": true,
         "at": [
-          0.42,
-          0.51
+          0.38,
+          0.49
         ]
       },
       "fan_comment": "As much as Skorpios is my goat, Manta is going to kick their ass \ud83d\ude2d"
     },
     {
       "t": 5.5,
-      "left_hp": 100,
+      "left_hp": 96,
       "right_hp": 78,
-      "caption": "Manta drum sparks Skorpios"
+      "caption": "Manta showered with sparks",
+      "hit": {
+        "by": "right",
+        "weapon": "vertical blade",
+        "clean": true,
+        "at": [
+          0.37,
+          0.68
+        ]
+      }
     },
     {
       "t": 6.5,
-      "left_hp": 100,
-      "right_hp": 56,
-      "caption": "Manta lifts Skorpios nose",
+      "left_hp": 96,
+      "right_hp": 66,
+      "caption": "Manta drum lifts Skorpios",
       "hit": {
         "by": "left",
         "weapon": "drum spinner",
         "clean": true,
         "at": [
           0.54,
-          0.55
+          0.56
         ]
       },
       "fan_comment": "Manta versus Skorpios: hammersaws with good ground game usually beat drums, and Skorpios is a well experienced team. I predict Skorpios to win."
     },
     {
       "t": 7.5,
-      "left_hp": 88,
-      "right_hp": 56,
-      "caption": "Skorpios lifts Manta's side",
+      "left_hp": 84,
+      "right_hp": 66,
+      "caption": "Skorpios forks lift Manta",
       "hit": {
         "by": "right",
         "weapon": "forked wedge",
         "clean": true,
         "at": [
-          0.55,
-          0.55
+          0.56,
+          0.58
         ]
       },
       "fan_comment": "Magnitude is the real deal. Watch its fight vs Manta. It will give WD a run for their money"
     },
     {
       "t": 14.5,
-      "left_hp": 84,
-      "right_hp": 56,
-      "caption": "Skorpios lifts Manta's side",
+      "left_hp": 80,
+      "right_hp": 66,
+      "caption": "Skorpios nudges stuck Manta",
       "hit": {
         "by": "right",
-        "weapon": "forked wedge",
+        "weapon": "forks",
         "clean": true,
         "at": [
-          0.43,
-          0.66
+          0.46,
+          0.68
         ]
       }
     },
     {
       "t": 15.5,
-      "left_hp": 84,
-      "right_hp": 34,
-      "caption": "Manta launches Skorpios",
+      "left_hp": 80,
+      "right_hp": 44,
+      "caption": "Manta drum launches Skorpios",
       "hit": {
         "by": "left",
         "weapon": "drum spinner",
         "clean": true,
         "at": [
           0.49,
-          0.64
+          0.72
         ]
       },
       "fan_comment": "That said, Skorpios is a very experienced team, and my prediction could easily be wrong here. I'm still picking Manta though."
     },
     {
       "t": 16.0,
-      "left_hp": 84,
-      "right_hp": 31,
+      "left_hp": 80,
+      "right_hp": 40,
       "caption": "Skorpios immobile, count begins",
       "drain": "right"
     },
     {
       "t": 17.0,
-      "left_hp": 84,
-      "right_hp": 28,
+      "left_hp": 80,
+      "right_hp": 36,
       "caption": "",
       "drain": "right"
     },
     {
       "t": 18.0,
-      "left_hp": 84,
-      "right_hp": 25,
+      "left_hp": 80,
+      "right_hp": 32,
       "caption": "",
       "drain": "right"
     },
     {
       "t": 19.0,
-      "left_hp": 84,
-      "right_hp": 22,
+      "left_hp": 80,
+      "right_hp": 28,
       "caption": "",
       "drain": "right"
     },
     {
       "t": 20.0,
-      "left_hp": 84,
-      "right_hp": 19,
+      "left_hp": 80,
+      "right_hp": 24,
       "caption": "",
       "drain": "right"
     },
     {
       "t": 21.0,
-      "left_hp": 84,
-      "right_hp": 16,
+      "left_hp": 80,
+      "right_hp": 20,
       "caption": "",
       "drain": "right"
     },
     {
       "t": 22.0,
-      "left_hp": 84,
-      "right_hp": 13,
+      "left_hp": 80,
+      "right_hp": 16,
       "caption": "",
       "drain": "right"
     },
     {
       "t": 23.0,
-      "left_hp": 84,
-      "right_hp": 10,
+      "left_hp": 80,
+      "right_hp": 12,
       "caption": "",
       "drain": "right"
     },
     {
       "t": 24.0,
-      "left_hp": 84,
-      "right_hp": 7,
+      "left_hp": 80,
+      "right_hp": 9,
       "caption": "",
       "drain": "right"
     },
     {
       "t": 25.0,
-      "left_hp": 84,
-      "right_hp": 4,
+      "left_hp": 80,
+      "right_hp": 6,
       "caption": "",
       "drain": "right"
     },
     {
       "t": 26.0,
-      "left_hp": 84,
-      "right_hp": 2,
+      "left_hp": 80,
+      "right_hp": 3,
       "caption": "",
       "drain": "right"
     },
     {
       "t": 27.0,
-      "left_hp": 84,
+      "left_hp": 80,
       "right_hp": 0,
-      "caption": "Skorpios knocked out",
+      "caption": "Skorpios knocked out in 24 seconds",
       "drain": "right",
       "ko": "right"
     }

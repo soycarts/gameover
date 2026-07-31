@@ -61,6 +61,13 @@
   --fs-hp:         clamp(13px, 2vw, 26px);
   --fs-status:     clamp(7px, 1vw, 13px);
   --fs-caption:    clamp(10px, 1.8vw, 20px);
+  /* Fallback only. The real reservation is measured per clip by sizeCaption(),
+     which sets --cur-h / --prev-h from the tallest caption this timeline
+     actually holds — a fixed line count is a guess, and it was wrong: the
+     longest madcatter caption wraps to THREE lines in the 374px caption column,
+     so a two-line reservation still let the block grow. */
+  --cap-lines:     2;
+  --cap-lh:        1.7;
   /* the small-label size: hit readout, card descriptions, picker, .pq quotes.
      12px was fine for a dense web page, marginal for a HUD read at a glance. */
   --fs-comment:    clamp(8px, 1.1vw, 14px);
@@ -282,16 +289,25 @@ html, body { margin: 0; height: 100%; background: var(--bg); color: var(--ink);
 #caption { flex: 1 1 0; min-width: 0; text-align: center;
   overflow-wrap: break-word; padding-bottom: 4px;
   font-family: var(--font-pixel); font-size: var(--fs-caption);
-  line-height: 1.7; text-shadow: 3px 3px 0 #000, 0 0 18px #000; }
+  line-height: var(--cap-lh); text-shadow: 3px 3px 0 #000, 0 0 18px #000;
+  /* both slots keep their space whether or not they hold anything, so the block
+     is the same height for a one-word caption, a wrapped two-line one and none
+     at all. Without this the bars, the cores and the fan comments all shift
+     every time a line is typed. Bottom-aligned because .bars is anchored to the
+     bottom edge and grows upward. */
+  display: flex; flex-direction: column; justify-content: flex-end; }
 /* the line before this one, kept legible — events land ~1s apart and a caption that
-   is replaced the moment it finishes typing is never actually read */
+   is replaced the moment it finishes typing is never actually read. It wraps rather
+   than ellipsing: the reserved space is what stops it moving anything, so there is
+   nothing to gain by cutting it off mid-word. */
 #caption .prev { opacity: .38; font-size: .82em; margin-bottom: 2px;
-  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-#caption .prev:empty { display: none; }
-/* too narrow for three columns — caption takes its own line above the bars */
+  min-height: var(--prev-h, calc(var(--cap-lines) * var(--cap-lh) * 1em)); }
+#caption .cur { min-height: var(--cur-h, calc(var(--cap-lines) * var(--cap-lh) * 1em)); }
+/* too narrow for three columns — caption takes its own line above the bars, where
+   it is full width and one line is enough */
 @media (max-width: 620px) {
   .bars { flex-wrap: wrap; }
-  #caption { order: -2; flex: 1 0 100%; padding-bottom: 10px; }
+  #caption { order: -2; flex: 1 0 100%; padding-bottom: 10px; --cap-lines: 1; }
 }
 /* the cursor belongs to the line being typed, not to the block — on #caption it
    would render after the previous line too */
@@ -474,11 +490,13 @@ html, body { margin: 0; height: 100%; background: var(--bg); color: var(--ink);
 /* fight select — one button per clip, current fight highlighted */
 #picker { pointer-events: auto; display: flex; flex-wrap: wrap; justify-content: center;
   gap: clamp(6px, 1.2vw, 14px); max-width: min(86vw, 760px); }
-#picker button, #pmenu button { font-family: var(--font-pixel); font-size: var(--fs-comment);
+#picker button, #pmenu button, #omenu button {
+  font-family: var(--font-pixel); font-size: var(--fs-comment);
   letter-spacing: .08em; text-transform: uppercase; color: var(--ink-dim); background: #000;
   border: 2px solid var(--panel-edge); padding: 10px 14px; cursor: pointer;
   transition: color 120ms, border-color 120ms; }
-#picker button:hover, #pmenu button:hover { color: var(--ink); border-color: var(--steel); }
+#picker button:hover, #pmenu button:hover, #omenu button:hover {
+  color: var(--ink); border-color: var(--steel); }
 #picker button[aria-current='true'] { color: var(--accent); border-color: var(--accent);
   text-shadow: 2px 2px 0 var(--accent-2); cursor: default; }
 
@@ -616,19 +634,28 @@ html, body { margin: 0; height: 100%; background: var(--bg); color: var(--ink);
 #bdBig .wpn { color: var(--energy); text-transform: uppercase; letter-spacing: .12em; }
 #bdBig .cap { color: var(--ink-dim); }
 
-/* hit log — every hit across fight time, attacker above or below the line */
+/* hit log — every hit across fight time, attacker above or below the line.
+   A tick's COLOUR is which bot landed it, matching that bot's name everywhere
+   else on the page; its HEIGHT is how hard. Colour used to carry the tier, which
+   meant the strip and the tier chips directly above it spoke the same palette
+   about two different things — and it left the strip saying nothing about who,
+   duplicating the up/down split instead of reinforcing it. */
 .bd-strip { position: relative; height: var(--strip-h); background: #060709;
   border: 1px solid var(--hairline); border-radius: 4px; overflow: hidden; }
 .bd-strip::before { content: ''; position: absolute; left: 0; right: 0; top: 50%;
   height: 1px; background: var(--hairline); }
-.bd-strip i { position: absolute; width: 3px; margin-left: -1.5px; border-radius: 1px; }
+.bd-strip i { position: absolute; width: 3px; margin-left: -1.5px; border-radius: 1px;
+  background: currentColor; }
 .bd-strip i.up { bottom: 50%; }
 .bd-strip i.down { top: 50%; }
-.bd-strip i.t-graze   { background: var(--hit-graze);   height: 16%; }
-.bd-strip i.t-solid   { background: var(--hit-solid);   height: 28%; }
-.bd-strip i.t-heavy   { background: var(--hit-heavy);   height: 40%; width: 4px; }
-.bd-strip i.t-massive { background: var(--hit-massive); height: 50%; width: 5px;
-  box-shadow: 0 0 10px var(--hit-massive); }
+.bd-strip i.l    { color: var(--left-color); }
+.bd-strip i.r    { color: var(--right-color); }
+.bd-strip i.self { color: var(--hit-self); }    /* wall, hazard, self-inflicted */
+.bd-strip i.t-graze   { height: 16%; }
+.bd-strip i.t-solid   { height: 28%; }
+.bd-strip i.t-heavy   { height: 40%; width: 4px; }
+.bd-strip i.t-massive { height: 50%; width: 5px;
+  box-shadow: 0 0 10px currentColor; }
 /* The count-out is not a blow and must not read as one. A mark confined to either
    half is claimed by that half's bot ("above the line: Manta"), and the previous
    one — .t-massive with no .up/.down — fell back to static position, i.e. the top
@@ -677,7 +704,12 @@ body.controls .bars { bottom: calc(var(--hud-pad) + var(--pbar-h)); }
 #pbar button { flex: 0 0 auto; font-family: var(--font-pixel);
   font-size: var(--fs-comment); color: var(--ink-dim); background: #000;
   border: 2px solid var(--panel-edge); padding: 6px 8px; cursor: pointer;
-  line-height: 1; transition: color 120ms, border-color 120ms; }
+  line-height: 1; text-align: center;
+  transition: color 120ms, border-color 120ms; }
+/* the two labels that change width in place — sized to the longer word so the
+   whole row does not shuffle every time playback is toggled */
+#pbPlay { min-width: 5.4em; }
+#pbMute { min-width: 5.6em; }
 #pbar button:hover { color: var(--ink); border-color: var(--steel); }
 #pbTime { flex: 0 0 auto; font-family: var(--font-mono); font-size: var(--fs-eyebrow);
   letter-spacing: .1em; color: var(--ink-dim); white-space: nowrap; }
@@ -693,20 +725,29 @@ body.controls .bars { bottom: calc(var(--hud-pad) + var(--pbar-h)); }
   width: 0; background: var(--accent); }
 #pbKnob { position: absolute; top: 50%; width: 4px; height: 16px; margin: -8px 0 0 -2px;
   background: var(--ink); box-shadow: 0 0 6px #000; }
-/* same tier colours as the end-card hit log, so a mark means the same thing in both */
-#pbTicks i { position: absolute; top: 50%; width: 3px; height: 14px; margin: -7px 0 0 -1.5px; }
-#pbTicks i.t-graze   { background: var(--hit-graze); }
-#pbTicks i.t-solid   { background: var(--hit-solid); }
-#pbTicks i.t-heavy   { background: var(--hit-heavy); }
-#pbTicks i.t-massive { background: var(--hit-massive); box-shadow: 0 0 6px var(--hit-massive); }
-#pbTicks i.ko { width: 2px; height: 100%; margin: 0 0 0 -1px; top: 0;
-  background: var(--accent); box-shadow: 0 0 8px var(--accent); }
+/* the same language as the end-card hit log — colour is which bot, height is how
+   hard — so a mark means the same thing in both. Height is new here: every tick
+   used to be a flat 14px, which left colour as the only channel and no way to
+   say who and how hard at once. Centred on the track, so height grows both ways
+   and the row stays balanced. */
+#pbTicks i { position: absolute; top: 50%; width: 3px; height: var(--tick-h, 14px);
+  margin-left: -1.5px; transform: translateY(-50%); background: currentColor; }
+#pbTicks i.l    { color: var(--left-color); }
+#pbTicks i.r    { color: var(--right-color); }
+#pbTicks i.self { color: var(--hit-self); }
+#pbTicks i.t-graze   { --tick-h:  8px; }
+#pbTicks i.t-solid   { --tick-h: 12px; }
+#pbTicks i.t-heavy   { --tick-h: 16px; width: 4px; margin-left: -2px; }
+#pbTicks i.t-massive { --tick-h: 20px; width: 5px; margin-left: -2.5px;
+  box-shadow: 0 0 6px currentColor; }
+#pbTicks i.ko { width: 2px; height: 100%; margin-left: -1px;
+  color: var(--accent); box-shadow: 0 0 8px var(--accent); }
 
 /* pause menu — .screen gives it the scrim, the z-index and the .on toggle */
 #pause h2 { font-family: var(--font-pixel); font-size: clamp(18px,4vw,44px);
   margin: 0; color: var(--accent); text-shadow: 4px 4px 0 var(--accent-2);
   letter-spacing: 4px; }
-#pmenu { pointer-events: auto; display: flex; flex-wrap: wrap;
+#pmenu, #omenu { pointer-events: auto; display: flex; flex-wrap: wrap;
   justify-content: center; gap: clamp(6px, 1.2vw, 14px); }
 
 /* CRT filter (toggle "c") */
@@ -767,7 +808,7 @@ body.rainbow .core-fill { background: linear-gradient(90deg,#ff2e63,#ffd23f,#3ff
       </div>
       <div class="hl" id="hitLast">LAST —</div>
     </div>
-    <div id="muted">🔇 MUTED — CLICK TO UNMUTE</div>
+    <div id="muted">MUTED — CLICK TO UNMUTE</div>
     <div id="strike" aria-hidden="true">
       <div class="ring"></div>
       <div class="tick n"></div><div class="tick s"></div>
@@ -797,7 +838,7 @@ body.rainbow .core-fill { background: linear-gradient(90deg,#ff2e63,#ffd23f,#3ff
       <div class="pbar"><i id="pbL"></i><i id="pbR"></i></div>
       <div class="pq" id="pqs"></div>
     </div>
-    <div id="coin">INSERT COIN — PRESS ANY KEY</div>
+    <div id="coin">INSERT COIN — PRESS SPACE</div>
     <div id="picker" aria-label="select fight"></div>
     <div id="erab">
       <input id="url" placeholder="paste a YouTube fight URL (era B)" autocomplete="off">
@@ -835,8 +876,7 @@ body.rainbow .core-fill { background: linear-gradient(90deg,#ff2e63,#ffd23f,#3ff
           </div>
           <!-- #bdKeyL/#bdKeyR are written by breakdown(), which runs BEFORE the screen
                is shown — deleting them throws and GAME OVER never appears at all -->
-          <div class="bd-desc">Above the line: <b id="bdKeyL"></b> · below: <b id="bdKeyR"></b>
-            · gold: the knockout</div>
+          <div class="bd-desc">Above the line: <b id="bdKeyL"></b> · below: <b id="bdKeyR"></b></div>
         </div>
         <div class="bd-strip" id="bdStrip"></div>
         <div class="bd-axis"><span>0:00</span><span id="bdEnd"></span></div>
@@ -854,7 +894,12 @@ body.rainbow .core-fill { background: linear-gradient(90deg,#ff2e63,#ffd23f,#3ff
         <div class="pq" id="cwQuotes"></div>
       </section>
     </div>
-    <div class="hint">R — REPLAY &nbsp;·&nbsp; C — CRT</div>
+    <div id="omenu">
+      <button data-act="rewind">Back to fight</button>
+      <button data-act="replay">Replay</button>
+      <button data-act="home">Home</button>
+    </div>
+    <div class="hint">ESC — BACK TO THE FIGHT &nbsp;·&nbsp; R — REPLAY &nbsp;·&nbsp; C — CRT</div>
   </div>
 
   <div class="screen" id="pause">
@@ -868,7 +913,7 @@ body.rainbow .core-fill { background: linear-gradient(90deg,#ff2e63,#ffd23f,#3ff
   </div>
 
   <div id="pbar" aria-label="playback controls">
-    <button id="pbPlay" title="Play / pause (space)">&#9654;</button>
+    <button id="pbPlay" title="Play / pause (space)">PLAY</button>
     <button id="pbBack" title="Back 10 seconds (left arrow)">&laquo;10</button>
     <button id="pbFwd" title="Forward 10 seconds (right arrow)">10&raquo;</button>
     <div id="pbTrack" role="slider" aria-label="seek" aria-valuemin="0"
@@ -878,7 +923,7 @@ body.rainbow .core-fill { background: linear-gradient(90deg,#ff2e63,#ffd23f,#3ff
       <div id="pbKnob" aria-hidden="true"></div>
     </div>
     <div id="pbTime">0:00 / 0:00</div>
-    <button id="pbMute" title="Mute">&#128266;</button>
+    <button id="pbMute" title="Mute">SOUND</button>
   </div>
 
   <div id="crt"></div>
@@ -1190,6 +1235,7 @@ async function boot() {
   v.addEventListener('ended', () => { if (!koDone) finish(); });
   v.src = src;
   render(events[0] || {left_hp: 100, right_hp: 100});
+  sizeCaption();          // reserve this clip's caption space before it is needed
 }
 
 const norm = s => (s || '').toLowerCase().replace(/[^a-z0-9 ]/g, '').trim();
@@ -1618,6 +1664,36 @@ function showCaptionAt(i) {
     $('caption').classList.add('done');     // a scrubbed-to line is not mid-type
   }
 }
+/* Reserve exactly the space THIS clip's captions need, so the block never
+   changes height as lines are written — and never more than that, because the
+   reservation is dead space over the arena. Measured rather than assumed: how
+   many lines a 6-word caption wraps to depends on the words, the font size and
+   the column width, so it changes per clip and per viewport. Cheap: one reflow
+   per caption, once at load and on resize. */
+function sizeCaption() {
+  if (!events.length) return;
+  const cap = $('caption');
+  /* A zero-width column wraps every caption to one word per line and reserves
+     hundreds of pixels of dead space. That is the state at boot before the first
+     layout — and permanently in a headless browser, which never paints unless
+     asked. Skip rather than measure nonsense; the CSS line-count fallback holds
+     until a real layout arrives (start(), or the resize listener). */
+  if (!cap.getBoundingClientRect().width) return;
+  for (const [slot, prop] of [['capCur', '--cur-h'], ['capPrev', '--prev-h']]) {
+    const el = $(slot), keep = el.textContent;
+    cap.style.setProperty(prop, '0px');
+    let max = 0;
+    for (const e of events) {
+      if (!e.caption) continue;
+      el.textContent = e.caption;
+      max = Math.max(max, el.scrollHeight);
+    }
+    el.textContent = keep;
+    cap.style.setProperty(prop, max + 'px');
+  }
+}
+addEventListener('resize', sizeCaption);
+
 function typeCaption(text) {
   clearInterval(typeTimer);
   /* the OUTGOING line's full text, not what is on screen — clearInterval above can
@@ -1872,8 +1948,10 @@ function breakdown() {
      how hard the blow was; the gold line is when the fight ended. Two facts, two
      marks. */
   const koEv = events.find(e => e.ko);
+  // side and colour come off the same `h.by`, so they can never disagree
   $('bdStrip').innerHTML = HITS.map(h =>
-    `<i class="t-${h.tier.key} ${h.by === 'L' ? 'up' : 'down'}" ` +
+    `<i class="t-${h.tier.key} ${h.by === 'L' ? 'up l' : 'down r'}` +
+    `${h.self ? ' self' : ''}" ` +
     `style="left:${at(h.t)}%" ` +
     `title="${mmss(h.t)} −${h.dmg}"></i>`).join('')
     + (koEv ? `<i class="ko-mark" style="left:${at(koEv.t)}%" ` +
@@ -1993,6 +2071,7 @@ function start() {
   if (!useVideo) { virtualClock = true; vStart = performance.now(); vHold = 0; }
   setTimeout(() => sfx('fight'), 250);
   typeCaption('FIGHT!');
+  sizeCaption();     // again: boot() may have run before the first real layout
   pbBuildTicks(); pbSync(); pbFrame();
 }
 
@@ -2049,10 +2128,13 @@ function pbSetPaused(p) {
    have to remember to update. finish() pauses the video on its own. */
 function pbSync() {
   const p = pbPaused();
-  $('pbPlay').innerHTML = p ? '&#9654;' : '&#10074;&#10074;';
+  /* Words, not symbols. The bar renders in Press Start 2P, which has no glyph
+     for ▶, ❚ or the speaker emoji — those fell back to a system font while «10
+     and 10» rendered in the pixel face, so the row was in two typefaces. */
+  $('pbPlay').textContent = p ? 'PLAY' : 'PAUSE';
   $('pbPlay').title = (p ? 'Play' : 'Pause') + ' (space)';
   const m = useVideo && $('video').muted;
-  $('pbMute').innerHTML = m ? '&#128263;' : '&#128266;';
+  $('pbMute').textContent = m ? 'MUTED' : 'SOUND';
   $('pbMute').title = m ? 'Unmute' : 'Mute';
   $('muted').classList.toggle('on', !!m);
   if (p) pbShow();
@@ -2075,7 +2157,8 @@ function pbBuildTicks() {
   const s = pbSpan();
   const koEv = events.find(e => e.ko);
   $('pbTicks').innerHTML = HITS.map(h =>
-    `<i class="t-${h.tier.key}" style="left:${(h.t / s * 100).toFixed(2)}%" ` +
+    `<i class="t-${h.tier.key} ${h.by === 'L' ? 'l' : 'r'}${h.self ? ' self' : ''}" ` +
+    `style="left:${(h.t / s * 100).toFixed(2)}%" ` +
     `title="${mmss(h.t)} −${h.dmg}"></i>`).join('')
     + (koEv ? `<i class="ko" style="left:${(koEv.t / s * 100).toFixed(2)}%" ` +
               `title="${mmss(koEv.t)} KNOCKOUT"></i>` : '');
@@ -2137,26 +2220,53 @@ function pauseMenu(on) {
   $('pause').classList.toggle('on', on);
   pbSetPaused(on);
 }
-$('pmenu').addEventListener('click', e => {
-  const act = e.target.dataset && e.target.dataset.act;
-  if (!act) return;
-  // the window click handler starts the fight whenever !started, and HOME sets
-  // exactly that — without this the dismissing click restarts the fight instantly
-  e.stopPropagation();
-  $('pause').classList.remove('on');
-  if (act === 'resume') pbSetPaused(false);
-  if (act === 'replay') replay();
-  if (act === 'home')   home();
-  e.target.blur();     // a focused button swallows every key shortcut afterwards
-});
+
+/* Step off the fight card WITHOUT tearing the fight down, so the clip can be
+   rewound and watched again. The rewind machinery already exists — reseat()
+   re-derives everything on a backward jump — it was simply unreachable, because
+   pbShow(), pauseMenu(), Escape and the seek keys are all gated on !overDone. */
+function showFight() {
+  if (!overDone) return;
+  overDone = false;
+  $('over').classList.remove('on');
+  // playOut()'s poll self-cancels on overDone and its 'ended' listener still
+  // holds the old `loser`; both would re-fire finish() from a fight state that
+  // no longer applies
+  $('video').removeEventListener('ended', outEnded);
+  clearInterval(outTimer); clearTimeout(outTimer);
+  userPaused = true;      // finish() paused the video directly and never set it
+  pbSync(); pbShow();
+}
+
+/* one handler shape for both menus — the traps are identical */
+function menuClick(hide) {
+  return e => {
+    const act = e.target.dataset && e.target.dataset.act;
+    if (!act) return;
+    // the window click handler starts the fight whenever !started, and HOME sets
+    // exactly that — without this the dismissing click restarts the fight instantly
+    e.stopPropagation();
+    $(hide).classList.remove('on');
+    if (act === 'resume') pbSetPaused(false);
+    if (act === 'rewind') showFight();
+    if (act === 'replay') replay();
+    if (act === 'home')   home();
+    e.target.blur();     // a focused button swallows every key shortcut afterwards
+  };
+}
+$('pmenu').addEventListener('click', menuClick('pause'));
+$('omenu').addEventListener('click', menuClick('over'));
 
 addEventListener('keydown', e => {
   /* Escape is handled ABOVE the BUTTON guard on purpose: once a pause-menu button
      has focus that guard would swallow the key that closes the menu. */
   if (e.key === 'Escape') {
-    if (!started || overDone) return;
+    if (!started) return;
     e.preventDefault();
-    pauseMenu(!$('pause').classList.contains('on'));
+    // on the fight card Escape steps back INTO the fight (paused, so it can be
+    // rewound); during the fight it toggles the pause menu
+    if (overDone) showFight();
+    else pauseMenu(!$('pause').classList.contains('on'));
     return;
   }
   // a focused picker button owns Enter/Space, or it would navigate AND start
@@ -2169,8 +2279,12 @@ addEventListener('keydown', e => {
   const k = e.key.toLowerCase();
   if (k === 'c') { $('crt').classList.toggle('on'); return; }
   if (k === 'g') { document.body.classList.toggle('rainbow'); return; }
-  if (k === 'r') { replay(); return; }
-  if (!started) start();
+  // gated on `started`: replay() ends in start(), so an ungated `r` starts the
+  // fight from the title screen no matter what the start key is
+  if (k === 'r' && started) { replay(); return; }
+  // SPACE, not any key — a stray keystroke should not drop you into the fight,
+  // and Space during play already means play/pause, so the two agree
+  if (!started && e.key === ' ') { e.preventDefault(); start(); }
 });
 addEventListener('click', e => { if (e.target.tagName !== 'INPUT' && !started) start(); });
 
@@ -2194,6 +2308,10 @@ FIGHTS.forEach(slug => {
   // the window click handler starts the fight — keep picker clicks out of it
   b.addEventListener('click', e => {
     e.stopPropagation();
+    // clicking the fight already loaded navigates nowhere and leaves the button
+    // focused, and the BUTTON guard in the keydown handler then eats SPACE — so
+    // the title card would have no way in at all
+    e.target.blur();
     if (slug !== CLIP) location.search = '?clip=' + slug;
   });
   $('picker').appendChild(b);

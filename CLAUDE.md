@@ -222,10 +222,20 @@ invert the fight on any re-judge that followed it. The source video's own commen
 settles it — "Dream is already over for Skorpios in this fight, in just 24 seconds"
 (clip t≈23.6s), which is now in `transcripts/manta-skorpios.json`.
 
-Keys in the page: `any` start · `space` play/pause · `←`/`→` ∓10s · `esc` pause menu
-(RESUME / REPLAY / HOME) · `r` replay · `c` CRT filter · `g` rainbow bars. A control
-bar with play/pause, a scrubber, skip buttons, a clock and mute fades in on mouse
-movement and stays up while paused.
+Keys in the page: `space` starts the fight and then toggles play/pause · `←`/`→` ∓10s ·
+`esc` pause menu mid-fight (RESUME / REPLAY / HOME), and on the GAME OVER card steps
+back INTO the fight so it can be rewound · `r` replay · `c` CRT filter · `g` rainbow
+bars. A control bar with play/pause, a scrubber, skip buttons, a clock and mute fades
+in on mouse movement and stays up while paused. The fight card also carries
+BACK TO FIGHT / REPLAY / HOME buttons.
+
+**Space, not any key.** A stray keystroke should not drop you into a fight, and Space
+already means play/pause once it is running, so the two agree. `r` is gated on
+`started` for the same reason — `replay()` ends in `start()`, so an ungated `r` starts
+the fight from the title screen whatever the start key is. Picker buttons `blur()`
+themselves on click: clicking the fight already loaded navigates nowhere and leaves the
+button focused, and the `INPUT`/`BUTTON` guard in the keydown handler then swallows
+Space forever.
 
 ## Sharing it — use the public URL, not the LAN
 
@@ -539,14 +549,27 @@ python3 backend/serve.py     # -> http://localhost:40911/frontend/index.html?cli
   rather than the one it can see. It is sub-sampled to ~1fps because half the count
   window on `manta-skorpios` is booths and crowd with no robot in it, and `count_out()`
   drains one step a second anyway — a finer grid buys precision nothing can spend.
-- **`transcribe.cut()` places captions ~1s early, and it is not fixed.** `-ss` before
-  `-i` with `-c copy` snaps the cut back to the nearest keyframe, so clip `t=0` is the
-  keyframe (185.977s on `manta-skorpios`), not `--start` (187). `cut()` maps captions
-  with `s["start"] - start`, so every manta caption sits **1.02s** earlier than the
-  frame it belongs to (madcatter 0.81s, jackpot 0.10s). Commentators lag the action by
-  about a second and `window()` has a 1.0s lead / 1.5s lag, so it partly cancels — but
-  it is real. Fix it on its own: changing it shifts what the model sees, and folding it
-  into a run that also changes the prompt makes every result unattributable.
+- **A clip's `t=0` is `t0`, not `--start` — and that is now recorded, not re-derived.**
+  `-ss` before `-i` with `-c copy` snaps back to the nearest keyframe and
+  `-avoid_negative_ts make_zero` rebases from there, so clip `t=0` is the keyframe
+  (185.977s on `manta-skorpios`, not the 187 that was asked for) and the file runs
+  longer than `--duration` by the same amount. `transcribe.cut()` mapped captions with
+  `s["start"] - start`, which put every manta caption **1.02s early** (madcatter 0.81s,
+  jackpot 0.10s). `ingest.cut_window()` now probes the raw source for the keyframe the
+  cut actually landed on and writes `t0`/`span` into `clips/<clip>.source.json`;
+  `transcribe()` maps from those, falling back to `start`/`duration` so a
+  `source.json` written before this still behaves exactly as it did.
+  Two traps in the probe, both of which produced confidently wrong numbers:
+  `ffprobe -read_intervals` with `%+duration` measures that duration from wherever its
+  **seek** landed — a keyframe *before* the requested start — so the window closes
+  early and the real answer falls outside it (it returned a keyframe 3s too early on
+  manta). Use an absolute end, `lo%hi`. And `cut_window()` cross-checks the probe
+  against `start - (span - duration)`, an independent estimate that needs no packet
+  parsing; a disagreement over 0.5s means the probe missed, and the arithmetic wins.
+  Re-transcribing is free, but the fix only reaches the HUD through a **re-judge** —
+  the transcript is an input to `analyze.py`, not something the page reads.
+- **A transient's lifetime lives in its CSS variable, not in a JS timer.** `lifeMs()`
+  reads `--hm-life` / `--strike-life` / `--comment-life` / `--exchange-gap` so the
 - **A transient's lifetime lives in its CSS variable, not in a JS timer.** `lifeMs()`
   reads `--hm-life` / `--strike-life` / `--comment-life` / `--exchange-gap` so the
   removal timer and the animation can't disagree; hard-coding a second copy in JS
@@ -608,6 +631,26 @@ python3 backend/serve.py     # -> http://localhost:40911/frontend/index.html?cli
   uses `showCaptionAt(i)`, which walks BACK to the last two events that actually said
   something: live playback only types on a non-empty caption, and a count-out is ten
   seconds of blank ones.
+- **A hit tick's colour is WHICH bot, its height is HOW HARD.** Both strips — the
+  end card's hit log and the scrubber — take `--left-color` / `--right-color` from
+  `h.by`, the same value that decides the end card's above/below split, so colour and
+  side cannot disagree. Colour used to carry the tier, which meant the strip and the
+  `.bd-tier` chips directly above it spoke the same palette about two different things,
+  and left the strip saying nothing about who. Tier survives as height (and width) —
+  which the scrubber never had: every tick there was a flat 14px, so colour was its
+  only channel and it had to gain `--tick-h` steps to keep saying both at once. Tier
+  colour still lives in `.hitmark`, `#strike`, `#hits .hl` and the chips.
+- **The caption block reserves measured space, not a guessed line count.**
+  `sizeCaption()` renders every caption in this timeline once at load and reserves the
+  tallest, per slot, as `--cur-h` / `--prev-h`, so the block is the same height for a
+  one-word caption, a wrapped one and none at all — otherwise the bars, the cores and
+  the fan comments shift every time a line is typed. A fixed count was tried and was
+  wrong: the longest `madcatter-tombstone` caption wraps to **three** lines in the
+  374px column. It re-runs on `resize`, and **bails when the column has no width** —
+  at boot before first layout, and permanently in a headless browser, a zero-width
+  column wraps every caption to one word per line and reserved 510px of dead space.
+  `.prev` wraps rather than ellipsing: the reservation is what stops it moving
+  anything, so there is nothing to gain by cutting it off mid-word.
 - **The knockout is drawn from the EVENT, and always as its own full-height mark.**
   It used to ride in on a hit's `ko` flag and fall back to the event only when no hit
   had one. Both renderings were wrong in the same way: with no `up`/`down` class the

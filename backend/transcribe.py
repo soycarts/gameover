@@ -141,7 +141,12 @@ def tidy(segs: list[dict]) -> list[dict]:
 
 def cut(segs: list[dict], start: float, duration: float) -> list[dict]:
     """Source-video time -> clip time. ingest.py cuts a window out of a long
-    compilation, so a clip's t=0 is `start` seconds into the source."""
+    compilation, so a clip's t=0 is `start` seconds into the source.
+
+    Callers pass the cut's REAL origin (`t0` in source.json), not the `--start`
+    that was asked for: `-ss` before `-i` with `-c copy` snaps back to the
+    nearest keyframe, so the two differ by up to a keyframe interval.
+    """
     out = []
     for s in segs:
         if s["end"] < start or s["start"] > start + duration:
@@ -269,8 +274,13 @@ def transcribe(clip: str, bots: dict | None = None, source: str = "subs",
         subs = fetch_subs(rec["url"], force=force)
         if not subs:
             return []
-        segs = cut(tidy(parse_json3(subs)), float(rec.get("start", 0)),
-                   float(rec.get("duration", 1e9)))
+        # t0/span are where the cut LANDED, start/duration what ingest asked for.
+        # They differ because -ss with -c copy snaps back to a keyframe, and
+        # mapping from `start` put every caption ~1s early. Old source.json files
+        # carry neither key, so they fall back to the previous behaviour exactly.
+        segs = cut(tidy(parse_json3(subs)),
+                   float(rec.get("t0", rec.get("start", 0))),
+                   float(rec.get("span", rec.get("duration", 1e9))))
 
     segs.sort(key=lambda s: s["start"])
     n = fix_names(segs, names)
