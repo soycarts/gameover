@@ -730,6 +730,12 @@ python3 backend/serve.py     # -> http://localhost:40911/frontend/index.html?cli
   Four stacked panels put the last of them below the fold on a laptop, so BACK TO FIGHT /
   REPLAY / HOME parked underneath could only be reached by scrolling past everything you
   might want to skip. The `.hint` line is reference, not an exit, so it reads last.
+- **A key that HAS a button is printed on it; only keys with no button are left to the
+  hint.** `#pmenu`/`#omenu` buttons carry an `<i class="k">` cap, so the fight card's hint
+  is down to `C — CRT` and the pause menu's to the transport keys. The cap is
+  `pointer-events: none` — `menuClick()` reads `data-act` off `e.target`, and a click
+  landing on the cap would otherwise hit an element that has none. POST MATCH is the one
+  button with no cap, because it is the one action with no key behind it.
 - **POST MATCH seeks, it does not jump to `finish()`.** The pause menu's skip-to-the-end
   goes through `pbSeek(lastEvent.t + 0.2)` (which already handles both clocks) and then
   calls `tick()` **by hand**, so `reseat()` re-derives the bars, the caption and the hit
