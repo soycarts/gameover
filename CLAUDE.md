@@ -192,14 +192,16 @@ The three demo fights all come from one video, `youtube.com/watch?v=rC__2ZOQhc4`
 **Always re-judge them with `--bots`, and with `--ko` where the table gives one.**
 Name detection depends on whether a lower-third happens to be legible in the sampled
 frames, and a re-run that came back `Manta vs Skorpios` once will happily return
-`Bot A vs Bot B` the next time. Worse, an unpinned card also switches off the "the
-ONLY two competitors are X and Y" line in `identity_note()`, which is the thing
-stopping the model captioning sponsor decals as robots — a run with a broken
-`--bots` came back `Bot A vs Horizon`, and Horizon is a sponsor.
+`Bot A vs Bot B` the next time. Worse, an unpinned card also switches off the
+closed list of machines in `identity_note()` ("The two competitors are X and Y …
+use no other name"), which is the thing stopping the model captioning sponsor decals
+as robots — a run with a broken `--bots` came back `Bot A vs Horizon`, and Horizon is
+a sponsor. The same header is what names the minibots, so an unpinned run also loses
+the only thing telling the model Ace is not a competitor.
 
 | clip | `--start` | `--duration` | `--bots` (left,right) | `--ko` | ends on |
 |---|---|---|---|---|---|
-| `jackpot-copperhead`  |  23 | 149.4 | `Copperhead,Jackpot` | —       | TAP OUT : 152sec |
+| `jackpot-copperhead`  |  23 | 149.4 | `Copperhead,Jackpot` | `right` | TAP OUT : 152sec |
 | `manta-skorpios`      | 187 |  32.5 | `Manta,Skorpios`     | `right` | KNOCKOUT : 24sec |
 | `madcatter-tombstone` | 271 |  79 | `MaDCaTTer,Tombstone`| —       | KNOCKOUT : 72sec |
 
@@ -229,6 +231,22 @@ python backend/ingest.py "<url>" --name manta-skorpios --start 187 --duration 32
 
 **`--ko` names the LOSER**, not the winner — `loser = ko` in `analyze()`, and the flag
 lands in the timeline as `events[-1]["ko"]`, the side whose hp is 0.
+
+**`jackpot-copperhead` needs `--ko right`**, and the reason is worth knowing because it
+cost a whole run. The damage cross-check used to overrule the model's KO flag on **any**
+margin, and here that margin was **186 vs 178 — 4.5%**, noise on two totals that both
+blow past the 55/70 budgets. It moved the loser to Copperhead, put the referee count on
+the winner, and wrote a timeline that contradicted itself on one screen: captions at
+t=130–134 describing *Jackpot* smoking and catching fire, `t=140.5 "Jackpot taps out"`,
+and `ko: left` underneath. Everything else agreed the loser is Jackpot — the commentary
+(*"Copperhead done it!"* at t=145.8, and *"MY BOTS ARE BURNING, says Jeff Waters"*, who
+`roster.json` confirms is **Jackpot's** builder), the `TAP OUT : 152sec` graphic, both
+earlier pipeline generations, and the model's own flag. `KO_MARGIN` now requires the
+damage to be *decisively* lopsided before overruling the flag; a genuine inversion is
+lopsided by construction (on manta the winner came out on literally 0), so the check
+still catches what it exists for. **Pinning `--ko` does not blind you** — the
+`is pinned as the loser but took LESS damage` warning still fires, so the inversion
+detector survives.
 
 **`--looks` pins WHICH MACHINE is which**, where `--bots` only pins the names. Verified
 by eye against the frames **and against the official Pro League studio photo**
