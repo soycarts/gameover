@@ -16,6 +16,7 @@ money and 15-30 minutes, and the crowd's opinion has nothing to do with the
 frames. Everything downstream of the labels — the tallies, the percentages, the
 "did the crowd call it" verdict — is plain counting, in Python and in the HUD.
 """
+import datetime
 import hashlib
 import json
 import re
@@ -175,6 +176,40 @@ ID_FIELDS = ("comment_id", "id")
 PARENT_FIELDS = ("parent_comment_id", "parent_id", "reply_to_comment_id", "parent")
 AUTHOR_FIELDS = ("user_posted", "author", "username", "user_name", "commenter")
 SCORE_FIELDS = ("num_upvotes", "upvotes", "score", "num_votes", "points")
+# COMPLIANCE.md lists created_utc on the record spec. The payload has carried it all
+# along — `date_posted` and `timestamp` are both in the confirmed key set above — and
+# enrich() simply dropped it. `date_of_reply` reaches here as `date_posted` through
+# REPLY_FIELDS, so a nested reply gets a timestamp too.
+DATE_FIELDS = ("date_posted", "timestamp", "created_utc", "created")
+
+
+def epoch_utc(raw) -> int:
+    """Bright Data's date fields to an integer UTC epoch, or 0 if unreadable.
+
+    Stored as epoch seconds rather than the ISO string the payload usually holds,
+    because the field is named for Reddit's `created_utc`, which is a number — a
+    record whose `created_utc` is "2025-11-13T18:04:22.000Z" would be lying about
+    its own units. 0 means absent, and is what every pre-backfill record has.
+
+    Never raises: a scrape must not die over a reformatted date column.
+    """
+    if raw in (None, ""):
+        return 0
+    try:                                     # already numeric (epoch s or ms)
+        n = float(raw)
+        return int(n / 1000) if n > 1e11 else int(n)
+    except (TypeError, ValueError):
+        pass
+    s = str(raw).strip().replace("Z", "+00:00")
+    for cut in (s, s.split(".")[0], s[:19]):
+        try:
+            d = datetime.datetime.fromisoformat(cut)
+            if d.tzinfo is None:
+                d = d.replace(tzinfo=datetime.timezone.utc)
+            return int(d.timestamp())
+        except ValueError:
+            continue
+    return 0
 
 PERMALINK = re.compile(r"/comments/([a-z0-9]+)/[^/]*/([a-z0-9]+)/?$", re.I)
 POST_ID = re.compile(r"/comments/([a-z0-9]+)", re.I)
@@ -303,6 +338,9 @@ def enrich(row: dict, rec: dict) -> dict:
         rec["score"] = int(float(raw))
     except ValueError:
         rec["score"] = 0
+    ts = epoch_utc(_first(row, DATE_FIELDS))
+    if ts:                       # omitted rather than zeroed, like every other
+        rec["created_utc"] = ts  # optional key — old files stay byte-identical
     return rec
 
 

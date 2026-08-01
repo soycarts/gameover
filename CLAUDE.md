@@ -234,6 +234,13 @@ python backend/make_sprites.py --check     # -> frontend/sprites.js + a compare 
 # no Bright Data spend, no risk to the pool — ~2 model calls.
 python backend/scrape_comments.py madcatter-tombstone "q" --bots "L,R" --reclassify
 
+# add created_utc to an existing pool. DOES scrape (Bright Data spend), but merges
+# ONLY {id -> created_utc} into the records on disk — text, score and the labels are
+# read off the fresh rows and thrown away, so a worse scrape cannot damage the pool
+# and no fan_comment can be orphaned. Idempotent; needs no --rejoin after.
+python backend/scrape_comments.py manta-skorpios "manta skorpios" \
+    --bots "Manta,Skorpios" --backfill-dates
+
 # a better comments file into an EXISTING timeline — no frames, no model, free
 python backend/analyze.py manta-skorpios --rejoin --bots "Manta,Skorpios"
 

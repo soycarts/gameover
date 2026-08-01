@@ -245,12 +245,29 @@ look like a broken deploy: no cert for the hostname, so TLS fails and the HUD sh
 
 ## Does not hold
 
-### 4. `created_utc` is not stored on comment records
+### 4. `created_utc` — code done, backfill needs one paid scrape
 
-The spec lists it. The pool carries `id`, `url`, `score`, `text` and the derived labels
-but no timestamp, and adding one means re-scraping — Bright Data spend, and a re-scrape
-can return a *worse* pool, which the zero-rows guard does not catch. Left as-is
-deliberately; it is the least consequential item on this page.
+**No longer blocked on a design question.** The Bright Data payload has carried the
+timestamp all along — `date_posted` and `timestamp` are both in the dataset's confirmed
+key set — and `crowd.enrich()` was simply dropping it. It now stores `created_utc` as an
+integer UTC epoch, and **omits the key entirely when there is no date**, so every record
+written before this stays byte-identical.
+
+That covers every future scrape. Backfilling the 58 existing records still needs one
+Bright Data run, because the raw rows were never kept — but the reason this was deferred
+is now gone. The stated risk was that "a re-scrape can return a *worse* pool, which the
+zero-rows guard does not catch", and that risk came entirely from the normal path
+**replacing** the file. `scrape_comments.py --backfill-dates` does not replace anything:
+it scrapes, keeps only `{comment_id -> created_utc}`, and merges that one key into the
+records already on disk, matched by `id`. Text, score and the prediction labels are read
+off the fresh rows and discarded.
+
+So a thinner, blander or differently-labelled scrape costs nothing — it just contributes
+fewer timestamps. No `fan_comment` can be orphaned (no `text` is touched, so unlike a
+normal re-scrape it needs no `analyze.py --rejoin` after), the record count is invariant,
+and it is idempotent.
+
+Outstanding: the run itself, which is real money.
 
 ### 5. The storage account is personal, not project-specific
 
@@ -266,8 +283,11 @@ account, a new bucket, a re-upload and a DNS change; buckets do not transfer.
 
 ### 6. Operational tidy-ups
 
-- The Cloudflare API token has 363 permission groups and no expiry, and lives in `.env`.
-  It should be narrowed to R2 + this one zone, with an expiry.
+- ~~The Cloudflare API token has 363 permission groups and no expiry.~~ **Done** —
+  narrowed to 6 groups (R2 read/write on the account; DNS, Zone read and Email Routing
+  on `gameover.fyi` only) and given a 90-day expiry. Verified after: R2, DNS and email
+  routing still work; token and member enumeration are denied and only the one zone is
+  visible.
 - `scripts/teardown.sh` has a real bucket to point at now but **has still never been run
   against it**. Verify it on a calm day, not the day you need it.
 
@@ -278,8 +298,9 @@ account, a domain or a history rewrite have now been done: the footage is off gi
 the deployment, the history is scrubbed and garbage-collected, and the takedown route
 resolves to a monitored inbox.
 
-What remains is one deliberate deferral (`created_utc`), one knowing structural deviation
-(a personal storage account), and two tidy-ups.
+What remains is one paid run (`created_utc`, where the code is done and the risk that
+deferred it has been designed out), one knowing structural deviation (a personal storage
+account), and one untested script (`teardown.sh`).
 
 The caveat this page opened with is unchanged, and none of the above softens it: **none
 of this is legal advice, and ticking every box leaves the core exposure from self-hosting

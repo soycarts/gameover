@@ -465,6 +465,56 @@ def relabel(path: Path, card: dict, backend: str) -> list[dict]:
     return comments
 
 
+def backfill_dates(out: Path, query: str, card: dict, pinned: list[str],
+                   backend: str) -> list[dict]:
+    """Add `created_utc` to an existing pool without putting the pool at risk.
+
+    COMPLIANCE.md deferred this field because the only way to get it is a scrape,
+    and "a re-scrape can return a *worse* pool, which the zero-rows guard does not
+    catch" — the guard only fires on nothing at all, not on a thinner or blander
+    set of comments. That risk is real, and it is entirely a consequence of the
+    normal path REPLACING the file.
+
+    So this does not replace anything. It scrapes, keeps only
+    {comment_id -> created_utc}, and merges that one key into the records already
+    on disk, matched by `id`. Nothing else is read off the fresh rows: not text,
+    not score, not the prediction labels. A scrape that comes back half the size,
+    or relabels every pick, or drops the best comment in the thread, therefore
+    costs exactly nothing here — it just contributes fewer timestamps.
+
+    Consequences worth stating, because they are the point:
+      - no `fan_comment` can be orphaned, since no `text` is touched (contrast
+        the normal path, which needs `analyze.py --rejoin` afterwards)
+      - no record is added or removed; the count is invariant
+      - it is idempotent, and safe to run repeatedly
+      - a record whose id the scrape did not return simply keeps no timestamp
+    """
+    have = json.loads(out.read_text()) if out.exists() else []
+    if not have:
+        sys.exit(f"no existing {out.name} to backfill — run a normal scrape first.")
+
+    fresh = scrape(query, card, pinned, backend)
+    dates = {c["id"]: c["created_utc"] for c in fresh
+             if c.get("id") and c.get("created_utc")}
+    if not dates:
+        sys.exit("scrape returned no timestamps — leaving the pool untouched. "
+                 "Check that the dataset still emits date_posted (--dump-keys).")
+
+    hit = 0
+    for rec in have:
+        ts = dates.get(rec.get("id"))
+        if ts and rec.get("created_utc") != ts:
+            rec["created_utc"] = ts
+            hit += 1
+    missing = [r.get("id") for r in have if not r.get("created_utc")]
+    print(f"  {hit} record(s) stamped; {len(have) - len(missing)}/{len(have)} "
+          f"now carry created_utc")
+    if missing:
+        print(f"  ! no timestamp for {len(missing)}: {', '.join(m or '?' for m in missing[:6])}"
+              f"{' …' if len(missing) > 6 else ''}", file=sys.stderr)
+    return have
+
+
 def main() -> None:
     flagged = {f"--{n}" for n in ("bots", "post-url", "backend")}
     args, skip = [], False
@@ -492,7 +542,9 @@ def main() -> None:
     out = ROOT / "comments" / f"{clipname}.json"
     out.parent.mkdir(exist_ok=True)
 
-    if "--reclassify" in sys.argv:
+    if "--backfill-dates" in sys.argv:
+        comments = backfill_dates(out, query, card, pinned, flag("--backend", "auto"))
+    elif "--reclassify" in sys.argv:
         comments = relabel(out, card, flag("--backend", "auto"))
     elif "--mock" in sys.argv:
         comments = mock(query, card)
