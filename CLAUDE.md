@@ -436,6 +436,14 @@ be "cleaned up":
   cannot slice a source video's captions to a clip's window ever again. `.vercelignore`
   excludes `clips/` outright. A new clip goes to the **bucket**, not to git:
   upload it to `gameover-clips`, and `clipUrl()` finds it with no code change at all.
+- **`www.gameover.fyi` 308s to the apex**, via a host-conditioned entry in
+  `vercel.json`'s `redirects` rather than a dashboard setting, so the rule is version
+  controlled with everything else. It needs its own `A` record and its own Vercel
+  domain entry — the apex cert's SAN covers `gameover.fyi` **only**, so before this
+  existed a `www.` link failed at the TLS handshake rather than 404ing, which reads as
+  "the site is down" to whoever you sent it to. `redirects` are evaluated before
+  `rewrites`, so the apex rewrites below are unaffected, and `serve.py` needs no
+  matching change because no local dev request ever arrives on that host.
 - **`"buildCommand": "bash scripts/check_no_video.sh"`** fails the deploy if any video
   reaches the bundle, and **`"outputDirectory": "."`** is what keeps a static deploy
   static once a `buildCommand` exists. Neither is optional; see the note at the top of

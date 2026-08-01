@@ -1,6 +1,12 @@
 {
   "buildCommand": "bash scripts/check_no_video.sh",
   "outputDirectory": ".",
+  "redirects": [
+    { "source": "/(.*)",
+      "has": [{ "type": "host", "value": "www.gameover.fyi" }],
+      "destination": "https://gameover.fyi/$1",
+      "permanent": true }
+  ],
   "rewrites": [
     { "source": "/", "destination": "/frontend/index.html" },
     { "source": "/about", "destination": "/frontend/about.html" },
