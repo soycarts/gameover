@@ -2,7 +2,13 @@
 .env.*
 .venv/
 frames/
-clips/.raw/
+# The clips are served from R2 (clips.gameover.fyi), never from the deployment.
+# Anything in the bundle is hosted by Vercel regardless of what the UI links to,
+# which is the separation COMPLIANCE.md exists to enforce — a DMCA notice follows
+# the file, and abuse enforcement lands on whoever served the bytes. The
+# .source.json sidecars go too: nothing in the deployed page reads them from
+# here, sourceLink() fetches them from CLIP_BASE.
+clips/
 # Stale and wrong — the -left crop for manta-skorpios actually contains Skorpios,
 # and nothing loads them: the hand-drawn ART sprites win the portrait cascade.
 bots/

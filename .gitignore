@@ -1,12 +1,11 @@
 clips/*
-!clips/synthfight.mp4
-# Real fights cut from one BattleBots compilation (~25MB total). A git-connected
-# Vercel build only sees committed files, so each clip needs its own exception.
-!clips/jackpot-copperhead.mp4
-!clips/manta-skorpios.mp4
-!clips/madcatter-tombstone.mp4
-# What each clip was cut from. Tiny, and without it transcribe.py cannot slice the
-# source video's captions to this clip's window ever again.
+# NO VIDEO IS COMMITTED. COMPLIANCE.md hard rule 3, and the reason the four `!`
+# exceptions that used to sit here are gone: the clips are served from the R2
+# bucket behind clips.gameover.fyi, so a git-connected build no longer needs to
+# see them. Re-adding an exception here puts the bytes back in the deployment
+# bundle, which is what scripts/check_no_video.sh now fails the build over.
+# What each clip was cut from. Tiny, not video, and without it transcribe.py
+# cannot slice the source video's captions to this clip's window ever again.
 !clips/*.source.json
 # Derived from the clips and regenerable, like frames/. The commentary is also a
 # spoiler file: it names the winner, so it has no business on the public site.

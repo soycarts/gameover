@@ -1,4 +1,5 @@
 {
+  "buildCommand": "bash scripts/check_no_video.sh",
   "rewrites": [
     { "source": "/", "destination": "/frontend/index.html" },
     { "source": "/about", "destination": "/frontend/about.html" },
