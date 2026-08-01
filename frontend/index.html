@@ -414,6 +414,13 @@ body.over .perfect { display: none; }
   pointer-events: auto; cursor: pointer; text-align: right;
   max-width: min(60vw, 420px); line-height: 1.7; }
 #muted.on { display: block; }
+/* same slot as #muted — the two never show together: LOADING belongs to the
+   buffering branch of the watchdog, MUTED to the playable-but-blocked one */
+#loading { position: absolute; right: var(--hud-pad);
+  top: calc(var(--safe-top) + var(--hits-h) + 12px);
+  font-size: var(--fs-comment); color: var(--ink-dim); display: none;
+  pointer-events: none; text-align: right; }
+#loading.on { display: block; }
 /* full-stage crosshair — heavy blows and up. Wraps #massive so the tier word
    keeps its original animation instead of gaining a second one. Nudged toward
    the bot that got hit, and parked below the broadcaster's band. */
@@ -951,7 +958,7 @@ body.rainbow .core-fill { background: linear-gradient(90deg,#ff2e63,#ffd23f,#3ff
 </style>
 
 <div id="stage">
-  <video id="video" playsinline></video>
+  <video id="video" playsinline preload="auto"></video>
   <div id="placeholder"></div>
 
   <div id="hud">
@@ -989,6 +996,7 @@ body.rainbow .core-fill { background: linear-gradient(90deg,#ff2e63,#ffd23f,#3ff
       <div class="hl" id="hitLast">LAST —</div>
     </div>
     <div id="muted">MUTED — CLICK TO UNMUTE</div>
+    <div id="loading">LOADING CLIP…</div>
     <div id="strike" aria-hidden="true">
       <div class="ring"></div>
       <div class="tick n"></div><div class="tick s"></div>
@@ -1482,7 +1490,22 @@ async function boot() {
   // the KO now comes from a single flagged frame, so a missed flag would mean no
   // GAME OVER screen at all — end of clip is the backstop
   v.addEventListener('ended', () => { if (!koDone) finish(); });
+  /* Heal a defection that was really just buffering — the pending play() from
+     start() finally begins once the clip lands. The `error` path never fires
+     `playing`, so a genuinely missing clip stays on the fallback for good. Past
+     the KO the virtual clock has already ended the fight; don't yank the GAME
+     OVER card back, just stop the late video. reseat() absorbs the clock jump —
+     that is exactly what it exists for. */
+  v.addEventListener('playing', () => {
+    if (useVideo || !started || userPaused) return;
+    if (koDone) { v.pause(); return; }
+    useVideo = true;
+    virtualClock = false; vHold = 0;
+    $('placeholder').classList.remove('on');
+    tick();
+  });
   v.src = src;
+  v.load();     // preload="auto" starts the download behind the title card
   render(events[0] || {left_hp: 100, right_hp: 100});
   sizeCaption();          // reserve this clip's caption space before it is needed
   /* The crowd call is the last thing to land and the only one that resizes the
@@ -1506,6 +1529,7 @@ function showTitle() {
 const norm = s => (s || '').toLowerCase().replace(/[^a-z0-9 ]/g, '').trim();
 function fallbackClock() {
   useVideo = false;
+  $('loading').classList.remove('on');
   $('placeholder').classList.add('on');
   if (started && !virtualClock) { virtualClock = true; vStart = performance.now(); }
 }
@@ -1517,19 +1541,43 @@ function fallbackClock() {
    `userPaused` is what tells a deliberate pause from a blocked one. Without it,
    pausing inside the first 1.2s gets the video muted and force-played, and holding
    the pause ~2.1s defects to the virtual clock — painting DEMO ARENA over live
-   footage while the video sits still. Same symptom, opposite cause. */
+   footage while the video sits still. Same symptom, opposite cause.
+
+   A video still BUFFERING is a third state the clock alone cannot distinguish from
+   a blocked one, and treating them the same painted DEMO ARENA over a healthy clip
+   on every phone's first cold load. readyState is what tells them apart: below
+   HAVE_FUTURE_DATA the download is the holdup, so wait with a LOADING badge and
+   only defect at WATCH_DEADLINE_MS — the `error` listener still catches genuine
+   failures (404, DNS, decode) immediately, so the deadline is only ever reached on
+   a dead-slow-but-alive network. The muted retry is reserved for the
+   playable-but-stalled case; firing it while buffering lit the muted badge on
+   every slow load for no reason. */
+const WATCH_DEADLINE_MS = 20000;
 function watchdog() {
-  const v = $('video'), t0 = v.currentTime;
+  const v = $('video'), t0 = v.currentTime, begun = performance.now();
   const stalled = () => $('video').currentTime <= t0 + 0.05;
-  setTimeout(() => {
+  const buffering = () => v.readyState < v.HAVE_FUTURE_DATA;
+  const hint = on => $('loading').classList.toggle('on', !!on);
+  const wait = () => {
+    if (!started || !useVideo || userPaused || !stalled()) { hint(false); return; }
+    if (!buffering()) { hint(false); armed(); return; }
+    if (performance.now() - begun > WATCH_DEADLINE_MS) { hint(false); fallbackClock(); return; }
+    hint(true);
+    setTimeout(wait, 500);
+  };
+  const armed = () => setTimeout(() => {
     if (!started || !useVideo || userPaused || !stalled()) return;
+    if (buffering()) { wait(); return; }
     v.muted = true;
     $('muted').classList.add('on');
     v.play().catch(() => {});
     setTimeout(() => {
-      if (started && useVideo && !userPaused && stalled()) fallbackClock();
+      if (!started || !useVideo || userPaused || !stalled()) return;
+      if (buffering()) { wait(); return; }
+      fallbackClock();
     }, 900);
   }, 1200);
+  armed();
 }
 
 /* ---------------- engine ---------------- */
