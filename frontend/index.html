@@ -9,6 +9,13 @@
      feed. A plain og:image of our own UI would be fine to add. -->
 <meta name="robots" content="noindex, nofollow">
 <meta name="googlebot" content="noindex, nofollow">
+<!-- The tab icon is the health core's own robot head, generated from PX_MAP below
+     rather than drawn a second time — the two must not drift. `../frontend/`, not
+     the bare filename, for the rewrite reason spelled out under the stylesheet.
+     SVG only: it is one shape at two colours, so it costs 400 bytes and stays
+     crisp at every size a browser asks for, where a .ico would pin it to 16px. -->
+<link rel="icon" type="image/svg+xml" href="../frontend/favicon.svg">
+<meta name="theme-color" content="#07080b">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@600;800;900&family=JetBrains+Mono:wght@400;500;700&family=Press+Start+2P&display=swap" rel="stylesheet">
@@ -640,12 +647,13 @@ body.playing #legal .dis { display: none; }
   border-right: 0; text-align: left; }
 .pq cite { display: block; margin-top: 6px; font-style: normal;
   color: var(--ink-dim); overflow-wrap: anywhere; }
-/* a title card already carrying h1 + 2 subs + VS + coin + picker + url box has
-   no room left on a laptop — drop the predictions rather than clip the card.
-   700 was 60px too low to do its own job: measured at a 1280x720 viewport the
-   card is 744px, so it overflowed a screen this rule left alone and clipped the
-   GAMEOVER title off the top and #erab off the bottom. Without #preds and its
-   gap the card is 591px, which fits every viewport this now fires on. */
+/* a title card already carrying h1 + 2 subs + VS + coin + picker has no room left
+   on a laptop — drop the predictions rather than clip the card. 700 was 60px too
+   low to do its own job: measured at a 1280x720 viewport the card was 744px, so it
+   overflowed a screen this rule left alone and clipped the GAMEOVER title off the
+   top and the era B URL box off the bottom. That box is gone now, which buys back
+   its height, but the reasoning stands and so does the threshold — re-measure
+   before loosening it, and keep the intent: drop #preds rather than clip the card. */
 @media (max-height: 760px) { #preds { display: none } }
 
 /* fight select — one button per clip, current fight highlighted */
@@ -663,17 +671,6 @@ body.playing #legal .dis { display: none; }
   color: var(--ink); border-color: var(--steel); }
 #picker button[aria-current='true'] { color: var(--accent); border-color: var(--accent);
   text-shadow: 2px 2px 0 var(--accent-2); cursor: default; }
-
-/* era B url box */
-#erab { pointer-events: auto; display: flex; flex-direction: column; gap: 10px;
-  align-items: center; }
-#erab input { font-family: var(--font-mono); font-size: 12px; padding: 10px 12px;
-  width: min(70vw, 520px); background: #000; color: var(--ink);
-  border: 2px solid var(--panel-edge); }
-#cmd { font-size: var(--fs-comment); color: var(--accent); background: #000;
-  border: 2px dashed var(--panel-edge); padding: 10px; display: none;
-  width: min(70vw, 520px); word-break: break-all; line-height: 1.7;
-  user-select: all; }
 
 /* ---------- KO: fireball, smoke, stamp ---------- */
 #flash { position: absolute; inset: 0; background: #fff; opacity: 0;
@@ -1026,9 +1023,9 @@ body.rainbow .core-fill { background: linear-gradient(90deg,#ff2e63,#ffd23f,#3ff
       <div class="pq" id="pqs"></div>
     </div>
     <!-- the arrows ride on the COIN line rather than getting a row of their own.
-         Measured: this card is already 798px against a 720px viewport, so #erab
-         sits below the fold before anything is added to it — a new row costs a
-         further 45px and pushes the picker itself down there too. -->
+         The card was 798px against a 720px viewport when the era B URL box sat at
+         the bottom of it; removing that box bought back its height, but a new row
+         still costs ~45px and the picker is the thing that goes below the fold. -->
     <div id="coin">INSERT COIN — PRESS SPACE</div>
     <div id="picker" aria-label="select fight"></div>
     <!-- Out of the flow, pinned to the bottom of the screen. In the flow it had
@@ -1037,10 +1034,6 @@ body.rainbow .core-fill { background: linear-gradient(90deg,#ff2e63,#ffd23f,#3ff
          INSERT COIN line pushed that message off centre. Nothing here is
          interactive, so taking it out of the flow costs nothing. -->
     <div class="hint pickhint">← ↑ ↓ → &nbsp;CHANGE FIGHT</div>
-    <div id="erab">
-      <input id="url" placeholder="paste a YouTube fight URL (era B)" autocomplete="off">
-      <div id="cmd"></div>
-    </div>
   </div>
 
   <div class="screen" id="over">
@@ -2828,15 +2821,6 @@ FIGHTS.forEach(slug => {
   if (slug === CLIP) labelSelf.push(label);
   else pickerReady.push(
     loadJSON(`../timelines/${slug}.json`).then(label).catch(() => { /* keep the slug */ }));
-});
-
-/* era B: show the ingest command, no backend server */
-$('url').addEventListener('input', e => {
-  const u = e.target.value.trim();
-  const box = $('cmd');
-  if (!u) { box.style.display = 'none'; return; }
-  box.style.display = 'block';
-  box.textContent = `python backend/ingest.py "${u}"`;
 });
 
 boot();

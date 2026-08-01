@@ -1391,15 +1391,35 @@ Every colour, font and size is a CSS variable in the `:root` block at the top of
 block.
 
 **The title card does not fit a 720p viewport with the crowd call in it.** Measured
-at 1280×720 it is 744px, and `.screen` is `justify-content: center`, so the overflow
-clips at BOTH ends — the GAMEOVER title off the top and the era B input off the
-bottom. `@media (max-height: 760px) { #preds { display: none } }` is the release
-valve, and its comment states the intent: *drop the predictions rather than clip the
-card*. It was set at 700px, which is below the most common laptop viewport there is,
-so it never fired on the screens it was written for. Without `#preds` the card is
-591px. Anything added to the title card must be checked against this — and the fight
-picker's key hint is `position: absolute` at the bottom precisely so it does not
-count, because in the flow it would have pushed the card 45px further over.
+at 1280×720 it was 744px, and `.screen` is `justify-content: center`, so the overflow
+clips at BOTH ends — the GAMEOVER title off the top and, at the time, the era B URL
+box off the bottom. `@media (max-height: 760px) { #preds { display: none } }` is the
+release valve, and its comment states the intent: *drop the predictions rather than
+clip the card*. It was set at 700px, which is below the most common laptop viewport
+there is, so it never fired on the screens it was written for. Without `#preds` the
+card was 591px. **Those two numbers now over-state the card** — the era B URL box has
+since been removed, so there is more headroom than they imply; re-measure before
+relying on either. The rule they encode is unchanged: anything added to the title card
+must be checked against a 720p viewport, and the fight picker's key hint is
+`position: absolute` at the bottom precisely so it does not count, because in the flow
+it would have pushed the card 45px further over.
+
+**The era B URL box is gone from the title card.** It only ever printed the
+`ingest.py` command for you to copy — there is no backend at request time to run it —
+so it invited an interaction the page could not complete. Era B itself is unaffected:
+`ingest.py` is the interface, and it always was. Removing it also left `<input>` with
+no instances on the page, so the `INPUT` half of the keydown guard is now vestigial;
+it is kept because the `BUTTON` half is still load-bearing for the picker.
+
+**The tab icon is generated from `PX_MAP`, not drawn separately.** `frontend/favicon.svg`
+is the health core's own robot head — the same 11×9 map the HUD masks the cores from —
+padded to a square 13×13 viewBox, gold on the page background with the eyes and mouth
+punched out. Regenerate it rather than hand-editing if `PX_MAP` ever changes, or the
+tab and the HUD start disagreeing about what this project's robot looks like. It is
+SVG only and deliberately: one shape at two colours, ~400 bytes, crisp at any size a
+browser asks for, where a `.ico` would pin it to 16px. All four pages reference it —
+`index.html` via `../frontend/` per the rewrite rule, the other three via an absolute
+`/frontend/` path to match how they already load `page.css`.
 
 **The top-left of the frame belongs to the broadcaster.** Real fight footage burns
 in its own graphics there — the match clock and a `KNOCKOUT : 72sec` banner that
