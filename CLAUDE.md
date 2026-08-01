@@ -477,6 +477,18 @@ Cloudflare R2, bucket `gameover-clips`, served at `https://clips.gameover.fyi`.
 - **The bucket is in a personal Cloudflare account**, not the project-specific one
   COMPLIANCE.md asks for. Recorded here because it is the live deviation, and because
   abuse enforcement lands on the account rather than the bucket.
+- **Clips are edge-cached by a Cache Rule** (`clip-cache`: hostname equals
+  `clips.gameover.fyi` → eligible for cache, Edge TTL override), created in the
+  dashboard 2026-08-01 — without it every response was `cf-cache-status: DYNAMIC`
+  and every cold client pulled the full clip from R2 origin, which is the buffering
+  the watchdog's LOADING state now tolerates rather than the DEMO ARENA defection it
+  used to cause. Two traps: **a HEAD request reports `DYNAMIC` even when the object
+  is cached** — verify with a real GET (a range GET works too, and is what seeking
+  uses) — and **a re-uploaded clip under the same filename serves stale from the
+  edge until the TTL expires or the URL is purged**, so purge after any re-upload.
+  The `CLOUDFLARE_TOKEN` in the main checkout's `.env` cannot manage or purge cache
+  (zones+DNS scope only, account-owned, uneditable in the dashboard's token UI);
+  purging means the dashboard or a new token with Cache Purge.
 
 ### Local dev server
 
