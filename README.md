@@ -15,12 +15,11 @@ redistribute what it downloads. `?clip=synthfight` is a generated test clip with
 third-party content in it, and `?demo=1` needs no video at all, so both the HUD and the
 whole judging pipeline can be developed without touching anyone's footage.
 
-> **The four clips currently committed under `clips/` are the exception, and they are
-> being removed.** They predate this policy. [`COMPLIANCE.md`](COMPLIANCE.md) records why
-> that is the project's largest open item and the order the fix has to happen in — the
-> clips move to separate object storage behind `CLIP_BASE_URL` *before* `*.mp4` enters
-> `.gitignore`, or the site goes dark. Note that deleting them from the tree does not
-> remove them from git history.
+> **No video is committed to this repository, and none is in git history.** The clips the
+> live demo plays are served from separate object storage behind `CLIP_BASE_URL`
+> (`frontend/config.js`), never from the deployment — `scripts/check_no_video.sh` fails
+> the build if a video file reaches the bundle. [`COMPLIANCE.md`](COMPLIANCE.md) records
+> the migration, the order it had to happen in, and what is still open.
 
 No Reddit usernames are stored or displayed anywhere. Where the pipeline needs to tell
 two commenters apart it uses a salted hash, with the salt held outside the repository —

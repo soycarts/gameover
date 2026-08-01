@@ -5,15 +5,20 @@ arcade fighting-game HUD. Read this before changing anything.
 
 **[COMPLIANCE.md](COMPLIANCE.md) governs anything touching the footage, the Reddit
 data, or where the site is hosted, and it OUTRANKS this file where the two disagree.**
-They still disagree on exactly one thing, on purpose and in writing: the sharing section
-below says a clip must be committed to git or the public site 404s it, and COMPLIANCE's
-hard rule 3 says no video may be committed at all. Both are true — the second is where
-the project is going and the first is how it works today. `CLIP_BASE_URL` is already
-plumbed (`frontend/config.js`), so closing the gap is: bucket → upload → point
-`CLIP_BASE` at it → *then* the ignore rule. **That order is load-bearing** — reversing
-it takes the site down, because a git-connected build only sees committed files.
+They no longer disagree. This file used to record a deliberate conflict — the sharing
+section said a clip must be committed to git or the public site 404s it, against
+COMPLIANCE's hard rule 3 that no video may be committed at all — and the migration that
+closed it ran in the order this paragraph specified: bucket → upload → point `CLIP_BASE`
+at it → *then* the ignore rule. **That order was load-bearing** and remains the order to
+follow if storage ever moves again; reversing it takes the site down, because a
+git-connected build only sees committed files.
 
-Everything else in that file is implemented. The consequences worth knowing here:
+**No video is committed, and none ships in the deployment bundle.** The clips live in a
+Cloudflare R2 bucket behind `clips.gameover.fyi`, `.gitignore` has no `!` exception for
+`*.mp4`, `.vercelignore` excludes `clips/`, and `scripts/check_no_video.sh` runs as
+`buildCommand` so a re-added clip fails the deploy rather than shipping quietly.
+
+Everything in that file is implemented. The consequences worth knowing here:
 
 - **No Reddit username is ever stored or displayed.** `crowd.author_hash()` salts and
   truncates at scrape time and refuses to run without `GAMEOVER_AUTHOR_SALT` in `.env`,
@@ -24,8 +29,17 @@ Everything else in that file is implemented. The consequences worth knowing here
 - **`serve.py` and `vercel.json` declare the same rewrites** (`/`, `/about`,
   `/takedown`) and must stay in step. A route that works in dev and 404s in production
   is how the `sprites.js` path bug survived; here it would be the takedown page.
-- **`scripts/check_no_video.sh` fails today, correctly**, and is deliberately not wired
-  into a build until the clips move.
+- **`scripts/check_no_video.sh` is wired into `vercel.json` as `buildCommand`** and
+  passes. It failed for its whole life until the clips moved, correctly. Note what
+  wiring it cost: setting `buildCommand` switches Vercel out of zero-config static mode,
+  so it then looks for an output directory named `public`, finds none, and fails the
+  deploy — `"outputDirectory": "."` is what pins it back to the repo root. The guard
+  itself is not a build, but Vercel cannot tell the difference. Caught on a preview
+  deploy; straight to `main` it would have taken the live site down.
+- **`scripts/teardown.sh` is no longer untested-in-principle** — there is a real bucket
+  to point it at now (`CLIP_BUCKET=gameover-clips`). It still defaults to `--dry-run`,
+  and it has still never been run for real. Verify it against the bucket on a calm day,
+  not the day you need it.
 - **`scripts/killswitch.sh off`** flips every route to a static offline page. It is a
   rewrite rather than the `SITE_ENABLED` env var the doc asks for, because a pure static
   deploy has nothing running at request time to read one, and giving it one would mean
@@ -376,16 +390,22 @@ Space forever.
 
 ## Sharing it — use the public URL, not the LAN
 
-**Send people the Vercel URL.** The LAN link only ever worked for devices on the same
-wifi with `serve.py` still running; anyone off the network gets nothing, which is not
-a bug you can debug locally.
+**Send people `https://gameover.fyi`.** The LAN link only ever worked for devices on
+the same wifi with `serve.py` still running; anyone off the network gets nothing, which
+is not a bug you can debug locally. The `*.vercel.app` URLs still work and are fine for
+testing, but the apex is the one to share — and it is the origin the R2 bucket's CORS
+policy names, alongside `gameover-nine.vercel.app` and `localhost:40911`. **A new
+origin needs adding to that policy**, or the video still plays (a plain `<video src>`
+needs no CORS) while `sourceLink()`'s `fetch` of `<clip>.source.json` fails silently and
+the attribution link vanishes with no error anywhere.
 
 ```bash
 vercel --prod        # from the repo root — prints the live URL
 ```
 
-The site is a pure static deploy: no build step, no serverless functions, no API key
-in the browser. Three pieces make it work, and none of them should be "cleaned up":
+The site is a static deploy with a **guard**, not a build: no framework, no serverless
+functions, no API key in the browser. Four pieces make it work, and none of them should
+be "cleaned up":
 
 - **`vercel.json`** rewrites `/` → `/frontend/index.html`, so the shared link is a bare
   domain. Vercel preserves the query string through the rewrite, so `/?demo=1` still
@@ -404,22 +424,59 @@ in the browser. Three pieces make it work, and none of them should be "cleaned u
   readable plaintext to anyone who guessed the path. Note it **replaces** `.gitignore`
   for CLI uploads rather than adding to it, which is why `.env` is listed explicitly —
   being gitignored is not enough to keep a file out of a `vercel --prod` upload.
-- **Clips are committed to git one by one** (`.gitignore` is `clips/*` plus a `!`
-  exception per clip — currently `synthfight` and the three real fights). A
-  git-connected build only sees committed files, so any new clip you want on the
-  public site needs its own exception.
+- **Clips are NOT committed and NOT in the bundle.** `.gitignore` is `clips/*` with one
+  exception, `!clips/*.source.json` — tiny, not video, and without it `transcribe.py`
+  cannot slice a source video's captions to a clip's window ever again. `.vercelignore`
+  excludes `clips/` outright. A new clip goes to the **bucket**, not to git:
+  upload it to `gameover-clips`, and `clipUrl()` finds it with no code change at all.
+- **`"buildCommand": "bash scripts/check_no_video.sh"`** fails the deploy if any video
+  reaches the bundle, and **`"outputDirectory": "."`** is what keeps a static deploy
+  static once a `buildCommand` exists. Neither is optional; see the note at the top of
+  this file for why the second one is there.
 
-Pushing to `main` on the private GitHub repo auto-deploys. If a shared link ever
+Pushing to `main` on the **public** GitHub repo auto-deploys. If a shared link ever
 returns **401**, it is Vercel Deployment Protection, not your code — turn it off under
-Project → Settings → Deployment Protection.
+Project → Settings → Deployment Protection. Note previews are protected while
+production is not, so an anonymous check of a preview URL returns `302` to SSO and
+tells you nothing about whether the deploy is healthy.
+
+### Where the clips actually live
+
+Cloudflare R2, bucket `gameover-clips`, served at `https://clips.gameover.fyi`.
+`frontend/config.js` is the only place that names it. Facts worth not rediscovering:
+
+- **DNS is Cloudflare; the registrar is Porkbun.** Only the nameservers moved. Adding
+  the site to Cloudflare **imports the registrar's existing records**, and Porkbun's
+  defaults are actively harmful here — a parking `ALIAS`/`A`, a `www` CNAME, and a
+  `*` wildcard that made `clips.gameover.fyi` resolve to a parking page and blocked the
+  bucket binding outright, plus MX/SPF that conflict with Email Routing. The zone has to
+  be emptied before anything is added to it.
+- **A stale parking IP outlives the change.** For a while after the cutover
+  `clips.gameover.fyi` still resolved to Porkbun's `207.207.210.107` from cache, which
+  has no cert for that hostname — so the TLS handshake fails, the `<video>` element
+  errors, `fallbackClock()` fires, and the HUD shows "DEMO ARENA — no clip loaded".
+  That is a caching artifact, not a broken deploy. Check `dig +short @1.1.1.1` before
+  believing a local failure.
+- **`abuse@gameover.fyi` is Cloudflare Email Routing**, forwarding to a personal inbox.
+  The routing API installs its own MX/SPF/DKIM records — don't hand-write them.
+- **The bucket is in a personal Cloudflare account**, not the project-specific one
+  COMPLIANCE.md asks for. Recorded here because it is the live deviation, and because
+  abuse enforcement lands on the account rather than the bucket.
 
 ### Local dev server
 
-Still the fastest loop for editing the HUD, and unaffected by any of the above:
+Still the fastest loop for editing the HUD:
 
 ```bash
 python3 backend/serve.py     # -> http://localhost:40911/frontend/index.html?clip=synthfight
 ```
+
+**But it now pulls video over the network**, because `CLIP_BASE` points at R2 for every
+environment — there is one config file and it is committed. `http://localhost:40911` is
+in the bucket's CORS policy for that reason. Offline, the page falls back to the
+placeholder arena and the rAF clock, which exercises none of the video sync; point
+`CLIP_BASE` back at `../clips` locally if you need the real path without a connection
+(the files are still on disk, just gitignored — **do not commit that change**).
 
 - **Run the server from a human terminal, not from a Claude Code background task.**
   Agent-spawned processes get cleaned up between sessions; yours survives, and the
@@ -1166,9 +1223,10 @@ python3 backend/serve.py     # -> http://localhost:40911/frontend/index.html?cli
 - **No `?clip=` defaults to `madcatter-tombstone`**, so a bare URL is a working share
   link that opens on a real fight. The title card carries a fight picker built from the
   `FIGHTS` array in `index.html`; each button just navigates to `?clip=<slug>`, so
-  adding a clip is a one-line change. Any clip in that array must be committed (see the
-  `.gitignore` `!` exceptions) or the public site will 404 it. `synthfight` is still
-  reachable at `?clip=synthfight`.
+  adding a clip is a one-line change. Any clip in that array must exist in the **R2
+  bucket** (`gameover-clips`) or the public site will 404 it — it is no longer a git
+  question, and a clip added to `clips/` on disk is now invisible to the deploy.
+  `synthfight` is still reachable at `?clip=synthfight`.
 - **A clip's slug is not its arena order.** `jackpot-copperhead` fights *Copperhead* on
   the left. The picker therefore labels each button from that clip's `bots` and only
   falls back to the slug if the timeline fetch fails — don't "simplify" it back to

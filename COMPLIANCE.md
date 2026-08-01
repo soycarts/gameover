@@ -164,7 +164,7 @@ Re-run the audit rather than trusting this list once anything moves.
 |---|---|
 | No monetization | No ads, affiliate links, donation button, paid tier or crypto. |
 | No accounts / paywall / email capture | The only input is the era B URL box, which posts nowhere. |
-| No usernames stored or displayed | `crowd.author_hash()` salts and truncates at scrape time; the plaintext never enters a record. `backend/scrub_authors.py` migrated the 57 already committed. The UI credits `r/battlebots` on both render paths. **Git history still holds the old names** — see below. |
+| No usernames stored or displayed | `crowd.author_hash()` salts and truncates at scrape time; the plaintext never enters a record. `backend/scrub_authors.py` migrated the 57 already committed. The UI credits `r/battlebots` on both render paths. Git history was scrubbed by `filter-repo` and garbage-collected by GitHub — see *Closed*, item 2. |
 | Salt held outside the repo | `GAMEOVER_AUTHOR_SALT` in `.env`, which is gitignored *and* vercelignored. `author_hash()` refuses to run without it rather than emitting a reversible hash. |
 | noindex / nofollow | On all three pages, plus `googlebot`. |
 | `robots.txt` with `Disallow: /` | At the deploy root. No sitemap. |
@@ -177,73 +177,113 @@ Re-run the audit rather than trusting this list once anything moves.
 | Kill switch | `scripts/killswitch.sh off` — verified to round-trip and restore the config exactly. It is a rewrite, not an env var; see the script for why a static deploy cannot have one without gaining a build step. |
 | `scripts/teardown.sh` | Written. **Never run against a real bucket, because there isn't one yet.** Defaults to `--dry-run`. |
 | Single `CLIP_BASE_URL` | `frontend/config.js`, read through `clipUrl()`. Every clip asset — video and `source.json` — resolves through it. |
-| No-video build check | `scripts/check_no_video.sh`, and its `.vercelignore` prune logic is verified both ways. **Deliberately not wired in: it fails today, correctly.** |
+| No-video build check | `scripts/check_no_video.sh`, wired into `vercel.json` as `buildCommand` and passing. Needs `"outputDirectory": "."` beside it, or `buildCommand` puts Vercel into build mode and it fails the deploy looking for `public/`. |
 | Licence covers code only | Note appended to `LICENSE` disclaiming any rights in third-party media or marks. |
-| README states the input policy | Says the pipeline expects your own inputs, and flags the committed clips as the exception being removed. |
+| README states the input policy | Says the pipeline expects your own inputs, and states that no video is committed or in git history. |
 | Scraper separated from analytics | `ingest.py` / `scrape_comments.py` / `crowd.py` are separate from `analyze.py` and the frontend. |
 | Analytics survive a clip takedown | Already true and now load-bearing: `?demo=1` and a missing clip both fall back to the rAF clock, so the HUD, the timeline and the crowd card run with no video at all. |
 
+## Closed
+
+### 1. The clips are off git and off the deployment — done
+
+The four clips live in Cloudflare R2 (`gameover-clips`) behind `clips.gameover.fyi`.
+`.gitignore` has no `!` exception for `*.mp4`, `.vercelignore` excludes `clips/`, and
+`check_no_video.sh` runs as `buildCommand` — verified: `/clips/*.mp4` returns 404 on the
+live site and 206 from R2.
+
+Ran in the mandated order — bucket → upload → `CLIP_BASE` → ignore rules — and the order
+really was load-bearing. Notes for anyone moving storage again:
+
+- Uploads were verified by **MD5 against the local files**, not by trusting HTTP 200.
+- CORS matters more than it looks. A plain `<video src>` needs none, but `sourceLink()`
+  `fetch`es `<clip>.source.json` and **swallows failures**, so a CORS mistake removes the
+  attribution link with no error anywhere. The policy names `gameover.fyi`,
+  `gameover-nine.vercel.app` and `localhost:40911`; a new origin must be added.
+- Wiring `check_no_video.sh` into `buildCommand` **broke the deploy** until
+  `"outputDirectory": "."` was added — `buildCommand` switches Vercel out of zero-config
+  static mode and it then demands a `public/` directory. Caught on a preview.
+- Git is no longer a backup. R2 and local disk are the only copies, plus
+  `clips/.raw/` for re-cutting.
+
+**Deviation, recorded rather than resolved:** the bucket is in a personal Cloudflare
+account, not one created under a project-specific email as *Required architecture* asks.
+Abuse enforcement lands on the account, so this is the live gap in the separation.
+
+### 2. Git history is scrubbed — done
+
+Two `git filter-repo` passes, force-pushed, each verified from a **fresh clone of
+GitHub** rather than from the local repo:
+
+- **Usernames** — 37 distinct handles across 9 commits, redacted in place. This also
+  caught one the audit had missed: `CLAUDE.md`'s comments-schema example carried a real
+  handle in the *working tree*, on a file `.vercelignore` keeps off the site but GitHub
+  serves anyway. The example was stale as well as leaky — records carry the opaque `by`
+  token — so it was corrected rather than merely masked.
+- **Clips** — 6 `.mp4` blobs removed; the repo went 27M → 872K. `.source.json` kept.
+
+Both passes left every file at HEAD byte-identical, and all 88 commits intact.
+
+**A force-push does not delete anything by itself.** Pre-rewrite commits stayed fetchable
+by direct SHA — verified, not assumed — until GitHub Support ran garbage collection on
+request. That request has been sent and actioned. Anyone who cloned earlier still has
+everything; there were 0 forks and 0 PRs, which is the only reason the GC was effective.
+
+### 3. Domain and takedown route are real — done
+
+`gameover.fyi` is registered at Porkbun with DNS on Cloudflare. The apex serves the site
+via Vercel (`A 76.76.21.21`, **DNS-only** — proxying it causes redirect loops),
+`clips.gameover.fyi` serves the bucket, and `abuse@gameover.fyi` forwards to a monitored
+inbox via Cloudflare Email Routing.
+
+Two traps worth recording: adding a site to Cloudflare **imports the registrar's existing
+DNS records**, and Porkbun's defaults include a `*` wildcard that pointed
+`clips.gameover.fyi` at a parking page and blocked the bucket binding outright — the zone
+must be emptied first. And the old parking IP survives in resolver caches long enough to
+look like a broken deploy: no cert for the hostname, so TLS fails and the HUD shows
+"DEMO ARENA — no clip loaded".
+
 ## Does not hold
 
-### 1. Four clips are committed to git and served by Vercel — 26 MB
-
-Unchanged, and still the central conflict. `.gitignore` is `clips/*` plus a `!` exception
-per clip, and `CLAUDE.md` documents this as **required** for a git-connected build. This
-breaks hard rule 3 and the whole *Deployment and hosting separation* section.
-
-**Everything needed to fix it is now in place except the bucket.** `CLIP_BASE_URL` is
-plumbed, the teardown script is written, the build check is written and verified. The
-remaining steps need credentials and account creation, which is not something an agent
-should be doing on your behalf:
-
-1. Create the Cloudflare R2 account under a project-specific email, and a bucket.
-2. Upload the four clips and the `.source.json` files.
-3. Point `clips.gameover.fyi` at the bucket.
-4. Set `CLIP_BASE` in `frontend/config.js` to that host.
-5. **Only then**: drop the `!` exceptions, add `*.mp4` etc. to `.gitignore`, add
-   `clips/` to `.vercelignore`, and wire `check_no_video.sh` into `buildCommand`.
-
-Doing 5 before 4 takes the site down. Order matters.
-
-### 2. Git history still holds the 57 usernames
-
-The working tree is clean and every future scrape hashes at source, but
-`git log -p comments/` still shows the names, and the repo is on GitHub. Scrubbing that
-needs a `git filter-repo` pass over every commit touching `comments/`, which rewrites
-every hash on the branch and requires a force-push. Worth doing before the repo is ever
-made public; not worth doing silently.
-
-The same is true of the clips: removing them from the tree will not remove them from
-history.
-
-### 3. `created_utc` is not stored on comment records
+### 4. `created_utc` is not stored on comment records
 
 The spec lists it. The pool carries `id`, `url`, `score`, `text` and the derived labels
 but no timestamp, and adding one means re-scraping — Bright Data spend, and a re-scrape
 can return a *worse* pool, which the zero-rows guard does not catch. Left as-is
 deliberately; it is the least consequential item on this page.
 
-### 4. Contact addresses and the domain are aspirational
+### 5. The storage account is personal, not project-specific
 
-`abuse@gameover.fyi` is written into the pages, the README and this file, but the domain
-is not registered and the mailbox does not exist. **A takedown route that bounces is
-worse than none**, so this is the one item to close before anything is shared publicly —
-ahead of the clip migration, because it is cheap and it is what the outreach sequencing
-depends on.
+*Required architecture* asks for an account "created with a project-specific email and
+used for nothing else", and *Contacts* asks for the storage account to be registered to
+`abuse@gameover.fyi`. The R2 bucket is instead in a personal Cloudflare account that
+predates this project. The bucket, the DNS and the mail routing all sit there.
+
+This is the one structural rule on this page that is knowingly unmet. It matters because
+enforcement — an abuse complaint, a suspension — attaches to the **account**, not the
+bucket, so the blast radius includes everything else in it. Moving it later means a new
+account, a new bucket, a re-upload and a DNS change; buckets do not transfer.
+
+### 6. Operational tidy-ups
+
+- The Cloudflare API token has 363 permission groups and no expiry, and lives in `.env`.
+  It should be narrowed to R2 + this one zone, with an expiry.
+- `scripts/teardown.sh` has a real bucket to point at now but **has still never been run
+  against it**. Verify it on a calm day, not the day you need it.
 
 ## The honest summary
 
-Every rule that could be satisfied by code is satisfied. What remains needs an account,
-a domain, or a history rewrite — decisions with money or irreversibility attached, which
-is the right place for an implementation pass to stop.
+Every rule that could be satisfied by code is satisfied, and the three that needed an
+account, a domain or a history rewrite have now been done: the footage is off git and off
+the deployment, the history is scrubbed and garbage-collected, and the takedown route
+resolves to a monitored inbox.
 
-Two of the four are blockers for going public, in this order:
+What remains is one deliberate deferral (`created_utc`), one knowing structural deviation
+(a personal storage account), and two tidy-ups.
 
-1. **Register the domain and the mailbox.** Cheap, fast, and everything else assumes it.
-2. **Move the clips to R2.** The rest of the work for this is already done.
-3. Scrub git history, if the repo is ever to be public.
-4. `created_utc`, if a re-scrape happens anyway for another reason.
-
-None of this is legal advice, and the note above the line applies to the audit as much
-as to the checklist: ticking every box leaves the core exposure from self-hosting the
-footage exactly where it was.
+The caveat this page opened with is unchanged, and none of the above softens it: **none
+of this is legal advice, and ticking every box leaves the core exposure from self-hosting
+the footage exactly where it was.** What changed is where the bytes are served from, how
+fast they can be pulled down — `scripts/teardown.sh` for the bucket,
+`scripts/killswitch.sh off` for the UI, and both are needed, since either alone leaves
+half the site standing — and that a complainant now has a working address to write to.
