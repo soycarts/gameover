@@ -1317,13 +1317,17 @@ placeholder arena and the rAF clock, which exercises none of the video sync; poi
 - **The fight card is the primary source, and it is PINNED.** `FIGHT_CARD` in
   `scrape_comments.py` maps each Era A clip to its episode's pre-fight thread
   (all three demo clips are r/battlebots `1up1lxt`, Pro League Episode 2);
-  `--post-url` does the same for Era B. Discovery can only ever find posts
-  written *after* the fight, so predictions are unreachable without this — and
-  discovery is a lottery that already lost: a keyword run for "mad catter
-  tombstone" returned 14 rows of "Season 7 Rumor Mill" and 8 from a two-year-old
-  SawBlaze fight, and nothing from the episode. Discovery stays on as the
-  secondary pool for reactions, wrapped so a timeout can never cost the pinned
-  pull. **A scrape that returns zero rows refuses to overwrite an existing
+  `--post-url` does the same for Era B. **This file used to claim discovery "can
+  only ever find posts written after the fight", and that is false** — a fight
+  card thread is itself a pre-fight post, and discovery reaches pre-fight comments
+  on all three demo clips (11 on manta, 7 on madcatter, 1 on jackpot, against
+  14/15/8 from the pinned pull). The real reason to pin is yield and reliability,
+  not reachability: discovery is a lottery that already lost, a keyword run for
+  "mad catter tombstone" returning 14 rows of "Season 7 Rumor Mill" and 8 from a
+  two-year-old SawBlaze fight and nothing from the episode. The pinned thread is
+  the one place the crowd is reliably on record predicting, and it yields the same
+  comments every run. Discovery stays on as the secondary pool for reactions,
+  wrapped so a timeout can never cost the pinned pull. **A scrape that returns zero rows refuses to overwrite an existing
   file** — the committed timelines reference these exact strings by text.
 - **One comment covers three fights, so route it, don't drop it.**
   `focus_segment()` in `crowd.py` picks the longest span of a comment that names

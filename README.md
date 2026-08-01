@@ -53,17 +53,27 @@ and they are not the same problem.
 | **Discovery** | Reddit — Posts (`discover_by=subreddit_url`) | everything written *about* the fight afterwards |
 
 **The pinned thread is the primary source, and this is the design decision the whole
-crowd layer rests on.** Discovery — by definition — can only find posts that already
-exist. Every post about a fight is written *after* it. So a discovery-only pipeline can
-never surface a **prediction**, and predictions are the most interesting thing the
-crowd produces: they are the only comments where the audience is wrong on record.
+crowd layer rests on.** Predictions are the most interesting thing a crowd produces —
+the only comments where the audience is wrong on record — and they live in the episode's
+pre-fight card thread. So `FIGHT_CARD` pins each clip to that thread and expands it with
+the Comments dataset.
 
-The HUD's pre-fight `CROWD CALL` panel — *"As much as Skorpios is my goat, Manta is
-going to kick their ass"* against *"Skorpios over manta is some serious copium"*, with
-a percentage split — exists only because `FIGHT_CARD` pins each clip to its episode's
-fight-card thread and expands it with the Comments dataset. Discovery stays on as the
-secondary pool for reactions, wrapped so a timeout on it can never cost the pinned
-pull.
+Not because discovery *can't* reach pre-fight comments. It can, and does — on these
+three clips it contributed 11, 7 and 1 of them. The reason is **yield and reliability**:
+
+| clip | pre-fight comments, pinned | from discovery |
+|---|---|---|
+| `manta-skorpios` | 14 | 11 |
+| `madcatter-tombstone` | 15 | 7 |
+| `jackpot-copperhead` | 8 | 1 |
+
+The pinned pull returns the same thread every run. Discovery is a lottery that has
+already lost once: a keyword run for *"mad catter tombstone"* came back with 14 rows of
+"Season 7 Rumor Mill" and 8 from a two-year-old SawBlaze fight, and nothing from the
+episode at all. Pinning is what makes the `CROWD CALL` panel — *"As much as Skorpios is
+my goat, Manta is going to kick their ass"* against *"Skorpios over manta is some
+serious copium"*, split 10–4 — reliable rather than lucky. Discovery stays on as the
+secondary pool for reactions, wrapped so a timeout on it can never cost the pinned pull.
 
 ### Scoping, and a failure worth naming
 

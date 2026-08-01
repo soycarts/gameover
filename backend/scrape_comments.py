@@ -19,10 +19,14 @@ threads via Bright Data, routes each comment to this matchup, and normalises to
 records carrying text, an opaque author token, score, thread ids and a
 cached prediction label.
 
-The PRIMARY source is the fight card — see FIGHT_CARD below. Keyword discovery
-can only ever find posts written after the fight; a fight card is where the crowd
-says who they think will win, which is the one thing a post-hoc search can never
-surface.
+The PRIMARY source is the fight card — see FIGHT_CARD below — because that thread
+is where the crowd says who they think will win, and discovery does not reliably
+find it. NOT because discovery cannot reach pre-fight comments: it demonstrably
+does, contributing 11, 7 and 1 of them on the three demo clips. It is a lottery,
+not a blind spot. A keyword run for "mad catter tombstone" returned 14 rows of
+"Season 7 Rumor Mill" and 8 from a two-year-old SawBlaze fight and nothing from
+the episode, while the pinned thread yields 14/15/8 pre-fight comments every
+time. Pinning is what makes the crowd call reliable rather than lucky.
 
 If the live call misbehaves, the ONLY function you should need to touch is
 brightdata_adapter() below — see the ADAPTER banner. Everything about the text
