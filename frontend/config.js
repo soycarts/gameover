@@ -8,18 +8,19 @@
  * break an architectural constraint in CLAUDE.md for no gain. One file, one
  * line, one edit: the property the doc is actually asking for.
  *
- * TODAY it points at the committed clips, which is the arrangement COMPLIANCE.md
- * item 1 exists to end: the bytes are in git and served by Vercel. When they move
- * to R2, this becomes
+ * It now points at the R2 bucket, which is what COMPLIANCE.md item 1 asked for:
+ * the bytes are served by Cloudflare, not by the deployment. Nothing else in the
+ * frontend changed to get here — this one line is the whole switch, which is the
+ * property the single-CLIP_BASE_URL rule exists to buy.
  *
- *     CLIP_BASE: 'https://clips.gameover.fyi'
- *
- * and NOTHING else in the frontend changes. Only after that can *.mp4 enter
- * .gitignore — doing it in the other order takes the site down, because a
- * git-connected build only sees committed files.
+ * The clips are STILL committed and still inside the Vercel bundle at this point,
+ * so reverting this line restores the old arrangement exactly. That safety net
+ * disappears at the next step: *.mp4 entering .gitignore and clips/ entering
+ * .vercelignore. Doing THAT before this line was flipped would have taken the
+ * site down, because a git-connected build only sees committed files.
  *
  * Trailing slash is normalised away by clipUrl(), so either form is safe here.
  */
 window.GAMEOVER_CONFIG = {
-  CLIP_BASE: '../clips',
+  CLIP_BASE: 'https://clips.gameover.fyi',
 };
