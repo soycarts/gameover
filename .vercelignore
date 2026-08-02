@@ -18,8 +18,9 @@ transcripts/
 comments/.titles-backup/
 backend/
 CLAUDE.md
-# Submission copy — internal positioning notes, including a section addressed to
-# whoever posts it. Belongs in the repo, not served at /SUBMISSION.md.
+# Submission copy — removed from the repo 2026-08-02, but an UNTRACKED local copy
+# may exist in the working tree, and .vercelignore governs what a CLI
+# `vercel --prod` uploads regardless of git. The entry stays as insurance.
 SUBMISSION.md
 # Same reason as CLAUDE.md: internal notes, served as readable plaintext at
 # /HANDOVER.md to anyone who guesses the path. It names the winner of every clip.
