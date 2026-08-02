@@ -1,12 +1,22 @@
 # COMPLIANCE.md, "Search visibility": the goal is discoverable by people you send
 # here, not by people searching for BattleBots. There is no sitemap on purpose.
 #
-# The one exception: Reddit's preview crawler. It respects robots.txt, so the
-# blanket Disallow also blanked the link preview on the very post the site is
-# shared through — the og:image COMPLIANCE.md explicitly permits. redditbot is
-# not a search engine, and every page still carries noindex/nofollow meta as the
-# second layer, so the search-visibility goal is unchanged.
+# The one exception: link-preview crawlers. They respect robots.txt, so the
+# blanket Disallow also blanked the link preview on the very posts the site is
+# shared through — the og:image COMPLIANCE.md explicitly permits. None of these
+# are search engines, and every page still carries noindex/nofollow meta as the
+# second layer, so the search-visibility goal is unchanged. facebookexternalhit
+# is also what renders Instagram DM/story link cards.
 User-agent: redditbot
+Allow: /
+
+User-agent: Twitterbot
+Allow: /
+
+User-agent: LinkedInBot
+Allow: /
+
+User-agent: facebookexternalhit
 Allow: /
 
 User-agent: *
