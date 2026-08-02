@@ -9,6 +9,15 @@
      feed. A plain og:image of our own UI would be fine to add. -->
 <meta name="robots" content="noindex, nofollow">
 <meta name="googlebot" content="noindex, nofollow">
+<!-- og:image must be an ABSOLUTE URL: crawlers resolve it against the shared /,
+     where a relative path would 404 for the same rewrite reason as sprites.js.
+     og.png is a 1200x630 headless capture of this page's own title card. -->
+<meta property="og:title" content="GAMEOVER">
+<meta property="og:description" content="Real robot-combat footage rendered as a retro arcade fighting game. A vision model rates every blow; r/battlebots is the crowd. Unaffiliated fan project.">
+<meta property="og:image" content="https://gameover.fyi/frontend/og.png">
+<meta property="og:url" content="https://gameover.fyi/">
+<meta property="og:type" content="website">
+<meta name="twitter:card" content="summary_large_image">
 <!-- The tab icon is the health core's own robot head, generated from PX_MAP below
      rather than drawn a second time — the two must not drift. `../frontend/`, not
      the bare filename, for the rewrite reason spelled out under the stylesheet.

@@ -19,7 +19,7 @@ comments/.titles-backup/
 backend/
 CLAUDE.md
 # Submission copy — internal positioning notes, including a section addressed to
-whoever posts it. Belongs in the repo, not served at /SUBMISSION.md.
+# whoever posts it. Belongs in the repo, not served at /SUBMISSION.md.
 SUBMISSION.md
 # Same reason as CLAUDE.md: internal notes, served as readable plaintext at
 # /HANDOVER.md to anyone who guesses the path. It names the winner of every clip.
